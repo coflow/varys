@@ -1,0 +1,3 @@
+#!/bin/sh
+
+for p in `ps aux | grep -i Varys | awk '{print $2}'`; do kill -9 $p 2> /dev/null ; done

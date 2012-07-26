@@ -1,0 +1,38 @@
+<project name="varys" default="varys" basedir=".">
+
+  <description>Varys: The Spider</description>
+
+  <property name="src" location="src" />
+  <property name="gen" location="gen-java" />
+  <property name="build" location="build" />
+
+  <path id="libs.classpath">
+    <fileset dir="lib">
+      <include name="*.jar" />
+    </fileset>
+  </path>
+  <path id="build.classpath">
+    <path refid="libs.classpath" />
+    <pathelement path="${gen}" />
+  </path>
+
+  <target name="init">
+    <tstamp />
+    <mkdir dir="${build}"/>
+  </target>
+
+  <target name="compile" depends="init">
+    <javac srcdir="${gen}" destdir="${build}" includeantruntime="false" classpathref="libs.classpath" />
+    <javac srcdir="${src}" destdir="${build}" includeantruntime="false" classpathref="build.classpath" />
+  </target>
+
+  <target name="varys" depends="compile">
+    <jar jarfile="varys.jar" basedir="${build}"/>
+  </target>
+
+  <target name="clean">
+    <delete dir="${build}" />
+    <delete file="varys.jar" />
+  </target>
+
+</project>

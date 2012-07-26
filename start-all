@@ -1,0 +1,16 @@
+#!/bin/bash
+
+VARYS_PATH=`pwd`
+
+SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=2"
+
+SLAVES=$VARYS_PATH/slaves
+
+# Start master
+$VARYS_PATH/start-master
+
+# Start slaves
+for peer in `cat $SLAVES`; do
+  echo $peer
+  screen -dmS "start-slave-$peer" ssh -t $SSH_OPTS $peer "cd $VARYS_PATH;./start-slave"
+done

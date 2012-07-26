@@ -1,6 +1,8 @@
+*~
+*.lock
+*.DS_Store
+*.swp
+*.out
 *.class
-
-# Package Files #
-*.jar
-*.war
-*.ear
+build/
+varys.jar
