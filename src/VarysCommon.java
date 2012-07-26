@@ -5,10 +5,14 @@ import java.net.*;
 import java.util.*;
 
 public class VarysCommon {
-  public static final String MASTERS_FILENAME = "masters";
+  public static final String CONFIG_DIR = "conf";
+  
+  public static final String MASTERS_FILENAME = CONFIG_DIR + "/masters";
   public static final int MASTER_PORT = 1606;
   
   public static final long SLEEP_INTERVAL_SEC = 1;
+  
+  public static final String PATH_TO_PROPERTIES_FILE = CONFIG_DIR + "/varys.properties";
 
   public static String getMasterHostname() throws Exception{
     FileInputStream fstream = new FileInputStream(MASTERS_FILENAME);
@@ -59,7 +63,7 @@ public class VarysCommon {
   public static Properties loadProperties() {
     Properties properties = new Properties();
     try {
-      FileInputStream in = new FileInputStream("varys.properties");
+      FileInputStream in = new FileInputStream(PATH_TO_PROPERTIES_FILE);
       properties.load(in);
       in.close();
     } catch (Exception e) {

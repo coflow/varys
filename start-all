@@ -4,7 +4,7 @@ VARYS_PATH=`pwd`
 
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=2"
 
-SLAVES=$VARYS_PATH/slaves
+SLAVES=$VARYS_PATH/conf/slaves
 
 # Start master
 $VARYS_PATH/start-master
