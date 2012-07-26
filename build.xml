@@ -3,8 +3,9 @@
   <description>Varys: The Spider</description>
 
   <property name="src" location="src" />
-  <property name="gen" location="thrift/gen-java" />
   <property name="build" location="build" />
+  <property name="thriftsrc" location="thrift" />
+  <property name="gen" location="${thriftsrc}/gen-java" />
 
   <path id="libs.classpath">
     <fileset dir="lib">
@@ -21,7 +22,14 @@
     <mkdir dir="${build}"/>
   </target>
 
-  <target name="compile" depends="init">
+  <target name="comp-thrift">
+    <echo>Executing thrift (which must be in your path) to build java Varys APIs</echo>
+    <exec executable="thrift"  failonerror="true" dir=".">
+      <arg line="--gen java -o ${thriftsrc} ${thriftsrc}/varys.thrift " />
+    </exec>
+  </target>
+
+  <target name="compile" depends="init, comp-thrift">
     <javac srcdir="${gen}" destdir="${build}" includeantruntime="false" classpathref="libs.classpath" />
     <javac srcdir="${src}" destdir="${build}" includeantruntime="false" classpathref="build.classpath" />
   </target>
@@ -31,6 +39,7 @@
   </target>
 
   <target name="clean">
+    <delete dir="${gen}" />
     <delete dir="${build}" />
     <delete file="varys.jar" />
   </target>
