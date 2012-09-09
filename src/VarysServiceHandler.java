@@ -11,6 +11,39 @@ public class VarysServiceHandler implements VarysService.Iface {
 
   public VarysServiceHandler() {
     clusterStat = Collections.synchronizedMap(new HashMap<String, MachineStat>());
+    keepPrintingNetworkStats();
+  }
+
+  private void keepPrintingNetworkStats() {
+    Thread t = new Thread (
+      new Runnable() {
+        @Override 
+        public void run() {
+          while (true) {
+            try {
+              Thread.sleep(1000);
+            } catch (Exception e) {
+              e.printStackTrace();
+            }
+            
+            double rx[] = new double[clusterStat.size()];
+            double tx[] = new double[clusterStat.size()];
+            int index = 0;
+            for (MachineStat ms: clusterStat.values()) {
+              // System.out.println(ms.hostname + ":\tRxBps = " + ms.rx_bps + "\tTxBps = " + ms.tx_bps);
+              rx[index] = ms.rx_bps;
+              tx[index] = ms.tx_bps;
+              index++;
+            }
+            System.out.printf("RX| AVG= %12.2f STDEV= %12.2f COVAR= %12.2f |TX| AVG= %12.2f STDEV= %12.2f COVAR= %12.2f\n", 
+              VarysCommon.average(rx), VarysCommon.stdev(rx), VarysCommon.covar(rx),
+              VarysCommon.average(tx), VarysCommon.stdev(tx), VarysCommon.covar(tx));
+          }
+        }
+      }
+    );
+    t.setDaemon(true);
+    t.start();
   }
 
   @Override
@@ -45,7 +78,7 @@ public class VarysServiceHandler implements VarysService.Iface {
       });
       for (int i = 0; i < numMachines && i < machineStats.size(); i++) {
         retVal.add(machineStats.get(i).hostname);
-        System.out.println(machineStats.get(i).hostname + " = " + machineStats.get(i).tx_bps);
+        // System.out.println(machineStats.get(i).hostname + " = " + machineStats.get(i).tx_bps);
         adjustTxBps(machineStats.get(i).hostname, avgTxBytes);
       }
     }

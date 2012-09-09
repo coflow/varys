@@ -74,4 +74,29 @@ public class VarysCommon {
     return properties;
   }
   
+  public static double sum(double[] array) {
+    double sum = 0.0;
+    for (int i = 0; i < array.length; i++) {
+      sum += array[i];
+    }
+    return sum;
+  }
+  
+  public static double average(double[] arr) {
+    return sum(arr) /arr.length;
+  }
+  
+  public static double stdev(double[] arr) {
+    double std = 0.0;
+    double avg = average(arr);
+    for (double d: arr) {
+      std += (d * d);
+    }
+    return Math.sqrt((std / arr.length) - (avg * avg));
+  }
+  
+  public static double covar(double[] arr) {
+    double avg = average(arr);
+    return (avg > 0) ? (stdev(arr) / average(arr)) : 0;
+  }
 }
