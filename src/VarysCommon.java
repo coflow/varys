@@ -14,6 +14,8 @@ public class VarysCommon {
   
   public static final String PATH_TO_PROPERTIES_FILE = CONFIG_DIR + "/varys.properties";
 
+  public static String cmdToGetPublicName = "curl http://169.254.169.254/latest/meta-data/public-hostname";
+
   public static String getMasterHostname() throws Exception{
     FileInputStream fstream = new FileInputStream(MASTERS_FILENAME);
     DataInputStream in = new DataInputStream(fstream);
@@ -35,7 +37,8 @@ public class VarysCommon {
   public static String getLocalHostname() {
     String retVal = null;
     try {
-      retVal = InetAddress.getLocalHost().getHostName();
+      // retVal = InetAddress.getLocalHost().getHostName();
+      retVal = getValueFromCommandLine(cmdToGetPublicName);
     } catch (Exception e) {
       e.printStackTrace();
     }

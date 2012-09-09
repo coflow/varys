@@ -53,24 +53,24 @@ public class VarysGetMachines {
   public static void main(String[] args) {
     
     if (args.length < 2) {
-      System.err.println("Usage: VarysGetMachines <numMachines> <avgTxBytes>");
+      System.err.println("Usage: VarysGetMachines <numMachines> <avgTxMegaBytes>");
       System.exit(1);
     }
     
     int numMachines = Integer.parseInt(args[0]);
-    double avgTxBytes = Double.parseDouble(args[1]);
+    double avgTxBytes = Double.parseDouble(args[1]) * 1024.0 * 1024.0;
     
     VarysGetMachines gm = new VarysGetMachines();
     List<String> machines = gm.getMachines(numMachines, avgTxBytes);
     
-    System.out.print("#");
+    System.out.print("X");
     for (int i = 0; i < machines.size(); i++) {
       System.out.print(machines.get(i));
       if (i + 1 < machines.size()) {
         System.out.print("/");
       }
     }
-    System.out.println("#");
+    System.out.println("X");
   }
   
 }
