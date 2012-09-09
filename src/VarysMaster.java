@@ -6,7 +6,7 @@ import org.apache.thrift.server.TServer;
 import org.apache.thrift.server.TServer.Args;
 import org.apache.thrift.server.TThreadPoolServer;
 
-public class VarysServer {
+public class VarysMaster {
 
   public static void StartThreadedServer(VarysService.Processor<VarysServiceHandler> processor) {
     try {

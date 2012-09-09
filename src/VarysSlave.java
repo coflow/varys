@@ -10,7 +10,7 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
-public class VarysClient {
+public class VarysSlave {
 
   int masterPort = -1;
   String masterHostname = null;
@@ -21,7 +21,7 @@ public class VarysClient {
   String commandToGetRxBytes = null;
   String commandToGetTxBytes = null;
   
-  public VarysClient() {
+  public VarysSlave() {
     // Load properties
     Properties props = VarysCommon.loadProperties();
 
@@ -84,11 +84,11 @@ public class VarysClient {
     lastRxBytes = curRxBytes;
     lastTxBytes = curTxBytes;
     
-    return new MachineStat(rxBps, txBps);
+    return new MachineStat(VarysCommon.getLocalHostname(), rxBps, txBps);
   }
   
   public static void main(String[] args) {
-    VarysClient vc = new VarysClient();
+    VarysSlave vc = new VarysSlave();
     vc.start();
   }
   

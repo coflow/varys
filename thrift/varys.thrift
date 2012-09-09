@@ -19,12 +19,14 @@
 namespace java varys
 
 struct MachineStat {
-  1: double rx_bps,
-  2: double tx_bps
+  1: string hostname
+  2: double rx_bps,
+  3: double tx_bps
 }
 
 service VarysService {
   void putOne(1:string hostname, 2:MachineStat machineStat),
   map<string, MachineStat> getAll(),
+  list<string> getMachines(1:i32 numMachines, 2:double avgTxBps)
 }
 

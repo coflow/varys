@@ -30,8 +30,9 @@ import org.slf4j.LoggerFactory;
 public class MachineStat implements org.apache.thrift.TBase<MachineStat, MachineStat._Fields>, java.io.Serializable, Cloneable {
   private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("MachineStat");
 
-  private static final org.apache.thrift.protocol.TField RX_BPS_FIELD_DESC = new org.apache.thrift.protocol.TField("rx_bps", org.apache.thrift.protocol.TType.DOUBLE, (short)1);
-  private static final org.apache.thrift.protocol.TField TX_BPS_FIELD_DESC = new org.apache.thrift.protocol.TField("tx_bps", org.apache.thrift.protocol.TType.DOUBLE, (short)2);
+  private static final org.apache.thrift.protocol.TField HOSTNAME_FIELD_DESC = new org.apache.thrift.protocol.TField("hostname", org.apache.thrift.protocol.TType.STRING, (short)1);
+  private static final org.apache.thrift.protocol.TField RX_BPS_FIELD_DESC = new org.apache.thrift.protocol.TField("rx_bps", org.apache.thrift.protocol.TType.DOUBLE, (short)2);
+  private static final org.apache.thrift.protocol.TField TX_BPS_FIELD_DESC = new org.apache.thrift.protocol.TField("tx_bps", org.apache.thrift.protocol.TType.DOUBLE, (short)3);
 
   private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
   static {
@@ -39,13 +40,15 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
     schemes.put(TupleScheme.class, new MachineStatTupleSchemeFactory());
   }
 
+  public String hostname; // required
   public double rx_bps; // required
   public double tx_bps; // required
 
   /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
   public enum _Fields implements org.apache.thrift.TFieldIdEnum {
-    RX_BPS((short)1, "rx_bps"),
-    TX_BPS((short)2, "tx_bps");
+    HOSTNAME((short)1, "hostname"),
+    RX_BPS((short)2, "rx_bps"),
+    TX_BPS((short)3, "tx_bps");
 
     private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -60,9 +63,11 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
      */
     public static _Fields findByThriftId(int fieldId) {
       switch(fieldId) {
-        case 1: // RX_BPS
+        case 1: // HOSTNAME
+          return HOSTNAME;
+        case 2: // RX_BPS
           return RX_BPS;
-        case 2: // TX_BPS
+        case 3: // TX_BPS
           return TX_BPS;
         default:
           return null;
@@ -110,6 +115,8 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
   public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
   static {
     Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+    tmpMap.put(_Fields.HOSTNAME, new org.apache.thrift.meta_data.FieldMetaData("hostname", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+        new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.STRING)));
     tmpMap.put(_Fields.RX_BPS, new org.apache.thrift.meta_data.FieldMetaData("rx_bps", org.apache.thrift.TFieldRequirementType.DEFAULT, 
         new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
     tmpMap.put(_Fields.TX_BPS, new org.apache.thrift.meta_data.FieldMetaData("tx_bps", org.apache.thrift.TFieldRequirementType.DEFAULT, 
@@ -122,10 +129,12 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
   }
 
   public MachineStat(
+    String hostname,
     double rx_bps,
     double tx_bps)
   {
     this();
+    this.hostname = hostname;
     this.rx_bps = rx_bps;
     setRx_bpsIsSet(true);
     this.tx_bps = tx_bps;
@@ -138,6 +147,9 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
   public MachineStat(MachineStat other) {
     __isset_bit_vector.clear();
     __isset_bit_vector.or(other.__isset_bit_vector);
+    if (other.isSetHostname()) {
+      this.hostname = other.hostname;
+    }
     this.rx_bps = other.rx_bps;
     this.tx_bps = other.tx_bps;
   }
@@ -148,10 +160,35 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
 
   @Override
   public void clear() {
+    this.hostname = null;
     setRx_bpsIsSet(false);
     this.rx_bps = 0.0;
     setTx_bpsIsSet(false);
     this.tx_bps = 0.0;
+  }
+
+  public String getHostname() {
+    return this.hostname;
+  }
+
+  public MachineStat setHostname(String hostname) {
+    this.hostname = hostname;
+    return this;
+  }
+
+  public void unsetHostname() {
+    this.hostname = null;
+  }
+
+  /** Returns true if field hostname is set (has been assigned a value) and false otherwise */
+  public boolean isSetHostname() {
+    return this.hostname != null;
+  }
+
+  public void setHostnameIsSet(boolean value) {
+    if (!value) {
+      this.hostname = null;
+    }
   }
 
   public double getRx_bps() {
@@ -202,6 +239,14 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
 
   public void setFieldValue(_Fields field, Object value) {
     switch (field) {
+    case HOSTNAME:
+      if (value == null) {
+        unsetHostname();
+      } else {
+        setHostname((String)value);
+      }
+      break;
+
     case RX_BPS:
       if (value == null) {
         unsetRx_bps();
@@ -223,6 +268,9 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
 
   public Object getFieldValue(_Fields field) {
     switch (field) {
+    case HOSTNAME:
+      return getHostname();
+
     case RX_BPS:
       return Double.valueOf(getRx_bps());
 
@@ -240,6 +288,8 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
     }
 
     switch (field) {
+    case HOSTNAME:
+      return isSetHostname();
     case RX_BPS:
       return isSetRx_bps();
     case TX_BPS:
@@ -260,6 +310,15 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
   public boolean equals(MachineStat that) {
     if (that == null)
       return false;
+
+    boolean this_present_hostname = true && this.isSetHostname();
+    boolean that_present_hostname = true && that.isSetHostname();
+    if (this_present_hostname || that_present_hostname) {
+      if (!(this_present_hostname && that_present_hostname))
+        return false;
+      if (!this.hostname.equals(that.hostname))
+        return false;
+    }
 
     boolean this_present_rx_bps = true;
     boolean that_present_rx_bps = true;
@@ -295,6 +354,16 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
     int lastComparison = 0;
     MachineStat typedOther = (MachineStat)other;
 
+    lastComparison = Boolean.valueOf(isSetHostname()).compareTo(typedOther.isSetHostname());
+    if (lastComparison != 0) {
+      return lastComparison;
+    }
+    if (isSetHostname()) {
+      lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.hostname, typedOther.hostname);
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+    }
     lastComparison = Boolean.valueOf(isSetRx_bps()).compareTo(typedOther.isSetRx_bps());
     if (lastComparison != 0) {
       return lastComparison;
@@ -335,6 +404,14 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
     StringBuilder sb = new StringBuilder("MachineStat(");
     boolean first = true;
 
+    sb.append("hostname:");
+    if (this.hostname == null) {
+      sb.append("null");
+    } else {
+      sb.append(this.hostname);
+    }
+    first = false;
+    if (!first) sb.append(", ");
     sb.append("rx_bps:");
     sb.append(this.rx_bps);
     first = false;
@@ -386,7 +463,15 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
           break;
         }
         switch (schemeField.id) {
-          case 1: // RX_BPS
+          case 1: // HOSTNAME
+            if (schemeField.type == org.apache.thrift.protocol.TType.STRING) {
+              struct.hostname = iprot.readString();
+              struct.setHostnameIsSet(true);
+            } else { 
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+            }
+            break;
+          case 2: // RX_BPS
             if (schemeField.type == org.apache.thrift.protocol.TType.DOUBLE) {
               struct.rx_bps = iprot.readDouble();
               struct.setRx_bpsIsSet(true);
@@ -394,7 +479,7 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
               org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
             }
             break;
-          case 2: // TX_BPS
+          case 3: // TX_BPS
             if (schemeField.type == org.apache.thrift.protocol.TType.DOUBLE) {
               struct.tx_bps = iprot.readDouble();
               struct.setTx_bpsIsSet(true);
@@ -417,6 +502,11 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
       struct.validate();
 
       oprot.writeStructBegin(STRUCT_DESC);
+      if (struct.hostname != null) {
+        oprot.writeFieldBegin(HOSTNAME_FIELD_DESC);
+        oprot.writeString(struct.hostname);
+        oprot.writeFieldEnd();
+      }
       oprot.writeFieldBegin(RX_BPS_FIELD_DESC);
       oprot.writeDouble(struct.rx_bps);
       oprot.writeFieldEnd();
@@ -441,13 +531,19 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
     public void write(org.apache.thrift.protocol.TProtocol prot, MachineStat struct) throws org.apache.thrift.TException {
       TTupleProtocol oprot = (TTupleProtocol) prot;
       BitSet optionals = new BitSet();
-      if (struct.isSetRx_bps()) {
+      if (struct.isSetHostname()) {
         optionals.set(0);
       }
-      if (struct.isSetTx_bps()) {
+      if (struct.isSetRx_bps()) {
         optionals.set(1);
       }
-      oprot.writeBitSet(optionals, 2);
+      if (struct.isSetTx_bps()) {
+        optionals.set(2);
+      }
+      oprot.writeBitSet(optionals, 3);
+      if (struct.isSetHostname()) {
+        oprot.writeString(struct.hostname);
+      }
       if (struct.isSetRx_bps()) {
         oprot.writeDouble(struct.rx_bps);
       }
@@ -459,12 +555,16 @@ public class MachineStat implements org.apache.thrift.TBase<MachineStat, Machine
     @Override
     public void read(org.apache.thrift.protocol.TProtocol prot, MachineStat struct) throws org.apache.thrift.TException {
       TTupleProtocol iprot = (TTupleProtocol) prot;
-      BitSet incoming = iprot.readBitSet(2);
+      BitSet incoming = iprot.readBitSet(3);
       if (incoming.get(0)) {
+        struct.hostname = iprot.readString();
+        struct.setHostnameIsSet(true);
+      }
+      if (incoming.get(1)) {
         struct.rx_bps = iprot.readDouble();
         struct.setRx_bpsIsSet(true);
       }
-      if (incoming.get(1)) {
+      if (incoming.get(2)) {
         struct.tx_bps = iprot.readDouble();
         struct.setTx_bpsIsSet(true);
       }
