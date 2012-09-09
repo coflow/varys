@@ -45,6 +45,7 @@ public class VarysServiceHandler implements VarysService.Iface {
       });
       for (int i = 0; i < numMachines && i < machineStats.size(); i++) {
         retVal.add(machineStats.get(i).hostname);
+        System.out.println(machineStats.get(i).hostname + " = " + machineStats.get(i).tx_bps);
         adjustTxBps(machineStats.get(i).hostname, avgTxBytes);
       }
     }

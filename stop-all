@@ -2,17 +2,11 @@
 
 VARYS_PATH=`pwd`
 
-SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=2"
-
 MASTER=$VARYS_PATH/conf/masters
 SLAVES=$VARYS_PATH/conf/slaves
 
 # Stop all
 for peer in `cat $MASTER $SLAVES`; do
   echo $peer
-  screen -dmS "stop-peer-$peer" ssh -t $SSH_OPTS $peer "cd $VARYS_PATH;./stop-local"
+  ssh $peer "cd $VARYS_PATH;./stop-local"
 done
-
-# For some reason, some dead screens hang around. Wipe them away.
-sleep 1
-screen -wipe > /dev/null 2> /dev/null
