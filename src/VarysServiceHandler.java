@@ -35,7 +35,7 @@ public class VarysServiceHandler implements VarysService.Iface {
               tx[index] = ms.tx_bps;
               index++;
             }
-            System.out.printf("RX| AVG= %12.2f STDEV= %12.2f COVAR= %12.2f |TX| AVG= %12.2f STDEV= %12.2f COVAR= %12.2f\n", 
+            System.out.printf("%03d |RX| AVG= %12.2f STDEV= %12.2f COVAR= %12.2f |TX| AVG= %12.2f STDEV= %12.2f COVAR= %12.2f\n", index,
               VarysCommon.average(rx), VarysCommon.stdev(rx), VarysCommon.covar(rx),
               VarysCommon.average(tx), VarysCommon.stdev(tx), VarysCommon.covar(tx));
           }
