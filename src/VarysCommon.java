@@ -5,35 +5,32 @@ import java.net.*;
 import java.util.*;
 
 public class VarysCommon {
-  public static final String CONFIG_DIR = "conf";
+  public static final String cmdToGetPublicName = "curl http://169.254.169.254/latest/meta-data/public-hostname";
   
-  public static final String MASTERS_FILENAME = CONFIG_DIR + "/masters";
-  public static final int MASTER_PORT = 1606;
-  
+  public static final String MASTER_IP = (System.getenv("VARYS_MASTER_IP") != null) ? System.getenv("VARYS_MASTER_IP") : getValueFromCommandLine(cmdToGetPublicName); // InetAddress.getLocalHost().getHostName();
+
+  public static final int MASTER_PORT = (System.getenv("VARYS_MASTER_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_PORT")) : 1606;
+
+  public static final int WEBUI_PORT = (System.getenv("SPARK_MASTER_WEBUI_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_WEBUI_PORT")) : 16016;
+    
+  public static final String CONFIG_DIR = System.getenv("VARYS_CONF_DIR");
+    
   public static final long SLEEP_INTERVAL_SEC = 1;
   
   public static final String PATH_TO_PROPERTIES_FILE = CONFIG_DIR + "/varys.properties";
 
-  public static String cmdToGetPublicName = "curl http://169.254.169.254/latest/meta-data/public-hostname";
-
-  public static String getMasterHostname() throws Exception{
-    FileInputStream fstream = new FileInputStream(MASTERS_FILENAME);
-    DataInputStream in = new DataInputStream(fstream);
-    BufferedReader br = new BufferedReader(new InputStreamReader(in));
-
-    String strLine = br.readLine();
-    if (strLine == null) {
-      throw new Exception("Master Not Found!");
-    }
-    in.close();
-    
-    return strLine;
+  public static String getMasterHostname(String masterURL) {
+    // Keep it classy!
+    String[] b = masterURL.substring(masterURL.indexOf("//") + 2).split(":");
+    return b[0];
   }
-  
-  public static int getMasterPort() {
-    return MASTER_PORT;
+
+  public static int getMasterPort(String masterURL) {
+    // Keep it classy!
+    String[] b = masterURL.substring(masterURL.indexOf("//") + 2).split(":");
+    return Integer.parseInt(b[1]);
   }
-  
+
   public static String getLocalHostname() {
     String retVal = null;
     try {

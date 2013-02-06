@@ -10,7 +10,7 @@ public class VarysMaster {
 
   public static void StartThreadedServer(VarysService.Processor<VarysServiceHandler> processor) {
     try {
-      TServerTransport serverTransport = new TServerSocket(VarysCommon.getMasterPort());
+      TServerTransport serverTransport = new TServerSocket(VarysCommon.MASTER_PORT);
       TServer server = new TThreadPoolServer(new TThreadPoolServer.Args(serverTransport).processor(processor));
 
       server.serve();
@@ -23,5 +23,5 @@ public class VarysMaster {
     VarysServiceHandler varysHandler = new VarysServiceHandler();
     StartThreadedServer(new VarysService.Processor<VarysServiceHandler>(varysHandler));
   }
-
+  
 }

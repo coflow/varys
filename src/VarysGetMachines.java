@@ -12,22 +12,17 @@ import org.apache.thrift.transport.TTransportException;
 
 public class VarysGetMachines {
 
+  String masterURL = "";
   int masterPort = -1;
   String masterHostname = null;
 
-  public VarysGetMachines() {
+  public VarysGetMachines(String masterURL) {
     // Load properties
     Properties props = VarysCommon.loadProperties();
 
     // Retrieve master information
-    masterPort = VarysCommon.getMasterPort();
-    masterHostname = null;
-    try {
-      masterHostname = VarysCommon.getMasterHostname();
-    } catch (Exception e) {
-      e.printStackTrace();
-      System.exit(1);
-    }
+    masterHostname = VarysCommon.getMasterHostname(masterURL);
+    masterPort = VarysCommon.getMasterPort(masterURL);
   }
   
   public List<String> getMachines(int numMachines, double avgTxBytes) {
@@ -52,15 +47,16 @@ public class VarysGetMachines {
 
   public static void main(String[] args) {
     
-    if (args.length < 2) {
-      System.err.println("Usage: VarysGetMachines <numMachines> <avgTxMegaBytes>");
+    if (args.length < 3) {
+      System.err.println("Usage: VarysGetMachines <masterURL> <numMachines> <avgTxMegaBytes>");
       System.exit(1);
     }
     
-    int numMachines = Integer.parseInt(args[0]);
-    double avgTxBytes = Double.parseDouble(args[1]) * 1024.0 * 1024.0;
+    String masterURL = args[0];
+    int numMachines = Integer.parseInt(args[1]);
+    double avgTxBytes = Double.parseDouble(args[2]) * 1024.0 * 1024.0;
     
-    VarysGetMachines gm = new VarysGetMachines();
+    VarysGetMachines gm = new VarysGetMachines(masterURL);
     List<String> machines = gm.getMachines(numMachines, avgTxBytes);
     
     System.out.print("X");

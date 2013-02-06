@@ -1585,7 +1585,7 @@ public class VarysService {
                   for (int _i1 = 0; _i1 < _map0.size; ++_i1)
                   {
                     String _key2; // required
-                    MachineStat _val3; // optional
+                    MachineStat _val3; // required
                     _key2 = iprot.readString();
                     _val3 = new MachineStat();
                     _val3.read(iprot);
@@ -1671,7 +1671,7 @@ public class VarysService {
             for (int _i7 = 0; _i7 < _map6.size; ++_i7)
             {
               String _key8; // required
-              MachineStat _val9; // optional
+              MachineStat _val9; // required
               _key8 = iprot.readString();
               _val9 = new MachineStat();
               _val9.read(iprot);
@@ -2443,7 +2443,7 @@ public class VarysService {
                   struct.success = new ArrayList<String>(_list10.size);
                   for (int _i11 = 0; _i11 < _list10.size; ++_i11)
                   {
-                    String _elem12; // required
+                    String _elem12; // optional
                     _elem12 = iprot.readString();
                     struct.success.add(_elem12);
                   }
@@ -2524,7 +2524,7 @@ public class VarysService {
             struct.success = new ArrayList<String>(_list15.size);
             for (int _i16 = 0; _i16 < _list15.size; ++_i16)
             {
-              String _elem17; // required
+              String _elem17; // optional
               _elem17 = iprot.readString();
               struct.success.add(_elem17);
             }

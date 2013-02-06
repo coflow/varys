@@ -12,8 +12,9 @@ import org.apache.thrift.transport.TTransportException;
 
 public class VarysSlave {
 
-  int masterPort = -1;
+  String masterURL = "";
   String masterHostname = null;
+  int masterPort = -1;
 
   double lastRxBytes = -1;
   double lastTxBytes = -1;
@@ -21,7 +22,7 @@ public class VarysSlave {
   String commandToGetRxBytes = null;
   String commandToGetTxBytes = null;
   
-  public VarysSlave() {
+  public VarysSlave(String masterURL) {
     // Load properties
     Properties props = VarysCommon.loadProperties();
 
@@ -29,14 +30,8 @@ public class VarysSlave {
     commandToGetTxBytes = props.getProperty("varys.command.getTxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $10}'");
     
     // Retrieve master information
-    masterPort = VarysCommon.getMasterPort();
-    masterHostname = null;
-    try {
-      masterHostname = VarysCommon.getMasterHostname();
-    } catch (Exception e) {
-      e.printStackTrace();
-      System.exit(1);
-    }
+    masterHostname = VarysCommon.getMasterHostname(masterURL);
+    masterPort = VarysCommon.getMasterPort(masterURL);
     
     // Set initial values for rxBytes and txBytes
     lastRxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetRxBytes));
@@ -48,7 +43,7 @@ public class VarysSlave {
       e.printStackTrace();
     }
   }
-  
+    
   public void start() {
     TTransport transport = null;
     try {
@@ -88,7 +83,14 @@ public class VarysSlave {
   }
   
   public static void main(String[] args) {
-    VarysSlave vc = new VarysSlave();
+    
+    // Check for master URL
+    if (args.length == 0) {
+      System.err.println("Missing master URL.");
+      System.exit(1);
+    }
+    String masterURL = args[0];
+    VarysSlave vc = new VarysSlave(masterURL);
     vc.start();
   }
   
