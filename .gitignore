@@ -6,3 +6,9 @@
 *.class
 build/
 varys.jar
+target/
+/src_managed/
+/lib_managed/
+log/
+logs/
+/target/

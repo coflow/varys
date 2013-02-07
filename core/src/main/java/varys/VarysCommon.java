@@ -11,7 +11,7 @@ public class VarysCommon {
 
   public static final int MASTER_PORT = (System.getenv("VARYS_MASTER_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_PORT")) : 1606;
 
-  public static final int WEBUI_PORT = (System.getenv("SPARK_MASTER_WEBUI_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_WEBUI_PORT")) : 16016;
+  public static final int WEBUI_PORT = (System.getenv("VARYS_MASTER_WEBUI_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_WEBUI_PORT")) : 16016;
     
   public static final String CONFIG_DIR = System.getenv("VARYS_CONF_DIR");
     
