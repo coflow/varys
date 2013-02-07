@@ -11,12 +11,8 @@ object VarysBuild extends Build {
 
   lazy val core = Project("core", file("core"), settings = coreSettings)
 
-  // A configuration to set an alternative publishLocalConfiguration
-  lazy val MavenCompile = config("m2r") extend(Compile)
-  lazy val publishLocalBoth = TaskKey[Unit]("publish-local", "publish local for m2 and ivy")
-
   def sharedSettings = Defaults.defaultSettings ++ Seq(
-    organization := "org.varys",
+    organization := "org.varys-project",
     version := "0.0.1",
     scalaVersion := "2.9.2",
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
@@ -25,49 +21,8 @@ object VarysBuild extends Build {
     retrievePattern := "[type]s/[artifact](-[revision])(-[classifier]).[ext]",
     transitiveClassifiers in Scope.GlobalScope := Seq("sources"),
 
-    publishMavenStyle := true,
-
-    pomExtra := (
-      <url>http://varys-project.org/</url>
-      <licenses>
-        <license>
-          <name>BSD License</name>
-          <url>https://github.com/mesos/varys/blob/master/LICENSE</url>
-          <distribution>repo</distribution>
-        </license>
-      </licenses>
-      <scm>
-        <connection>scm:git:git@bitbucket.org:mosharaf/varys.git</connection>
-        <url>scm:git:git@bitbucket.org:mosharaf/varys.git</url>
-      </scm>
-      <developers>
-        <developer>
-          <id>matei</id>
-          <name>Mosharaf Chowdhury</name>
-          <email>mosharafkabir@gmail.com</email>
-          <url>http://www.mosharaf.com</url>
-          <organization>U.C. Berkeley Computer Science</organization>
-          <organizationUrl>http://www.cs.berkeley.edu</organizationUrl>
-        </developer>
-      </developers>
-    ),
-
-    libraryDependencies ++= Seq(
-      // "org.eclipse.jetty" % "jetty-server" % "7.5.3.v20111011"
-    ),
+    parallelExecution := false
     
-    parallelExecution := false,
-    /* Workaround for issue #206 (fixed after SBT 0.11.0) */
-    watchTransitiveSources <<= Defaults.inDependencies[Task[Seq[File]]](watchSources.task,
-      const(std.TaskExtra.constant(Nil)), aggregate = true, includeRoot = true) apply { _.join.map(_.flatten) },
-
-    otherResolvers := Seq(Resolver.file("dotM2", file(Path.userHome + "/.m2/repository"))),
-    publishLocalConfiguration in MavenCompile <<= (packagedArtifacts, deliverLocal, ivyLoggingLevel) map {
-      (arts, _, level) => new PublishConfiguration(None, "dotM2", arts, Seq(), level)
-    },
-    publishMavenStyle in MavenCompile := true,
-    publishLocal in MavenCompile <<= publishTask(publishLocalConfiguration in MavenCompile, deliverLocal),
-    publishLocalBoth <<= Seq(publishLocal in MavenCompile, publishLocal).dependOn
   )
 
   val slf4jVersion = "1.6.1"
@@ -94,17 +49,10 @@ object VarysBuild extends Build {
       "cc.spray" % "spray-server" % "1.0-M2.1",
       "cc.spray" %%  "spray-json" % "1.1.1",
       "org.apache.thrift" % "libthrift" % "0.8.0"
-    )) ++ assemblySettings ++ extraAssemblySettings ++ Twirl.settings ++ ThriftPlugin.thriftSettings
+    )) ++ assemblySettings ++ Twirl.settings ++ ThriftPlugin.thriftSettings
 
   def rootSettings = sharedSettings ++ Seq(
     publish := {}
   )
 
-  def extraAssemblySettings() = Seq(test in assembly := {}) ++ Seq(
-    mergeStrategy in assembly := {
-      case m if m.toLowerCase.endsWith("manifest.mf") => MergeStrategy.discard
-      case "reference.conf" => MergeStrategy.concat
-      case _ => MergeStrategy.first
-    }
-  )
 }
