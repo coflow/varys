@@ -8,7 +8,7 @@ import org.apache.thrift.server.TThreadPoolServer;
 
 public class VarysMaster {
 
-  public static void StartThreadedServer(VarysService.Processor<VarysServiceHandler> processor) {
+  public static void StartThreadedServer(VarysMasterService.Processor<VarysMasterServiceHandler> processor) {
     try {
       TServerTransport serverTransport = new TServerSocket(VarysCommon.MASTER_PORT);
       TServer server = new TThreadPoolServer(new TThreadPoolServer.Args(serverTransport).processor(processor));
@@ -20,8 +20,8 @@ public class VarysMaster {
   }
 
   public static void main(String[] args) {
-    VarysServiceHandler varysHandler = new VarysServiceHandler();
-    StartThreadedServer(new VarysService.Processor<VarysServiceHandler>(varysHandler));
+    VarysMasterServiceHandler varysHandler = new VarysMasterServiceHandler();
+    StartThreadedServer(new VarysMasterService.Processor<VarysMasterServiceHandler>(varysHandler));
   }
   
 }

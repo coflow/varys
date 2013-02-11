@@ -27,7 +27,7 @@ import java.util.Arrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class VarysService {
+public class VarysMasterService {
 
   public interface Iface {
 
@@ -35,7 +35,9 @@ public class VarysService {
 
     public Map<String,MachineStat> getAll() throws org.apache.thrift.TException;
 
-    public List<String> getMachines(int numMachines, double avgTxBps) throws org.apache.thrift.TException;
+    public List<String> getMachines(int numMachines, long avgTxBytes) throws org.apache.thrift.TException;
+
+    public void writeBlock(long blockSize, EndPoint listenFrom) throws org.apache.thrift.TException;
 
   }
 
@@ -45,7 +47,9 @@ public class VarysService {
 
     public void getAll(org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getAll_call> resultHandler) throws org.apache.thrift.TException;
 
-    public void getMachines(int numMachines, double avgTxBps, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getMachines_call> resultHandler) throws org.apache.thrift.TException;
+    public void getMachines(int numMachines, long avgTxBytes, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.getMachines_call> resultHandler) throws org.apache.thrift.TException;
+
+    public void writeBlock(long blockSize, EndPoint listenFrom, org.apache.thrift.async.AsyncMethodCallback<AsyncClient.writeBlock_call> resultHandler) throws org.apache.thrift.TException;
 
   }
 
@@ -112,17 +116,17 @@ public class VarysService {
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "getAll failed: unknown result");
     }
 
-    public List<String> getMachines(int numMachines, double avgTxBps) throws org.apache.thrift.TException
+    public List<String> getMachines(int numMachines, long avgTxBytes) throws org.apache.thrift.TException
     {
-      send_getMachines(numMachines, avgTxBps);
+      send_getMachines(numMachines, avgTxBytes);
       return recv_getMachines();
     }
 
-    public void send_getMachines(int numMachines, double avgTxBps) throws org.apache.thrift.TException
+    public void send_getMachines(int numMachines, long avgTxBytes) throws org.apache.thrift.TException
     {
       getMachines_args args = new getMachines_args();
       args.setNumMachines(numMachines);
-      args.setAvgTxBps(avgTxBps);
+      args.setAvgTxBytes(avgTxBytes);
       sendBase("getMachines", args);
     }
 
@@ -134,6 +138,27 @@ public class VarysService {
         return result.success;
       }
       throw new org.apache.thrift.TApplicationException(org.apache.thrift.TApplicationException.MISSING_RESULT, "getMachines failed: unknown result");
+    }
+
+    public void writeBlock(long blockSize, EndPoint listenFrom) throws org.apache.thrift.TException
+    {
+      send_writeBlock(blockSize, listenFrom);
+      recv_writeBlock();
+    }
+
+    public void send_writeBlock(long blockSize, EndPoint listenFrom) throws org.apache.thrift.TException
+    {
+      writeBlock_args args = new writeBlock_args();
+      args.setBlockSize(blockSize);
+      args.setListenFrom(listenFrom);
+      sendBase("writeBlock", args);
+    }
+
+    public void recv_writeBlock() throws org.apache.thrift.TException
+    {
+      writeBlock_result result = new writeBlock_result();
+      receiveBase(result, "writeBlock");
+      return;
     }
 
   }
@@ -218,27 +243,27 @@ public class VarysService {
       }
     }
 
-    public void getMachines(int numMachines, double avgTxBps, org.apache.thrift.async.AsyncMethodCallback<getMachines_call> resultHandler) throws org.apache.thrift.TException {
+    public void getMachines(int numMachines, long avgTxBytes, org.apache.thrift.async.AsyncMethodCallback<getMachines_call> resultHandler) throws org.apache.thrift.TException {
       checkReady();
-      getMachines_call method_call = new getMachines_call(numMachines, avgTxBps, resultHandler, this, ___protocolFactory, ___transport);
+      getMachines_call method_call = new getMachines_call(numMachines, avgTxBytes, resultHandler, this, ___protocolFactory, ___transport);
       this.___currentMethod = method_call;
       ___manager.call(method_call);
     }
 
     public static class getMachines_call extends org.apache.thrift.async.TAsyncMethodCall {
       private int numMachines;
-      private double avgTxBps;
-      public getMachines_call(int numMachines, double avgTxBps, org.apache.thrift.async.AsyncMethodCallback<getMachines_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+      private long avgTxBytes;
+      public getMachines_call(int numMachines, long avgTxBytes, org.apache.thrift.async.AsyncMethodCallback<getMachines_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
         super(client, protocolFactory, transport, resultHandler, false);
         this.numMachines = numMachines;
-        this.avgTxBps = avgTxBps;
+        this.avgTxBytes = avgTxBytes;
       }
 
       public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
         prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("getMachines", org.apache.thrift.protocol.TMessageType.CALL, 0));
         getMachines_args args = new getMachines_args();
         args.setNumMachines(numMachines);
-        args.setAvgTxBps(avgTxBps);
+        args.setAvgTxBytes(avgTxBytes);
         args.write(prot);
         prot.writeMessageEnd();
       }
@@ -250,6 +275,41 @@ public class VarysService {
         org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
         org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
         return (new Client(prot)).recv_getMachines();
+      }
+    }
+
+    public void writeBlock(long blockSize, EndPoint listenFrom, org.apache.thrift.async.AsyncMethodCallback<writeBlock_call> resultHandler) throws org.apache.thrift.TException {
+      checkReady();
+      writeBlock_call method_call = new writeBlock_call(blockSize, listenFrom, resultHandler, this, ___protocolFactory, ___transport);
+      this.___currentMethod = method_call;
+      ___manager.call(method_call);
+    }
+
+    public static class writeBlock_call extends org.apache.thrift.async.TAsyncMethodCall {
+      private long blockSize;
+      private EndPoint listenFrom;
+      public writeBlock_call(long blockSize, EndPoint listenFrom, org.apache.thrift.async.AsyncMethodCallback<writeBlock_call> resultHandler, org.apache.thrift.async.TAsyncClient client, org.apache.thrift.protocol.TProtocolFactory protocolFactory, org.apache.thrift.transport.TNonblockingTransport transport) throws org.apache.thrift.TException {
+        super(client, protocolFactory, transport, resultHandler, false);
+        this.blockSize = blockSize;
+        this.listenFrom = listenFrom;
+      }
+
+      public void write_args(org.apache.thrift.protocol.TProtocol prot) throws org.apache.thrift.TException {
+        prot.writeMessageBegin(new org.apache.thrift.protocol.TMessage("writeBlock", org.apache.thrift.protocol.TMessageType.CALL, 0));
+        writeBlock_args args = new writeBlock_args();
+        args.setBlockSize(blockSize);
+        args.setListenFrom(listenFrom);
+        args.write(prot);
+        prot.writeMessageEnd();
+      }
+
+      public void getResult() throws org.apache.thrift.TException {
+        if (getState() != org.apache.thrift.async.TAsyncMethodCall.State.RESPONSE_READ) {
+          throw new IllegalStateException("Method call not finished!");
+        }
+        org.apache.thrift.transport.TMemoryInputTransport memoryTransport = new org.apache.thrift.transport.TMemoryInputTransport(getFrameBuffer().array());
+        org.apache.thrift.protocol.TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);
+        (new Client(prot)).recv_writeBlock();
       }
     }
 
@@ -269,6 +329,7 @@ public class VarysService {
       processMap.put("putOne", new putOne());
       processMap.put("getAll", new getAll());
       processMap.put("getMachines", new getMachines());
+      processMap.put("writeBlock", new writeBlock());
       return processMap;
     }
 
@@ -315,7 +376,23 @@ public class VarysService {
 
       protected getMachines_result getResult(I iface, getMachines_args args) throws org.apache.thrift.TException {
         getMachines_result result = new getMachines_result();
-        result.success = iface.getMachines(args.numMachines, args.avgTxBps);
+        result.success = iface.getMachines(args.numMachines, args.avgTxBytes);
+        return result;
+      }
+    }
+
+    private static class writeBlock<I extends Iface> extends org.apache.thrift.ProcessFunction<I, writeBlock_args> {
+      public writeBlock() {
+        super("writeBlock");
+      }
+
+      protected writeBlock_args getEmptyArgsInstance() {
+        return new writeBlock_args();
+      }
+
+      protected writeBlock_result getResult(I iface, writeBlock_args args) throws org.apache.thrift.TException {
+        writeBlock_result result = new writeBlock_result();
+        iface.writeBlock(args.blockSize, args.listenFrom);
         return result;
       }
     }
@@ -1689,7 +1766,7 @@ public class VarysService {
     private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("getMachines_args");
 
     private static final org.apache.thrift.protocol.TField NUM_MACHINES_FIELD_DESC = new org.apache.thrift.protocol.TField("numMachines", org.apache.thrift.protocol.TType.I32, (short)1);
-    private static final org.apache.thrift.protocol.TField AVG_TX_BPS_FIELD_DESC = new org.apache.thrift.protocol.TField("avgTxBps", org.apache.thrift.protocol.TType.DOUBLE, (short)2);
+    private static final org.apache.thrift.protocol.TField AVG_TX_BYTES_FIELD_DESC = new org.apache.thrift.protocol.TField("avgTxBytes", org.apache.thrift.protocol.TType.I64, (short)2);
 
     private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
     static {
@@ -1698,12 +1775,12 @@ public class VarysService {
     }
 
     public int numMachines; // required
-    public double avgTxBps; // required
+    public long avgTxBytes; // required
 
     /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
     public enum _Fields implements org.apache.thrift.TFieldIdEnum {
       NUM_MACHINES((short)1, "numMachines"),
-      AVG_TX_BPS((short)2, "avgTxBps");
+      AVG_TX_BYTES((short)2, "avgTxBytes");
 
       private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
 
@@ -1720,8 +1797,8 @@ public class VarysService {
         switch(fieldId) {
           case 1: // NUM_MACHINES
             return NUM_MACHINES;
-          case 2: // AVG_TX_BPS
-            return AVG_TX_BPS;
+          case 2: // AVG_TX_BYTES
+            return AVG_TX_BYTES;
           default:
             return null;
         }
@@ -1763,15 +1840,15 @@ public class VarysService {
 
     // isset id assignments
     private static final int __NUMMACHINES_ISSET_ID = 0;
-    private static final int __AVGTXBPS_ISSET_ID = 1;
+    private static final int __AVGTXBYTES_ISSET_ID = 1;
     private BitSet __isset_bit_vector = new BitSet(2);
     public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
     static {
       Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
       tmpMap.put(_Fields.NUM_MACHINES, new org.apache.thrift.meta_data.FieldMetaData("numMachines", org.apache.thrift.TFieldRequirementType.DEFAULT, 
           new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I32)));
-      tmpMap.put(_Fields.AVG_TX_BPS, new org.apache.thrift.meta_data.FieldMetaData("avgTxBps", org.apache.thrift.TFieldRequirementType.DEFAULT, 
-          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.DOUBLE)));
+      tmpMap.put(_Fields.AVG_TX_BYTES, new org.apache.thrift.meta_data.FieldMetaData("avgTxBytes", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
       metaDataMap = Collections.unmodifiableMap(tmpMap);
       org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(getMachines_args.class, metaDataMap);
     }
@@ -1781,13 +1858,13 @@ public class VarysService {
 
     public getMachines_args(
       int numMachines,
-      double avgTxBps)
+      long avgTxBytes)
     {
       this();
       this.numMachines = numMachines;
       setNumMachinesIsSet(true);
-      this.avgTxBps = avgTxBps;
-      setAvgTxBpsIsSet(true);
+      this.avgTxBytes = avgTxBytes;
+      setAvgTxBytesIsSet(true);
     }
 
     /**
@@ -1797,7 +1874,7 @@ public class VarysService {
       __isset_bit_vector.clear();
       __isset_bit_vector.or(other.__isset_bit_vector);
       this.numMachines = other.numMachines;
-      this.avgTxBps = other.avgTxBps;
+      this.avgTxBytes = other.avgTxBytes;
     }
 
     public getMachines_args deepCopy() {
@@ -1808,8 +1885,8 @@ public class VarysService {
     public void clear() {
       setNumMachinesIsSet(false);
       this.numMachines = 0;
-      setAvgTxBpsIsSet(false);
-      this.avgTxBps = 0.0;
+      setAvgTxBytesIsSet(false);
+      this.avgTxBytes = 0;
     }
 
     public int getNumMachines() {
@@ -1835,27 +1912,27 @@ public class VarysService {
       __isset_bit_vector.set(__NUMMACHINES_ISSET_ID, value);
     }
 
-    public double getAvgTxBps() {
-      return this.avgTxBps;
+    public long getAvgTxBytes() {
+      return this.avgTxBytes;
     }
 
-    public getMachines_args setAvgTxBps(double avgTxBps) {
-      this.avgTxBps = avgTxBps;
-      setAvgTxBpsIsSet(true);
+    public getMachines_args setAvgTxBytes(long avgTxBytes) {
+      this.avgTxBytes = avgTxBytes;
+      setAvgTxBytesIsSet(true);
       return this;
     }
 
-    public void unsetAvgTxBps() {
-      __isset_bit_vector.clear(__AVGTXBPS_ISSET_ID);
+    public void unsetAvgTxBytes() {
+      __isset_bit_vector.clear(__AVGTXBYTES_ISSET_ID);
     }
 
-    /** Returns true if field avgTxBps is set (has been assigned a value) and false otherwise */
-    public boolean isSetAvgTxBps() {
-      return __isset_bit_vector.get(__AVGTXBPS_ISSET_ID);
+    /** Returns true if field avgTxBytes is set (has been assigned a value) and false otherwise */
+    public boolean isSetAvgTxBytes() {
+      return __isset_bit_vector.get(__AVGTXBYTES_ISSET_ID);
     }
 
-    public void setAvgTxBpsIsSet(boolean value) {
-      __isset_bit_vector.set(__AVGTXBPS_ISSET_ID, value);
+    public void setAvgTxBytesIsSet(boolean value) {
+      __isset_bit_vector.set(__AVGTXBYTES_ISSET_ID, value);
     }
 
     public void setFieldValue(_Fields field, Object value) {
@@ -1868,11 +1945,11 @@ public class VarysService {
         }
         break;
 
-      case AVG_TX_BPS:
+      case AVG_TX_BYTES:
         if (value == null) {
-          unsetAvgTxBps();
+          unsetAvgTxBytes();
         } else {
-          setAvgTxBps((Double)value);
+          setAvgTxBytes((Long)value);
         }
         break;
 
@@ -1884,8 +1961,8 @@ public class VarysService {
       case NUM_MACHINES:
         return Integer.valueOf(getNumMachines());
 
-      case AVG_TX_BPS:
-        return Double.valueOf(getAvgTxBps());
+      case AVG_TX_BYTES:
+        return Long.valueOf(getAvgTxBytes());
 
       }
       throw new IllegalStateException();
@@ -1900,8 +1977,8 @@ public class VarysService {
       switch (field) {
       case NUM_MACHINES:
         return isSetNumMachines();
-      case AVG_TX_BPS:
-        return isSetAvgTxBps();
+      case AVG_TX_BYTES:
+        return isSetAvgTxBytes();
       }
       throw new IllegalStateException();
     }
@@ -1928,12 +2005,12 @@ public class VarysService {
           return false;
       }
 
-      boolean this_present_avgTxBps = true;
-      boolean that_present_avgTxBps = true;
-      if (this_present_avgTxBps || that_present_avgTxBps) {
-        if (!(this_present_avgTxBps && that_present_avgTxBps))
+      boolean this_present_avgTxBytes = true;
+      boolean that_present_avgTxBytes = true;
+      if (this_present_avgTxBytes || that_present_avgTxBytes) {
+        if (!(this_present_avgTxBytes && that_present_avgTxBytes))
           return false;
-        if (this.avgTxBps != that.avgTxBps)
+        if (this.avgTxBytes != that.avgTxBytes)
           return false;
       }
 
@@ -1963,12 +2040,12 @@ public class VarysService {
           return lastComparison;
         }
       }
-      lastComparison = Boolean.valueOf(isSetAvgTxBps()).compareTo(typedOther.isSetAvgTxBps());
+      lastComparison = Boolean.valueOf(isSetAvgTxBytes()).compareTo(typedOther.isSetAvgTxBytes());
       if (lastComparison != 0) {
         return lastComparison;
       }
-      if (isSetAvgTxBps()) {
-        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.avgTxBps, typedOther.avgTxBps);
+      if (isSetAvgTxBytes()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.avgTxBytes, typedOther.avgTxBytes);
         if (lastComparison != 0) {
           return lastComparison;
         }
@@ -1997,8 +2074,8 @@ public class VarysService {
       sb.append(this.numMachines);
       first = false;
       if (!first) sb.append(", ");
-      sb.append("avgTxBps:");
-      sb.append(this.avgTxBps);
+      sb.append("avgTxBytes:");
+      sb.append(this.avgTxBytes);
       first = false;
       sb.append(")");
       return sb.toString();
@@ -2052,10 +2129,10 @@ public class VarysService {
                 org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
               }
               break;
-            case 2: // AVG_TX_BPS
-              if (schemeField.type == org.apache.thrift.protocol.TType.DOUBLE) {
-                struct.avgTxBps = iprot.readDouble();
-                struct.setAvgTxBpsIsSet(true);
+            case 2: // AVG_TX_BYTES
+              if (schemeField.type == org.apache.thrift.protocol.TType.I64) {
+                struct.avgTxBytes = iprot.readI64();
+                struct.setAvgTxBytesIsSet(true);
               } else { 
                 org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
               }
@@ -2078,8 +2155,8 @@ public class VarysService {
         oprot.writeFieldBegin(NUM_MACHINES_FIELD_DESC);
         oprot.writeI32(struct.numMachines);
         oprot.writeFieldEnd();
-        oprot.writeFieldBegin(AVG_TX_BPS_FIELD_DESC);
-        oprot.writeDouble(struct.avgTxBps);
+        oprot.writeFieldBegin(AVG_TX_BYTES_FIELD_DESC);
+        oprot.writeI64(struct.avgTxBytes);
         oprot.writeFieldEnd();
         oprot.writeFieldStop();
         oprot.writeStructEnd();
@@ -2102,15 +2179,15 @@ public class VarysService {
         if (struct.isSetNumMachines()) {
           optionals.set(0);
         }
-        if (struct.isSetAvgTxBps()) {
+        if (struct.isSetAvgTxBytes()) {
           optionals.set(1);
         }
         oprot.writeBitSet(optionals, 2);
         if (struct.isSetNumMachines()) {
           oprot.writeI32(struct.numMachines);
         }
-        if (struct.isSetAvgTxBps()) {
-          oprot.writeDouble(struct.avgTxBps);
+        if (struct.isSetAvgTxBytes()) {
+          oprot.writeI64(struct.avgTxBytes);
         }
       }
 
@@ -2123,8 +2200,8 @@ public class VarysService {
           struct.setNumMachinesIsSet(true);
         }
         if (incoming.get(1)) {
-          struct.avgTxBps = iprot.readDouble();
-          struct.setAvgTxBpsIsSet(true);
+          struct.avgTxBytes = iprot.readI64();
+          struct.setAvgTxBytesIsSet(true);
         }
       }
     }
@@ -2531,6 +2608,705 @@ public class VarysService {
           }
           struct.setSuccessIsSet(true);
         }
+      }
+    }
+
+  }
+
+  public static class writeBlock_args implements org.apache.thrift.TBase<writeBlock_args, writeBlock_args._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("writeBlock_args");
+
+    private static final org.apache.thrift.protocol.TField BLOCK_SIZE_FIELD_DESC = new org.apache.thrift.protocol.TField("blockSize", org.apache.thrift.protocol.TType.I64, (short)1);
+    private static final org.apache.thrift.protocol.TField LISTEN_FROM_FIELD_DESC = new org.apache.thrift.protocol.TField("listenFrom", org.apache.thrift.protocol.TType.STRUCT, (short)2);
+
+    private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+    static {
+      schemes.put(StandardScheme.class, new writeBlock_argsStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new writeBlock_argsTupleSchemeFactory());
+    }
+
+    public long blockSize; // required
+    public EndPoint listenFrom; // required
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+      BLOCK_SIZE((short)1, "blockSize"),
+      LISTEN_FROM((short)2, "listenFrom");
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          case 1: // BLOCK_SIZE
+            return BLOCK_SIZE;
+          case 2: // LISTEN_FROM
+            return LISTEN_FROM;
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+
+    // isset id assignments
+    private static final int __BLOCKSIZE_ISSET_ID = 0;
+    private BitSet __isset_bit_vector = new BitSet(1);
+    public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      tmpMap.put(_Fields.BLOCK_SIZE, new org.apache.thrift.meta_data.FieldMetaData("blockSize", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.FieldValueMetaData(org.apache.thrift.protocol.TType.I64)));
+      tmpMap.put(_Fields.LISTEN_FROM, new org.apache.thrift.meta_data.FieldMetaData("listenFrom", org.apache.thrift.TFieldRequirementType.DEFAULT, 
+          new org.apache.thrift.meta_data.StructMetaData(org.apache.thrift.protocol.TType.STRUCT, EndPoint.class)));
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(writeBlock_args.class, metaDataMap);
+    }
+
+    public writeBlock_args() {
+    }
+
+    public writeBlock_args(
+      long blockSize,
+      EndPoint listenFrom)
+    {
+      this();
+      this.blockSize = blockSize;
+      setBlockSizeIsSet(true);
+      this.listenFrom = listenFrom;
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public writeBlock_args(writeBlock_args other) {
+      __isset_bit_vector.clear();
+      __isset_bit_vector.or(other.__isset_bit_vector);
+      this.blockSize = other.blockSize;
+      if (other.isSetListenFrom()) {
+        this.listenFrom = new EndPoint(other.listenFrom);
+      }
+    }
+
+    public writeBlock_args deepCopy() {
+      return new writeBlock_args(this);
+    }
+
+    @Override
+    public void clear() {
+      setBlockSizeIsSet(false);
+      this.blockSize = 0;
+      this.listenFrom = null;
+    }
+
+    public long getBlockSize() {
+      return this.blockSize;
+    }
+
+    public writeBlock_args setBlockSize(long blockSize) {
+      this.blockSize = blockSize;
+      setBlockSizeIsSet(true);
+      return this;
+    }
+
+    public void unsetBlockSize() {
+      __isset_bit_vector.clear(__BLOCKSIZE_ISSET_ID);
+    }
+
+    /** Returns true if field blockSize is set (has been assigned a value) and false otherwise */
+    public boolean isSetBlockSize() {
+      return __isset_bit_vector.get(__BLOCKSIZE_ISSET_ID);
+    }
+
+    public void setBlockSizeIsSet(boolean value) {
+      __isset_bit_vector.set(__BLOCKSIZE_ISSET_ID, value);
+    }
+
+    public EndPoint getListenFrom() {
+      return this.listenFrom;
+    }
+
+    public writeBlock_args setListenFrom(EndPoint listenFrom) {
+      this.listenFrom = listenFrom;
+      return this;
+    }
+
+    public void unsetListenFrom() {
+      this.listenFrom = null;
+    }
+
+    /** Returns true if field listenFrom is set (has been assigned a value) and false otherwise */
+    public boolean isSetListenFrom() {
+      return this.listenFrom != null;
+    }
+
+    public void setListenFromIsSet(boolean value) {
+      if (!value) {
+        this.listenFrom = null;
+      }
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      case BLOCK_SIZE:
+        if (value == null) {
+          unsetBlockSize();
+        } else {
+          setBlockSize((Long)value);
+        }
+        break;
+
+      case LISTEN_FROM:
+        if (value == null) {
+          unsetListenFrom();
+        } else {
+          setListenFrom((EndPoint)value);
+        }
+        break;
+
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      case BLOCK_SIZE:
+        return Long.valueOf(getBlockSize());
+
+      case LISTEN_FROM:
+        return getListenFrom();
+
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      case BLOCK_SIZE:
+        return isSetBlockSize();
+      case LISTEN_FROM:
+        return isSetListenFrom();
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof writeBlock_args)
+        return this.equals((writeBlock_args)that);
+      return false;
+    }
+
+    public boolean equals(writeBlock_args that) {
+      if (that == null)
+        return false;
+
+      boolean this_present_blockSize = true;
+      boolean that_present_blockSize = true;
+      if (this_present_blockSize || that_present_blockSize) {
+        if (!(this_present_blockSize && that_present_blockSize))
+          return false;
+        if (this.blockSize != that.blockSize)
+          return false;
+      }
+
+      boolean this_present_listenFrom = true && this.isSetListenFrom();
+      boolean that_present_listenFrom = true && that.isSetListenFrom();
+      if (this_present_listenFrom || that_present_listenFrom) {
+        if (!(this_present_listenFrom && that_present_listenFrom))
+          return false;
+        if (!this.listenFrom.equals(that.listenFrom))
+          return false;
+      }
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(writeBlock_args other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      writeBlock_args typedOther = (writeBlock_args)other;
+
+      lastComparison = Boolean.valueOf(isSetBlockSize()).compareTo(typedOther.isSetBlockSize());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetBlockSize()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.blockSize, typedOther.blockSize);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      lastComparison = Boolean.valueOf(isSetListenFrom()).compareTo(typedOther.isSetListenFrom());
+      if (lastComparison != 0) {
+        return lastComparison;
+      }
+      if (isSetListenFrom()) {
+        lastComparison = org.apache.thrift.TBaseHelper.compareTo(this.listenFrom, typedOther.listenFrom);
+        if (lastComparison != 0) {
+          return lastComparison;
+        }
+      }
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+      schemes.get(iprot.getScheme()).getScheme().read(iprot, this);
+    }
+
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+      schemes.get(oprot.getScheme()).getScheme().write(oprot, this);
+    }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("writeBlock_args(");
+      boolean first = true;
+
+      sb.append("blockSize:");
+      sb.append(this.blockSize);
+      first = false;
+      if (!first) sb.append(", ");
+      sb.append("listenFrom:");
+      if (this.listenFrom == null) {
+        sb.append("null");
+      } else {
+        sb.append(this.listenFrom);
+      }
+      first = false;
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+      // check for required fields
+    }
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+      try {
+        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+      try {
+        // it doesn't seem like you should have to do this, but java serialization is wacky, and doesn't call the default constructor.
+        __isset_bit_vector = new BitSet(1);
+        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private static class writeBlock_argsStandardSchemeFactory implements SchemeFactory {
+      public writeBlock_argsStandardScheme getScheme() {
+        return new writeBlock_argsStandardScheme();
+      }
+    }
+
+    private static class writeBlock_argsStandardScheme extends StandardScheme<writeBlock_args> {
+
+      public void read(org.apache.thrift.protocol.TProtocol iprot, writeBlock_args struct) throws org.apache.thrift.TException {
+        org.apache.thrift.protocol.TField schemeField;
+        iprot.readStructBegin();
+        while (true)
+        {
+          schemeField = iprot.readFieldBegin();
+          if (schemeField.type == org.apache.thrift.protocol.TType.STOP) { 
+            break;
+          }
+          switch (schemeField.id) {
+            case 1: // BLOCK_SIZE
+              if (schemeField.type == org.apache.thrift.protocol.TType.I64) {
+                struct.blockSize = iprot.readI64();
+                struct.setBlockSizeIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
+            case 2: // LISTEN_FROM
+              if (schemeField.type == org.apache.thrift.protocol.TType.STRUCT) {
+                struct.listenFrom = new EndPoint();
+                struct.listenFrom.read(iprot);
+                struct.setListenFromIsSet(true);
+              } else { 
+                org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+              }
+              break;
+            default:
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+          }
+          iprot.readFieldEnd();
+        }
+        iprot.readStructEnd();
+
+        // check for required fields of primitive type, which can't be checked in the validate method
+        struct.validate();
+      }
+
+      public void write(org.apache.thrift.protocol.TProtocol oprot, writeBlock_args struct) throws org.apache.thrift.TException {
+        struct.validate();
+
+        oprot.writeStructBegin(STRUCT_DESC);
+        oprot.writeFieldBegin(BLOCK_SIZE_FIELD_DESC);
+        oprot.writeI64(struct.blockSize);
+        oprot.writeFieldEnd();
+        if (struct.listenFrom != null) {
+          oprot.writeFieldBegin(LISTEN_FROM_FIELD_DESC);
+          struct.listenFrom.write(oprot);
+          oprot.writeFieldEnd();
+        }
+        oprot.writeFieldStop();
+        oprot.writeStructEnd();
+      }
+
+    }
+
+    private static class writeBlock_argsTupleSchemeFactory implements SchemeFactory {
+      public writeBlock_argsTupleScheme getScheme() {
+        return new writeBlock_argsTupleScheme();
+      }
+    }
+
+    private static class writeBlock_argsTupleScheme extends TupleScheme<writeBlock_args> {
+
+      @Override
+      public void write(org.apache.thrift.protocol.TProtocol prot, writeBlock_args struct) throws org.apache.thrift.TException {
+        TTupleProtocol oprot = (TTupleProtocol) prot;
+        BitSet optionals = new BitSet();
+        if (struct.isSetBlockSize()) {
+          optionals.set(0);
+        }
+        if (struct.isSetListenFrom()) {
+          optionals.set(1);
+        }
+        oprot.writeBitSet(optionals, 2);
+        if (struct.isSetBlockSize()) {
+          oprot.writeI64(struct.blockSize);
+        }
+        if (struct.isSetListenFrom()) {
+          struct.listenFrom.write(oprot);
+        }
+      }
+
+      @Override
+      public void read(org.apache.thrift.protocol.TProtocol prot, writeBlock_args struct) throws org.apache.thrift.TException {
+        TTupleProtocol iprot = (TTupleProtocol) prot;
+        BitSet incoming = iprot.readBitSet(2);
+        if (incoming.get(0)) {
+          struct.blockSize = iprot.readI64();
+          struct.setBlockSizeIsSet(true);
+        }
+        if (incoming.get(1)) {
+          struct.listenFrom = new EndPoint();
+          struct.listenFrom.read(iprot);
+          struct.setListenFromIsSet(true);
+        }
+      }
+    }
+
+  }
+
+  public static class writeBlock_result implements org.apache.thrift.TBase<writeBlock_result, writeBlock_result._Fields>, java.io.Serializable, Cloneable   {
+    private static final org.apache.thrift.protocol.TStruct STRUCT_DESC = new org.apache.thrift.protocol.TStruct("writeBlock_result");
+
+
+    private static final Map<Class<? extends IScheme>, SchemeFactory> schemes = new HashMap<Class<? extends IScheme>, SchemeFactory>();
+    static {
+      schemes.put(StandardScheme.class, new writeBlock_resultStandardSchemeFactory());
+      schemes.put(TupleScheme.class, new writeBlock_resultTupleSchemeFactory());
+    }
+
+
+    /** The set of fields this struct contains, along with convenience methods for finding and manipulating them. */
+    public enum _Fields implements org.apache.thrift.TFieldIdEnum {
+;
+
+      private static final Map<String, _Fields> byName = new HashMap<String, _Fields>();
+
+      static {
+        for (_Fields field : EnumSet.allOf(_Fields.class)) {
+          byName.put(field.getFieldName(), field);
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, or null if its not found.
+       */
+      public static _Fields findByThriftId(int fieldId) {
+        switch(fieldId) {
+          default:
+            return null;
+        }
+      }
+
+      /**
+       * Find the _Fields constant that matches fieldId, throwing an exception
+       * if it is not found.
+       */
+      public static _Fields findByThriftIdOrThrow(int fieldId) {
+        _Fields fields = findByThriftId(fieldId);
+        if (fields == null) throw new IllegalArgumentException("Field " + fieldId + " doesn't exist!");
+        return fields;
+      }
+
+      /**
+       * Find the _Fields constant that matches name, or null if its not found.
+       */
+      public static _Fields findByName(String name) {
+        return byName.get(name);
+      }
+
+      private final short _thriftId;
+      private final String _fieldName;
+
+      _Fields(short thriftId, String fieldName) {
+        _thriftId = thriftId;
+        _fieldName = fieldName;
+      }
+
+      public short getThriftFieldId() {
+        return _thriftId;
+      }
+
+      public String getFieldName() {
+        return _fieldName;
+      }
+    }
+    public static final Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> metaDataMap;
+    static {
+      Map<_Fields, org.apache.thrift.meta_data.FieldMetaData> tmpMap = new EnumMap<_Fields, org.apache.thrift.meta_data.FieldMetaData>(_Fields.class);
+      metaDataMap = Collections.unmodifiableMap(tmpMap);
+      org.apache.thrift.meta_data.FieldMetaData.addStructMetaDataMap(writeBlock_result.class, metaDataMap);
+    }
+
+    public writeBlock_result() {
+    }
+
+    /**
+     * Performs a deep copy on <i>other</i>.
+     */
+    public writeBlock_result(writeBlock_result other) {
+    }
+
+    public writeBlock_result deepCopy() {
+      return new writeBlock_result(this);
+    }
+
+    @Override
+    public void clear() {
+    }
+
+    public void setFieldValue(_Fields field, Object value) {
+      switch (field) {
+      }
+    }
+
+    public Object getFieldValue(_Fields field) {
+      switch (field) {
+      }
+      throw new IllegalStateException();
+    }
+
+    /** Returns true if field corresponding to fieldID is set (has been assigned a value) and false otherwise */
+    public boolean isSet(_Fields field) {
+      if (field == null) {
+        throw new IllegalArgumentException();
+      }
+
+      switch (field) {
+      }
+      throw new IllegalStateException();
+    }
+
+    @Override
+    public boolean equals(Object that) {
+      if (that == null)
+        return false;
+      if (that instanceof writeBlock_result)
+        return this.equals((writeBlock_result)that);
+      return false;
+    }
+
+    public boolean equals(writeBlock_result that) {
+      if (that == null)
+        return false;
+
+      return true;
+    }
+
+    @Override
+    public int hashCode() {
+      return 0;
+    }
+
+    public int compareTo(writeBlock_result other) {
+      if (!getClass().equals(other.getClass())) {
+        return getClass().getName().compareTo(other.getClass().getName());
+      }
+
+      int lastComparison = 0;
+      writeBlock_result typedOther = (writeBlock_result)other;
+
+      return 0;
+    }
+
+    public _Fields fieldForId(int fieldId) {
+      return _Fields.findByThriftId(fieldId);
+    }
+
+    public void read(org.apache.thrift.protocol.TProtocol iprot) throws org.apache.thrift.TException {
+      schemes.get(iprot.getScheme()).getScheme().read(iprot, this);
+    }
+
+    public void write(org.apache.thrift.protocol.TProtocol oprot) throws org.apache.thrift.TException {
+      schemes.get(oprot.getScheme()).getScheme().write(oprot, this);
+      }
+
+    @Override
+    public String toString() {
+      StringBuilder sb = new StringBuilder("writeBlock_result(");
+      boolean first = true;
+
+      sb.append(")");
+      return sb.toString();
+    }
+
+    public void validate() throws org.apache.thrift.TException {
+      // check for required fields
+    }
+
+    private void writeObject(java.io.ObjectOutputStream out) throws java.io.IOException {
+      try {
+        write(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(out)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private void readObject(java.io.ObjectInputStream in) throws java.io.IOException, ClassNotFoundException {
+      try {
+        read(new org.apache.thrift.protocol.TCompactProtocol(new org.apache.thrift.transport.TIOStreamTransport(in)));
+      } catch (org.apache.thrift.TException te) {
+        throw new java.io.IOException(te);
+      }
+    }
+
+    private static class writeBlock_resultStandardSchemeFactory implements SchemeFactory {
+      public writeBlock_resultStandardScheme getScheme() {
+        return new writeBlock_resultStandardScheme();
+      }
+    }
+
+    private static class writeBlock_resultStandardScheme extends StandardScheme<writeBlock_result> {
+
+      public void read(org.apache.thrift.protocol.TProtocol iprot, writeBlock_result struct) throws org.apache.thrift.TException {
+        org.apache.thrift.protocol.TField schemeField;
+        iprot.readStructBegin();
+        while (true)
+        {
+          schemeField = iprot.readFieldBegin();
+          if (schemeField.type == org.apache.thrift.protocol.TType.STOP) { 
+            break;
+          }
+          switch (schemeField.id) {
+            default:
+              org.apache.thrift.protocol.TProtocolUtil.skip(iprot, schemeField.type);
+          }
+          iprot.readFieldEnd();
+        }
+        iprot.readStructEnd();
+
+        // check for required fields of primitive type, which can't be checked in the validate method
+        struct.validate();
+      }
+
+      public void write(org.apache.thrift.protocol.TProtocol oprot, writeBlock_result struct) throws org.apache.thrift.TException {
+        struct.validate();
+
+        oprot.writeStructBegin(STRUCT_DESC);
+        oprot.writeFieldStop();
+        oprot.writeStructEnd();
+      }
+
+    }
+
+    private static class writeBlock_resultTupleSchemeFactory implements SchemeFactory {
+      public writeBlock_resultTupleScheme getScheme() {
+        return new writeBlock_resultTupleScheme();
+      }
+    }
+
+    private static class writeBlock_resultTupleScheme extends TupleScheme<writeBlock_result> {
+
+      @Override
+      public void write(org.apache.thrift.protocol.TProtocol prot, writeBlock_result struct) throws org.apache.thrift.TException {
+        TTupleProtocol oprot = (TTupleProtocol) prot;
+      }
+
+      @Override
+      public void read(org.apache.thrift.protocol.TProtocol prot, writeBlock_result struct) throws org.apache.thrift.TException {
+        TTupleProtocol iprot = (TTupleProtocol) prot;
       }
     }
 

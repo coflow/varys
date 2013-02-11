@@ -10,11 +10,11 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
-public class VarysGetMachines {
+public class VarysWriteBlock {
 
   String masterHostname = null;
 
-  public VarysGetMachines() {
+  public VarysWriteBlock() {
     // Load properties
     Properties props = VarysCommon.loadProperties();
 
@@ -28,7 +28,7 @@ public class VarysGetMachines {
     }
   }
   
-  public List<String> getMachines(int numMachines, long avgTxBytes) {
+  public void writeBlock(long blockSize, EndPoint listenFrom) {
     TTransport transport = null;
     try {
       transport = new TSocket(masterHostname, VarysCommon.MASTER_PORT);
@@ -36,8 +36,7 @@ public class VarysGetMachines {
 
       TProtocol protocol = new TBinaryProtocol(transport);
       VarysMasterService.Client client = new VarysMasterService.Client(protocol);
-      
-      return client.getMachines(numMachines, avgTxBytes);
+      client.writeBlock(blockSize, listenFrom);
     } catch (Exception e) {
       e.printStackTrace();
     } finally {
@@ -45,30 +44,20 @@ public class VarysGetMachines {
         transport.close();
       }
     }
-    return null;
   }
 
   public static void main(String[] args) {
     
-    if (args.length < 2) {
-      System.err.println("Usage: VarysGetMachines <numMachines> <avgTxMegaBytes>");
+    if (args.length < 3) {
+      System.err.println("Usage: VarysWriteBlock <blockSize> <srcHost> <srcPort>");
       System.exit(1);
     }
     
-    int numMachines = Integer.parseInt(args[0]);
-    long avgTxBytes = Long.parseLong(args[1]) * 1024L * 1024L;
+    long blockSize = Long.parseLong(args[0]);
+    EndPoint listenFrom = new EndPoint(args[1], Integer.parseInt(args[2]));
     
-    VarysGetMachines gm = new VarysGetMachines();
-    List<String> machines = gm.getMachines(numMachines, avgTxBytes);
-    
-    System.out.print("X");
-    for (int i = 0; i < machines.size(); i++) {
-      System.out.print(machines.get(i));
-      if (i + 1 < machines.size()) {
-        System.out.print("/");
-      }
-    }
-    System.out.println("X");
+    VarysWriteBlock wb = new VarysWriteBlock();
+    wb.writeBlock(blockSize, listenFrom);
   }
   
 }
