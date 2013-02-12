@@ -15,9 +15,6 @@ public class VarysWriteBlock {
   String masterHostname = null;
 
   public VarysWriteBlock() {
-    // Load properties
-    Properties props = VarysCommon.loadProperties();
-
     // Retrieve master information
     masterHostname = null;
     try {

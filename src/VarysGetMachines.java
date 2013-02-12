@@ -15,9 +15,6 @@ public class VarysGetMachines {
   String masterHostname = null;
 
   public VarysGetMachines() {
-    // Load properties
-    Properties props = VarysCommon.loadProperties();
-
     // Retrieve master information
     masterHostname = null;
     try {

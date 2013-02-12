@@ -22,6 +22,8 @@ public class VarysCommon {
   public static final long HEARTBEAT_INTERVAL_SEC = 1;
   
   public static final String PATH_TO_PROPERTIES_FILE = CONFIG_DIR + "/varys.properties";
+  
+  public static final Properties varysProperties = loadProperties();
 
   public static String getMasterHostname() throws Exception{
     FileInputStream fstream = new FileInputStream(MASTERS_FILENAME);
@@ -66,7 +68,7 @@ public class VarysCommon {
     return retVal;
   }
   
-  public static Properties loadProperties() {
+  private static Properties loadProperties() {
     Properties properties = new Properties();
     try {
       FileInputStream in = new FileInputStream(PATH_TO_PROPERTIES_FILE);

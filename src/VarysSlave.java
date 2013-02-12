@@ -28,10 +28,9 @@ public class VarysSlave {
   
   public VarysSlave() {
     // Load properties
-    Properties props = VarysCommon.loadProperties();
-
-    commandToGetRxBytes = props.getProperty("varys.command.getRxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $7}'");
-    commandToGetTxBytes = props.getProperty("varys.command.getTxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $10}'");
+    
+    commandToGetRxBytes = VarysCommon.varysProperties.getProperty("varys.command.getRxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $7}'");
+    commandToGetTxBytes = VarysCommon.varysProperties.getProperty("varys.command.getTxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $10}'");
     
     // Retrieve master information
     masterHostname = null;

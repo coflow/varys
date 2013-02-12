@@ -99,6 +99,37 @@ public class VarysMasterServiceHandler implements VarysMasterService.Iface {
       BpsInfo bpsInfo = nameToBpsMap.containsKey(name) ? nameToBpsMap.get(name) : new BpsInfo();
       return bpsInfo.isTemp ? bpsInfo.tempBps : bpsInfo.bps;
     }
+
+    public synchronized String getRandom(long adjustBytes) {
+      List<String> ret = getRandomN(1, adjustBytes);
+      if (ret == null || ret.size() == 0) {
+        return null;
+      }
+      return ret.get(0);
+    }
+    
+    public synchronized List<String> getRandomN(int numMachines, long adjustBytes) {
+      ArrayList<String> retVal = new ArrayList<String>();
+      ArrayList<String> machines = new ArrayList(nameToRxBpsMap.keySet());
+      assert(numMachines <= machines.size());
+      
+      boolean[] wasSelected = new boolean[machines.size()];
+      Arrays.fill(wasSelected, false);
+      
+      while (numMachines-- > 0) {
+        int toAdd = -1;
+        while (toAdd == -1) {
+          toAdd = writeBlockRanGen.nextInt(machines.size());
+          if (wasSelected[toAdd]) {
+            toAdd = -1;
+          }
+        }
+        retVal.add(machines.get(toAdd));
+        adjustBps(machines.get(toAdd), adjustBytes);
+        wasSelected[toAdd] = true;
+      }
+      return retVal;
+    }
     
     public synchronized String getTop(long adjustBytes) {
       List<String> ret = getTopN(1, adjustBytes);
@@ -110,30 +141,30 @@ public class VarysMasterServiceHandler implements VarysMasterService.Iface {
     
     public synchronized List<String> getTopN(int numMachines, long adjustBytes) {
       ArrayList<String> retVal = new ArrayList<String>();
-      if (adjustBytes < 0) {
-        // Random
-      } else {
-        // Find best machines
-        ArrayList<String> machines = new ArrayList<String>(nameToBpsMap.keySet());
-        Collections.sort(machines, new Comparator<String>(){
-           public int compare(String o1, String o2){
-             double o1bps = getBps(o1);
-             double o2bps = getBps(o2);
-             if (o1bps == o2bps) {
-                 return 0;
-             }
-             return o1bps < o2bps ? -1 : 1;
+      assert(adjustBytes >= 0);
+
+      ArrayList<String> machines = new ArrayList<String>(nameToBpsMap.keySet());
+      Collections.sort(machines, new Comparator<String>(){
+         public int compare(String o1, String o2){
+           double o1bps = getBps(o1);
+           double o2bps = getBps(o2);
+           if (o1bps == o2bps) {
+               return 0;
            }
-        });
-        for (int i = 0; i < numMachines && i < machines.size(); i++) {
-          retVal.add(machines.get(i));
-          adjustBps(machines.get(i), adjustBytes);
-        }
+           return o1bps < o2bps ? -1 : 1;
+         }
+      });
+      for (int i = 0; i < numMachines && i < machines.size(); i++) {
+        retVal.add(machines.get(i));
+        adjustBps(machines.get(i), adjustBytes);
       }
+      
       return retVal;
     }
     
   }
+
+  Random writeBlockRanGen = new Random(13);
   
   public VarysMasterServiceHandler() {
     nameToRxBpsMap = new NameToBpsMap();
@@ -186,7 +217,15 @@ public class VarysMasterServiceHandler implements VarysMasterService.Iface {
   @Override
   public synchronized void writeBlock(long blockSize, EndPoint listenFrom) {
     // Decide where to put.
-    String destSlave = nameToRxBpsMap.getTop(blockSize);
+    
+    String destSlave = null;
+    
+    String placementPolicy = VarysCommon.varysProperties.getProperty("varys.placementPolicy", "Random");
+    if (placementPolicy.startsWith("Random")) {
+      destSlave = nameToRxBpsMap.getRandom(blockSize);
+    } else if (placementPolicy.startsWith("NetworkAware")) {
+      destSlave = nameToRxBpsMap.getTop(blockSize);
+    }
     
     // Start receiver(s)
     assert(destSlave != null);
@@ -211,6 +250,15 @@ public class VarysMasterServiceHandler implements VarysMasterService.Iface {
   
   @Override
   public synchronized List<String> getMachines(int numMachines, long avgTxBytes) {
-    return nameToTxBpsMap.getTopN(numMachines, avgTxBytes);
+    List<String> retVal = null;
+    
+    String placementPolicy = VarysCommon.varysProperties.getProperty("varys.placementPolicy", "Random");
+    if (placementPolicy.startsWith("Random")) {
+      retVal = nameToTxBpsMap.getRandomN(numMachines, avgTxBytes);
+    } else if (placementPolicy.startsWith("NetworkAware")) {
+      retVal = nameToTxBpsMap.getTopN(numMachines, avgTxBytes);
+    }
+    
+    return retVal;
   }
 }
