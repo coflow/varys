@@ -7,7 +7,7 @@ import java.util.*;
 public class VarysCommon {
   public static final String cmdToGetPublicName = "curl http://169.254.169.254/latest/meta-data/public-hostname";
   
-  public static final String MASTER_IP = (System.getenv("VARYS_MASTER_IP") != null) ? System.getenv("VARYS_MASTER_IP") : getValueFromCommandLine(cmdToGetPublicName); // InetAddress.getLocalHost().getHostName();
+  // public static final String MASTER_IP = (System.getenv("VARYS_MASTER_IP") != null) ? System.getenv("VARYS_MASTER_IP") : getValueFromCommandLine(cmdToGetPublicName);
 
   public static final int MASTER_PORT = (System.getenv("VARYS_MASTER_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_PORT")) : 1606;
 
@@ -42,7 +42,6 @@ public class VarysCommon {
   public static String getLocalHostname() {
     String retVal = null;
     try {
-      // retVal = InetAddress.getLocalHost().getHostName();
       retVal = getValueFromCommandLine(cmdToGetPublicName);
     } catch (Exception e) {
       e.printStackTrace();
@@ -57,14 +56,12 @@ public class VarysCommon {
       Process p = pb.start();
 
       BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
-
       while ((retVal = stdInput.readLine()) != null) {
         break;
       }
     } catch (Exception e) {
       e.printStackTrace();
     }
-    // System.out.println(retVal);
     return retVal;
   }
   

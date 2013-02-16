@@ -29,14 +29,7 @@ public class VarysSlave {
   double lastRxBytes = 0;
   double lastTxBytes = 0;
   
-  String commandToGetRxBytes = null;
-  String commandToGetTxBytes = null;
-  
   public VarysSlave() {
-    // Load properties
-    commandToGetRxBytes = VarysCommon.varysProperties.getProperty("varys.command.getRxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $7}'");
-    commandToGetTxBytes = VarysCommon.varysProperties.getProperty("varys.command.getTxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $10}'");
-    
     // Retrieve master information
     masterHostname = null;
     try {
@@ -109,10 +102,6 @@ public class VarysSlave {
       
     }
     
-    // Collect stats from the command line
-    // curRxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetRxBytes));
-    // curTxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetTxBytes));
-
     double rxBps = 0;
     double txBps = 0;
 
