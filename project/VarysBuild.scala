@@ -58,29 +58,27 @@ object VarysBuild extends Build {
       "cc.spray" %%  "spray-json" % "1.1.1",
       "org.apache.thrift" % "libthrift" % "0.8.0",
       "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native"
-    )
-  ) ++ assemblySettings ++ Twirl.settings ++ ThriftPlugin.thriftSettings
-
-  extractJars := {
+    ),
+    
     // Collect jar files to be extracted from managed jar dependencies
     jarsToExtract <<= (classpathTypes, update) map { (ct, up) =>
       managedJars(Compile, ct, up) map { _.data } filter { _.getName.startsWith("sigar-" + sigarVersion + "-native") }
-    }
+    },
 
     // Define the target directory
-    extractJarsTarget <<= (baseDirectory)(_ / "../lib_managed/jars")
-
+    extractJarsTarget <<= (baseDirectory)(_ / "../lib_managed/jars"),
+    
     // Task to extract jar files
-    (jarsToExtract, extractJarsTarget, streams) map { (jars, target, streams) =>
+    extractJars <<= (jarsToExtract, extractJarsTarget, streams) map { (jars, target, streams) =>
       jars foreach { jar =>
         streams.log.info("Extracting " + jar.getName + " to " + target)
         IO.unzip(jar, target)
       }
-    }    
-  }
-
-  // Make extractJars run before compile
-  compile in Compile <<= extractJars map { _ => sbt.inc.Analysis.Empty }
+    },
+    
+    // Make extractJars run before compile
+    (compile in Compile) <<= (compile in Compile) dependsOn(extractJars)
+  ) ++ assemblySettings ++ Twirl.settings ++ ThriftPlugin.thriftSettings
 
   def rootSettings = sharedSettings ++ Seq(
     publish := {}
