@@ -17,6 +17,7 @@ import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
 import org.hyperic.sigar.Sigar;
+import org.hyperic.sigar.SigarException;
 import org.hyperic.sigar.NetInterfaceStat;
 
 public class VarysSlave {
@@ -93,15 +94,19 @@ public class VarysSlave {
     double curTxBytes = 0;
     
     // Collect stats using Sigar
-    String[] netIfs = sigar.getNetInterfaceList();
-    for (int i = 0; i < netIf.length; i++) {
-      NetInterfaceStat net = sigar.getNetInterfaceStat(netIf[i]);
+    try {
+      String[] netIfs = sigar.getNetInterfaceList();
+      for (int i = 0; i < netIfs.length; i++) {
+        NetInterfaceStat net = sigar.getNetInterfaceStat(netIfs[i]);
       
-      double r = net.getRxBytes();
-      curRxBytes += (r >= 0) ? r : 0;
+        double r = net.getRxBytes();
+        curRxBytes += (r >= 0) ? r : 0;
       
-      double t = net.getTxBytes();
-      curTxBytes += (t >= 0) ? t : 0;
+        double t = net.getTxBytes();
+        curTxBytes += (t >= 0) ? t : 0;
+      }
+    } catch (SigarException se) {
+      
     }
     
     // Collect stats from the command line

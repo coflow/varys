@@ -13,33 +13,14 @@ if [ -e $FWDIR/conf/varys-env.sh ] ; then
   . $FWDIR/conf/varys-env.sh
 fi
 
-if [ "$VARYS_LAUNCH_WITH_SCALA" == "1" ]; then
-  if [ `command -v scala` ]; then
-    RUNNER="scala"
-  else
-    if [ -z "$SCALA_HOME" ]; then
-      echo "SCALA_HOME is not set" >&2
-      exit 1
-    fi
-    RUNNER="${SCALA_HOME}/bin/scala"
-  fi
+if [ `command -v java` ]; then
+  RUNNER="java"
 else
-  if [ `command -v java` ]; then
-    RUNNER="java"
-  else
-    if [ -z "$JAVA_HOME" ]; then
-      echo "JAVA_HOME is not set" >&2
-      exit 1
-    fi
-    RUNNER="${JAVA_HOME}/bin/java"
+  if [ -z "$JAVA_HOME" ]; then
+    echo "JAVA_HOME is not set" >&2
+    exit 1
   fi
-  if [ -z "$SCALA_LIBRARY_PATH" ]; then
-    if [ -z "$SCALA_HOME" ]; then
-      echo "SCALA_HOME is not set" >&2
-      exit 1
-    fi
-    SCALA_LIBRARY_PATH="$SCALA_HOME/lib"
-  fi
+  RUNNER="${JAVA_HOME}/bin/java"
 fi
 
 # Set JAVA_OPTS to be able to load native libraries and to set heap size
