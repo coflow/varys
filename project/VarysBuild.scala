@@ -5,11 +5,18 @@ import sbtassembly.Plugin._
 import AssemblyKeys._
 import twirl.sbt.TwirlPlugin._
 import com.github.bigtoast.sbtthrift.ThriftPlugin
+import Classpaths.managedJars
 
 object VarysBuild extends Build {
   lazy val root = Project("root", file("."), settings = rootSettings) aggregate(core)
 
   lazy val core = Project("core", file("core"), settings = coreSettings)
+
+  lazy val jarsToExtract = TaskKey[Seq[File]]("jars-to-extract", "JAR files to be extracted")
+
+  lazy val extractJarsTarget = SettingKey[File]("extract-jars-target", "Target directory for extracted JAR files")
+
+  lazy val extractJars = TaskKey[Unit]("extract-jars", "Extracts JAR files")
 
   def sharedSettings = Defaults.defaultSettings ++ Seq(
     organization := "org.varys-project",
@@ -26,6 +33,7 @@ object VarysBuild extends Build {
   )
 
   val slf4jVersion = "1.6.1"
+  val sigarVersion = "1.6.4"
 
   def coreSettings = sharedSettings ++ Seq(
     name := "varys-core",
@@ -48,8 +56,29 @@ object VarysBuild extends Build {
       "cc.spray" % "spray-can" % "1.0-M2.1",
       "cc.spray" % "spray-server" % "1.0-M2.1",
       "cc.spray" %%  "spray-json" % "1.1.1",
-      "org.apache.thrift" % "libthrift" % "0.8.0"
-    )) ++ assemblySettings ++ Twirl.settings ++ ThriftPlugin.thriftSettings
+      "org.apache.thrift" % "libthrift" % "0.8.0",
+      "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native"
+    ),
+    
+    // Collect jar files to be extracted from managed jar dependencies
+    jarsToExtract <<= (classpathTypes, update) map { (ct, up) =>
+      managedJars(Compile, ct, up) map { _.data } filter { _.getName.startsWith("sigar-" + sigarVersion + "-native") }
+    },
+
+    // Define the target directory
+    extractJarsTarget <<= (baseDirectory)(_ / "../lib_managed/jars"),
+
+    // Task to extract jar files
+    extractJars <<= (jarsToExtract, extractJarsTarget, streams) map { (jars, target, streams) =>
+      jars foreach { jar =>
+        streams.log.info("Extracting " + jar.getName + " to " + target)
+        IO.unzip(jar, target)
+      }
+    },
+
+    // Make it run before compile
+    compile in Compile <<= extractJars map { _ => sbt.inc.Analysis.Empty }
+  ) ++ assemblySettings ++ Twirl.settings ++ ThriftPlugin.thriftSettings
 
   def rootSettings = sharedSettings ++ Seq(
     publish := {}
