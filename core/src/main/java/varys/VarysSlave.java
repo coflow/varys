@@ -16,19 +16,23 @@ import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 import org.apache.thrift.transport.TTransportException;
 
+import org.hyperic.sigar.Sigar;
+import org.hyperic.sigar.NetInterfaceStat;
+
 public class VarysSlave {
+
+  Sigar sigar = null;
 
   String masterHostname = null;
 
-  double lastRxBytes = -1;
-  double lastTxBytes = -1;
+  double lastRxBytes = 0;
+  double lastTxBytes = 0;
   
   String commandToGetRxBytes = null;
   String commandToGetTxBytes = null;
   
   public VarysSlave() {
     // Load properties
-    
     commandToGetRxBytes = VarysCommon.varysProperties.getProperty("varys.command.getRxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $7}'");
     commandToGetTxBytes = VarysCommon.varysProperties.getProperty("varys.command.getTxBytes", "netstat -ib | grep mosharaf-mb | awk '{print $10}'");
     
@@ -40,10 +44,11 @@ public class VarysSlave {
       e.printStackTrace();
       System.exit(1);
     }
+
+    sigar = new Sigar();
     
-    // Set initial values for rxBytes and txBytes
-    lastRxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetRxBytes));
-    lastTxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetTxBytes));
+    // Set initial values
+    initialize();
     
     try {
       Thread.sleep(VarysCommon.HEARTBEAT_INTERVAL_SEC * 1000);
@@ -51,7 +56,14 @@ public class VarysSlave {
       e.printStackTrace();
     }
   }
+  
+  private void initialize() {
+    // Initialize the prev* values
+    getMachineStat(true);
     
+    
+  }
+  
   public void start() {
     TTransport transport = null;
     try {
@@ -62,7 +74,7 @@ public class VarysSlave {
       VarysMasterService.Client client = new VarysMasterService.Client(protocol);
       
       while (true) {
-        client.putOne(VarysCommon.getLocalHostname(), getMachineStat());
+        client.putOne(VarysCommon.getLocalHostname(), getMachineStat(false));
         
         Thread.sleep(VarysCommon.HEARTBEAT_INTERVAL_SEC * 1000);
       }
@@ -76,12 +88,33 @@ public class VarysSlave {
     }
   }
 
-  private MachineStat getMachineStat() {
-    double curRxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetRxBytes));
-    double curTxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetTxBytes));
+  private MachineStat getMachineStat(boolean firstTime) {
+    double curRxBytes = 0;
+    double curTxBytes = 0;
+    
+    // Collect stats using Sigar
+    String[] netIfs = sigar.getNetInterfaceList();
+    for (int i = 0; i < netIf.length; i++) {
+      NetInterfaceStat net = sigar.getNetInterfaceStat(netIf[i]);
+      
+      double r = net.getRxBytes();
+      curRxBytes += (r >= 0) ? r : 0;
+      
+      double t = net.getTxBytes();
+      curTxBytes += (t >= 0) ? t : 0;
+    }
+    
+    // Collect stats from the command line
+    // curRxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetRxBytes));
+    // curTxBytes = Double.parseDouble(VarysCommon.getValueFromCommandLine(commandToGetTxBytes));
 
-    double rxBps = (curRxBytes - lastRxBytes) / VarysCommon.HEARTBEAT_INTERVAL_SEC;
-    double txBps = (curTxBytes - lastTxBytes) / VarysCommon.HEARTBEAT_INTERVAL_SEC;
+    double rxBps = 0;
+    double txBps = 0;
+
+    if (!firstTime) {
+      rxBps = (curRxBytes - lastRxBytes) / VarysCommon.HEARTBEAT_INTERVAL_SEC;
+      txBps = (curTxBytes - lastTxBytes) / VarysCommon.HEARTBEAT_INTERVAL_SEC;
+    }
     
     lastRxBytes = curRxBytes;
     lastTxBytes = curTxBytes;
