@@ -11,24 +11,32 @@ public class VarysCommon {
 
   public static final int MASTER_PORT = (System.getenv("VARYS_MASTER_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_PORT")) : 1606;
 
+  public static final int SLAVE_PORT = (System.getenv("VARYS_SLAVE_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_SLAVE_PORT")) : 1607;
+
   public static final int WEBUI_PORT = (System.getenv("VARYS_MASTER_WEBUI_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_WEBUI_PORT")) : 16016;
     
-  public static final String CONFIG_DIR = System.getenv("VARYS_CONF_DIR");
+  public static final String CONFIG_DIR = (System.getenv("VARYS_CONF_DIR") != null) ? System.getenv("VARYS_CONF_DIR") : "conf";
     
-  public static final long SLEEP_INTERVAL_SEC = 1;
+  public static final String MASTERS_FILENAME = CONFIG_DIR + "/masters";
+
+  public static final long HEARTBEAT_INTERVAL_SEC = 1;
   
   public static final String PATH_TO_PROPERTIES_FILE = CONFIG_DIR + "/varys.properties";
 
-  public static String getMasterHostname(String masterURL) {
-    // Keep it classy!
-    String[] b = masterURL.substring(masterURL.indexOf("//") + 2).split(":");
-    return b[0];
-  }
+  public static final Properties varysProperties = loadProperties();
 
-  public static int getMasterPort(String masterURL) {
-    // Keep it classy!
-    String[] b = masterURL.substring(masterURL.indexOf("//") + 2).split(":");
-    return Integer.parseInt(b[1]);
+  public static String getMasterHostname() throws Exception{
+    FileInputStream fstream = new FileInputStream(MASTERS_FILENAME);
+    DataInputStream in = new DataInputStream(fstream);
+    BufferedReader br = new BufferedReader(new InputStreamReader(in));
+
+    String strLine = br.readLine();
+    if (strLine == null) {
+      throw new Exception("Master Not Found!");
+    }
+    in.close();
+
+    return strLine;
   }
 
   public static String getLocalHostname() {

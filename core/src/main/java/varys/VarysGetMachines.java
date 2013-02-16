@@ -12,27 +12,27 @@ import org.apache.thrift.transport.TTransportException;
 
 public class VarysGetMachines {
 
-  String masterURL = "";
-  int masterPort = -1;
   String masterHostname = null;
 
-  public VarysGetMachines(String masterURL) {
-    // Load properties
-    Properties props = VarysCommon.loadProperties();
-
+  public VarysGetMachines() {
     // Retrieve master information
-    masterHostname = VarysCommon.getMasterHostname(masterURL);
-    masterPort = VarysCommon.getMasterPort(masterURL);
+    masterHostname = null;
+    try {
+      masterHostname = VarysCommon.getMasterHostname();
+    } catch (Exception e) {
+      e.printStackTrace();
+      System.exit(1);
+    }
   }
   
-  public List<String> getMachines(int numMachines, double avgTxBytes) {
+  public List<String> getMachines(int numMachines, long avgTxBytes) {
     TTransport transport = null;
     try {
-      transport = new TSocket(masterHostname, masterPort);
+      transport = new TSocket(masterHostname, VarysCommon.MASTER_PORT);
       transport.open();
 
       TProtocol protocol = new TBinaryProtocol(transport);
-      VarysService.Client client = new VarysService.Client(protocol);
+      VarysMasterService.Client client = new VarysMasterService.Client(protocol);
       
       return client.getMachines(numMachines, avgTxBytes);
     } catch (Exception e) {
@@ -47,16 +47,15 @@ public class VarysGetMachines {
 
   public static void main(String[] args) {
     
-    if (args.length < 3) {
-      System.err.println("Usage: VarysGetMachines <masterURL> <numMachines> <avgTxMegaBytes>");
+    if (args.length < 2) {
+      System.err.println("Usage: VarysGetMachines <numMachines> <avgTxMegaBytes>");
       System.exit(1);
     }
     
-    String masterURL = args[0];
-    int numMachines = Integer.parseInt(args[1]);
-    double avgTxBytes = Double.parseDouble(args[2]) * 1024.0 * 1024.0;
+    int numMachines = Integer.parseInt(args[0]);
+    long avgTxBytes = Long.parseLong(args[1]) * 1024L * 1024L;
     
-    VarysGetMachines gm = new VarysGetMachines(masterURL);
+    VarysGetMachines gm = new VarysGetMachines();
     List<String> machines = gm.getMachines(numMachines, avgTxBytes);
     
     System.out.print("X");
