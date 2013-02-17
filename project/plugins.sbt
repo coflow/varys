@@ -12,6 +12,6 @@ addSbtPlugin("com.typesafe.sbteclipse" % "sbteclipse-plugin" % "2.1.1")
 
 addSbtPlugin("com.github.mpeltonen" % "sbt-idea" % "1.2.0")
 
-addSbtPlugin("io.spray" % "sbt-twirl" % "0.6.1")
+addSbtPlugin("io.spray" %% "sbt-twirl" % "0.6.1")
 
 addSbtPlugin("com.github.bigtoast" % "sbt-thrift" % "0.6")

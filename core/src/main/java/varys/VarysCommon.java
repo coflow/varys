@@ -7,7 +7,7 @@ import java.util.*;
 public class VarysCommon {
   public static final String cmdToGetPublicName = "curl http://169.254.169.254/latest/meta-data/public-hostname";
   
-  // public static final String MASTER_IP = (System.getenv("VARYS_MASTER_IP") != null) ? System.getenv("VARYS_MASTER_IP") : getValueFromCommandLine(cmdToGetPublicName);
+  public static final String MASTER_IP = (System.getenv("VARYS_MASTER_IP") != null) ? System.getenv("VARYS_MASTER_IP") : getValueFromCommandLine(cmdToGetPublicName);
 
   public static final int MASTER_PORT = (System.getenv("VARYS_MASTER_PORT") != null) ? Integer.parseInt(System.getenv("VARYS_MASTER_PORT")) : 1606;
 

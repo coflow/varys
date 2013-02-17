@@ -2,7 +2,7 @@
 
 # Start all varys daemons.
 # Starts the master on this node.
-# Starts a worker on each node specified in conf/slaves
+# Starts a slave on each node specified in conf/slaves
 
 bin=`dirname "$0"`
 bin=`cd "$bin"; pwd`
@@ -13,5 +13,5 @@ bin=`cd "$bin"; pwd`
 # Start Master
 "$bin"/start-master.sh
 
-# Start Workers
+# Start Slaves
 "$bin"/start-slaves.sh

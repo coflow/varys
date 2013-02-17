@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# This Varys deploy script is a modified version of the Apache Hadoop deploy
+# This Varys framework script is a modified version of the Apache Hadoop deploy
 # script, available under the Apache 2 license:
 #
 # Licensed to the Apache Software Foundation (ASF) under one or more
