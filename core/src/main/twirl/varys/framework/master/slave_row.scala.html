@@ -1,0 +1,14 @@
+@(slave: varys.framework.master.SlaveInfo)
+
+@import varys.Utils
+
+<tr>
+  <td>
+    <a href="@slave.webUiAddress">@slave.id</href>
+  </td>
+  <td>@{slave.host}:@{slave.port}</td>
+  <td>@slave.state</td>
+  <td>@slave.cores (@slave.coresUsed Used)</td>
+  <td>@{Utils.memoryMegabytesToString(slave.memory)}
+     (@{Utils.memoryMegabytesToString(slave.memoryUsed)} Used)</td>
+</tr>

@@ -1,0 +1,18 @@
+@(slaves: Array[varys.framework.master.SlaveInfo])
+
+<table class="table table-bordered table-striped table-condensed sortable">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Address</th>
+      <th>State</th>
+      <th>Cores</th>
+      <th>Memory</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for(w <- slaves) {
+      @slave_row(w)
+    }
+  </tbody>
+</table>

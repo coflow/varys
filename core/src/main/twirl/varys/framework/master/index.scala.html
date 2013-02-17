@@ -1,0 +1,53 @@
+@(state: varys.framework.MasterState)
+@import varys.framework.master._
+@import varys.Utils
+
+@varys.common.html.layout(title = "Varys Master on " + state.host) {
+
+  <!-- Cluster Details -->
+  <div class="row">
+    <div class="span12">
+      <ul class="unstyled">
+        <li><strong>URL:</strong> @(state.uri)</li>
+        <li><strong>Slaves:</strong> @state.slaves.size </li>
+        <li><strong>Cores:</strong> @{state.slaves.map(_.cores).sum} Total,
+                                    @{state.slaves.map(_.coresUsed).sum} Used</li>
+        <li><strong>Memory:</strong> @{Utils.memoryMegabytesToString(state.slaves.map(_.memory).sum)} Total, 
+                                     @{Utils.memoryMegabytesToString(state.slaves.map(_.memoryUsed).sum)} Used</li>
+        <li><strong>Jobs:</strong> @state.activeJobs.size Running, @state.completedJobs.size Completed </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Slave Summary -->
+  <div class="row">
+    <div class="span12">
+      <h3> Cluster Summary </h3>
+      <br/>
+      @slave_table(state.slaves.sortBy(_.id))
+    </div>
+  </div>
+
+  <hr/>
+
+  <!-- Job Summary (Running) -->
+  <div class="row">
+    <div class="span12">
+      <h3> Running Jobs </h3>
+      <br/>
+      @job_table(state.activeJobs.sortBy(_.startTime).reverse)
+    </div>
+  </div>
+
+  <hr/>
+
+  <!-- Job Summary (Completed) -->
+  <div class="row">
+    <div class="span12">
+      <h3> Completed Jobs </h3>
+      <br/>
+      @job_table(state.completedJobs.sortBy(_.endTime).reverse)
+    </div>
+  </div>
+
+}
