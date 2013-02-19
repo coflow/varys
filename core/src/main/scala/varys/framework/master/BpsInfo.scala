@@ -3,12 +3,17 @@ package varys.framework.master
 import varys.VarysCommon
 
 private[varys] class BpsInfo {
+
+  // TODO: Might need a lock before updates and reads
+  
+  val OLD_FACTOR = System.getProperty("varys.network.oldFactor", "0.2").toDouble
+
   var bps = 0.0
   var tempBps = 0.0
   var isTemp = false
   var lastUpdateTime = System.currentTimeMillis
   
-  def resetToNormal(bps: Double) = {  
+  def resetToNormal(bps: Double) = { 
     this.bps = bps
     this.tempBps = bps
     this.isTemp = false
@@ -42,4 +47,11 @@ private[varys] class BpsInfo {
     
     this.tempBps += incVal
   }
+  
+  def update(curBps: Double) = {
+    val newBps = (1.0 - OLD_FACTOR) * curBps + OLD_FACTOR * bps
+    resetToNormal(newBps)
+  }
+
+  def modBps = if (isTemp) tempBps else bps
 }

@@ -1,24 +1,17 @@
 package varys.framework.master
 
-import scala.collection.mutable.{ArrayBuffer, SynchronizedMap, HashMap, SynchronizedSet, HashSet}
+import scala.collection.mutable.{ArrayBuffer, SynchronizedMap, HashMap}
 import scala.util.Random
 
 private[varys] class SlaveToBpsMap {
-  
-  val OLD_FACTOR = System.getProperty("varys.network.oldFactor", "0.2").toDouble
-  
+    
   val writeBlockRanGen = new Random()
   
   val idToBpsMap = new HashMap[String, BpsInfo] with SynchronizedMap[String, BpsInfo]
   
-  def size = idToBpsMap.size
-  def keys = idToBpsMap.keys
-  def values = idToBpsMap.values
-  
-  def updateNetworkInfo(id: String, newBps: Double) = {
+  def updateNetworkStats(id: String, newBps: Double) = {
     val bpsInfo = idToBpsMap.getOrElse(id, new BpsInfo())
-    val bps = (1.0 - OLD_FACTOR) * newBps + OLD_FACTOR * bpsInfo.bps
-    bpsInfo.resetToNormal(bps)
+    bpsInfo.update(newBps)
     idToBpsMap.put(id, bpsInfo)
   }
 
@@ -30,7 +23,7 @@ private[varys] class SlaveToBpsMap {
 
   def getBps(id: String): Double = {
     val bpsInfo = idToBpsMap.getOrElse(id, new BpsInfo())
-    if (bpsInfo.isTemp) bpsInfo.tempBps else bpsInfo.bps
+    bpsInfo.modBps
   }
 
   def getRandom(adjustBytes: Long): String = this.synchronized {

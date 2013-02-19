@@ -17,6 +17,12 @@ private[varys] class SlaveInfo(
 
   var lastHeartbeat = System.currentTimeMillis()
 
+  val rxBpsInfo = new BpsInfo()
+  val txBpsInfo = new BpsInfo()
+
+  val rxBps = rxBpsInfo.bps
+  val txBps = txBpsInfo.bps
+
   def coresFree: Int = cores - coresUsed
 
   def webUiAddress : String = {
@@ -25,5 +31,10 @@ private[varys] class SlaveInfo(
 
   def setState(state: SlaveState.Value) = {
     this.state = state
+  }
+  
+  def updateNetworkStats(newRxBps: Double, newTxBps: Double) = {
+    rxBpsInfo.update(newRxBps)
+    txBpsInfo.update(newTxBps)
   }
 }

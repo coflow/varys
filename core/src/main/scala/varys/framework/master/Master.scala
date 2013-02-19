@@ -84,14 +84,15 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
       // schedule()
     }
 
-    case Heartbeat(slaveId, rxBps, txBps) => {
+    case Heartbeat(slaveId, newRxBps, newTxBps) => {
       idToSlave.get(slaveId) match {
         case Some(slaveInfo) =>
+          slaveInfo.updateNetworkStats(newRxBps, newTxBps)
           slaveInfo.lastHeartbeat = System.currentTimeMillis()
           
-          idToRxBps.updateNetworkInfo(slaveId, rxBps)
-          idToTxBps.updateNetworkInfo(slaveId, txBps)
-
+          idToRxBps.updateNetworkStats(slaveId, newRxBps)
+          idToTxBps.updateNetworkStats(slaveId, newTxBps)
+          
         case None =>
           logWarning("Got heartbeat from unregistered slave " + slaveId)
       }
