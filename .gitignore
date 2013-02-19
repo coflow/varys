@@ -4,6 +4,7 @@
 *.swp
 *.out
 *.class
+*.iml
 build/
 varys.jar
 target/
@@ -12,3 +13,6 @@ target/
 log/
 logs/
 /target/
+conf/varys-env.sh
+conf/java-opts
+conf/log4j.properties

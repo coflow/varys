@@ -1,6 +1,6 @@
 package varys.framework
 
-import master.{JobInfo, SlaveInfo}
+import master.{CoflowInfo, SlaveInfo}
 import cc.spray.json._
 
 /**
@@ -13,28 +13,24 @@ private[varys] object JsonProtocol extends DefaultJsonProtocol {
       "host" -> JsString(obj.host),
       "webuiaddress" -> JsString(obj.webUiAddress),
       "cores" -> JsNumber(obj.cores),
-      "coresused" -> JsNumber(obj.coresUsed),
-      "memory" -> JsNumber(obj.memory),
-      "memoryused" -> JsNumber(obj.memoryUsed)
+      "coresused" -> JsNumber(obj.coresUsed)
     )
   }
 
-  implicit object JobInfoJsonFormat extends RootJsonWriter[JobInfo] {
-    def write(obj: JobInfo) = JsObject(
+  implicit object CoflowInfoJsonFormat extends RootJsonWriter[CoflowInfo] {
+    def write(obj: CoflowInfo) = JsObject(
       "starttime" -> JsNumber(obj.startTime),
       "id" -> JsString(obj.id),
       "name" -> JsString(obj.desc.name),
       "cores" -> JsNumber(obj.desc.cores),
       "user" -> JsString(obj.desc.user),
-      "memoryperslave" -> JsNumber(obj.desc.memoryPerSlave),
       "submitdate" -> JsString(obj.submitDate.toString))
   }
 
-  implicit object JobDescriptionJsonFormat extends RootJsonWriter[JobDescription] {
-    def write(obj: JobDescription) = JsObject(
+  implicit object CoflowDescriptionJsonFormat extends RootJsonWriter[CoflowDescription] {
+    def write(obj: CoflowDescription) = JsObject(
       "name" -> JsString(obj.name),
       "cores" -> JsNumber(obj.cores),
-      "memoryperslave" -> JsNumber(obj.memoryPerSlave),
       "user" -> JsString(obj.user)
     )
   }
@@ -45,10 +41,8 @@ private[varys] object JsonProtocol extends DefaultJsonProtocol {
       "slaves" -> JsArray(obj.slaves.toList.map(_.toJson)),
       "cores" -> JsNumber(obj.slaves.map(_.cores).sum),
       "coresused" -> JsNumber(obj.slaves.map(_.coresUsed).sum),
-      "memory" -> JsNumber(obj.slaves.map(_.memory).sum),
-      "memoryused" -> JsNumber(obj.slaves.map(_.memoryUsed).sum),
-      "activejobs" -> JsArray(obj.activeJobs.toList.map(_.toJson)),
-      "completedjobs" -> JsArray(obj.completedJobs.toList.map(_.toJson))
+      "activecoflows" -> JsArray(obj.activeCoflows.toList.map(_.toJson)),
+      "completedcoflows" -> JsArray(obj.completedCoflows.toList.map(_.toJson))
     )
   }
 
@@ -58,9 +52,7 @@ private[varys] object JsonProtocol extends DefaultJsonProtocol {
       "masterurl" -> JsString(obj.masterUrl),
       "masterwebuiurl" -> JsString(obj.masterWebUiUrl),
       "cores" -> JsNumber(obj.cores),
-      "coresused" -> JsNumber(obj.coresUsed),
-      "memory" -> JsNumber(obj.memory),
-      "memoryused" -> JsNumber(obj.memoryUsed)
+      "coresused" -> JsNumber(obj.coresUsed)
     )
   }
 }

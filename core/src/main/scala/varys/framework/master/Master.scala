@@ -16,32 +16,30 @@ import varys.util.AkkaUtils
 
 
 private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
-  val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For job IDs
+  val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
 
-  var nextJobNumber = 0
+  var nextCoflowNumber = 0
   val slaves = new HashSet[SlaveInfo]
   val idToSlave = new HashMap[String, SlaveInfo]
   val actorToSlave = new HashMap[ActorRef, SlaveInfo]
   val addressToSlave = new HashMap[Address, SlaveInfo]
 
-  val jobs = new HashSet[JobInfo]
-  val idToJob = new HashMap[String, JobInfo]
-  val actorToJob = new HashMap[ActorRef, JobInfo]
-  val addressToJob = new HashMap[Address, JobInfo]
+  val idToRxBps = new SlaveToBpsMap
+  val idToTxBps = new SlaveToBpsMap
 
-  val waitingJobs = new ArrayBuffer[JobInfo]
-  val completedJobs = new ArrayBuffer[JobInfo]
+  val coflows = new HashSet[CoflowInfo]
+  val idToCoflow = new HashMap[String, CoflowInfo]
+  val actorToCoflow = new HashMap[ActorRef, CoflowInfo]
+  val addressToCoflow = new HashMap[Address, CoflowInfo]
+
+  val waitingCoflows = new ArrayBuffer[CoflowInfo]
+  val completedCoflows = new ArrayBuffer[CoflowInfo]
 
   val masterPublicAddress = {
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
     if (envVar != null) envVar else ip
   }
-
-  // As a temporary workaround before better ways of configuring memory, we allow users to set
-  // a flag that will perform round-robin scheduling across the nodes (spreading out each job
-  // among all the nodes) instead of trying to consolidate each job onto a small # of nodes.
-  val spreadOutJobs = System.getProperty("varys.framework.spreadOut", "false").toBoolean
 
   override def preStart() {
     logInfo("Starting Varys master at varys://" + ip + ":" + port)
@@ -63,74 +61,71 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
   }
 
   override def receive = {
-    case RegisterSlave(id, host, slavePort, cores, memory, slave_webUiPort, publicAddress) => {
-      logInfo("Registering slave %s:%d with %d cores, %s RAM".format(
-        host, slavePort, cores, Utils.memoryMegabytesToString(memory)))
+    case RegisterSlave(id, host, slavePort, cores, slave_webUiPort, publicAddress) => {
+      logInfo("Registering slave %s:%d with %d cores".format(
+        host, slavePort, cores))
       if (idToSlave.contains(id)) {
         sender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
-        addSlave(id, host, slavePort, cores, memory, slave_webUiPort, publicAddress)
+        addSlave(id, host, slavePort, cores, slave_webUiPort, publicAddress)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         sender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
         // schedule()
       }
     }
 
-    case RegisterJob(description) => {
-      logInfo("Registering job " + description.name)
-      val job = addJob(description, sender)
-      logInfo("Registered job " + description.name + " with ID " + job.id)
-      waitingJobs += job
+    case RegisterCoflow(description) => {
+      logInfo("Registering coflow " + description.name)
+      val coflow = addCoflow(description, sender)
+      logInfo("Registered coflow " + description.name + " with ID " + coflow.id)
+      waitingCoflows += coflow
       context.watch(sender)  // This doesn't work with remote actors but helps for testing
-      sender ! RegisteredJob(job.id)
+      sender ! RegisteredCoflow(coflow.id)
       // schedule()
     }
 
-    case Heartbeat(slaveId) => {
+    case Heartbeat(slaveId, rxBps, txBps) => {
       idToSlave.get(slaveId) match {
         case Some(slaveInfo) =>
           slaveInfo.lastHeartbeat = System.currentTimeMillis()
+          
+          idToRxBps.updateNetworkInfo(slaveId, rxBps)
+          idToTxBps.updateNetworkInfo(slaveId, txBps)
+
         case None =>
           logWarning("Got heartbeat from unregistered slave " + slaveId)
       }
     }
 
     case Terminated(actor) => {
-      // The disconnected actor could've been either a slave or a job; remove whichever of
+      // The disconnected actor could've been either a slave or a coflow; remove whichever of
       // those we have an entry for in the corresponding actor hashmap
       actorToSlave.get(actor).foreach(removeSlave)
-      actorToJob.get(actor).foreach(removeJob)
+      actorToCoflow.get(actor).foreach(removeCoflow)
     }
 
     case RemoteClientDisconnected(transport, address) => {
-      // The disconnected client could've been either a slave or a job; remove whichever it was
+      // The disconnected client could've been either a slave or a coflow; remove whichever it was
       addressToSlave.get(address).foreach(removeSlave)
-      addressToJob.get(address).foreach(removeJob)
+      addressToCoflow.get(address).foreach(removeCoflow)
     }
 
     case RemoteClientShutdown(transport, address) => {
-      // The disconnected client could've been either a slave or a job; remove whichever it was
+      // The disconnected client could've been either a slave or a coflow; remove whichever it was
       addressToSlave.get(address).foreach(removeSlave)
-      addressToJob.get(address).foreach(removeJob)
+      addressToCoflow.get(address).foreach(removeCoflow)
     }
 
     case RequestMasterState => {
-      sender ! MasterState(ip, port, slaves.toArray, jobs.toArray, completedJobs.toArray)
+      sender ! MasterState(ip, port, slaves.toArray, coflows.toArray, completedCoflows.toArray)
     }
   }
 
-  /**
-   * Can a job use the given slave? True if the slave has enough memory.
-   */
-  def canUse(job: JobInfo, slave: SlaveInfo): Boolean = {
-    slave.memoryFree >= job.desc.memoryPerSlave
-  }
-
-  def addSlave(id: String, host: String, port: Int, cores: Int, memory: Int, webUiPort: Int,
+  def addSlave(id: String, host: String, port: Int, cores: Int, webUiPort: Int,
     publicAddress: String): SlaveInfo = {
     // There may be one or more refs to dead slaves on this same node (w/ different ID's), remove them.
     slaves.filter(w => (w.host == host) && (w.state == SlaveState.DEAD)).foreach(slaves -= _)
-    val slave = new SlaveInfo(id, host, port, cores, memory, sender, webUiPort, publicAddress)
+    val slave = new SlaveInfo(id, host, port, cores, sender, webUiPort, publicAddress)
     slaves += slave
     idToSlave(slave.id) = slave
     actorToSlave(sender) = slave
@@ -146,36 +141,36 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
     addressToSlave -= slave.actor.path.address
   }
 
-  def addJob(desc: JobDescription, driver: ActorRef): JobInfo = {
+  def addCoflow(desc: CoflowDescription, driver: ActorRef): CoflowInfo = {
     val now = System.currentTimeMillis()
     val date = new Date(now)
-    val job = new JobInfo(now, newJobId(date), desc, date, driver)
-    jobs += job
-    idToJob(job.id) = job
-    actorToJob(driver) = job
-    addressToJob(driver.path.address) = job
-    return job
+    val coflow = new CoflowInfo(now, newCoflowId(date), desc, date, driver)
+    coflows += coflow
+    idToCoflow(coflow.id) = coflow
+    actorToCoflow(driver) = coflow
+    addressToCoflow(driver.path.address) = coflow
+    return coflow
   }
 
-  def removeJob(job: JobInfo) {
-    if (jobs.contains(job)) {
-      logInfo("Removing job " + job.id)
-      jobs -= job
-      idToJob -= job.id
-      actorToJob -= job.driver
-      addressToSlave -= job.driver.path.address
-      completedJobs += job   // Remember it in our history
-      waitingJobs -= job
-      job.markFinished(JobState.FINISHED)  // TODO: Mark it as FAILED if it failed
+  def removeCoflow(coflow: CoflowInfo) {
+    if (coflows.contains(coflow)) {
+      logInfo("Removing coflow " + coflow.id)
+      coflows -= coflow
+      idToCoflow -= coflow.id
+      actorToCoflow -= coflow.driver
+      addressToSlave -= coflow.driver.path.address
+      completedCoflows += coflow   // Remember it in our history
+      waitingCoflows -= coflow
+      coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
       // schedule()
     }
   }
 
-  /** Generate a new job ID given a job's submission date */
-  def newJobId(submitDate: Date): String = {
-    val jobId = "job-%s-%04d".format(DATE_FORMAT.format(submitDate), nextJobNumber)
-    nextJobNumber += 1
-    jobId
+  /** Generate a new coflow ID given a coflow's submission date */
+  def newCoflowId(submitDate: Date): String = {
+    val coflowId = "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber)
+    nextCoflowNumber += 1
+    coflowId
   }
 
   /** Check for, and remove, any timed-out slaves */
@@ -202,7 +197,7 @@ private[varys] object Master {
     actorSystem.awaitTermination()
   }
 
-  /** Returns an /bin/bash: akka://...: No such file or directory URL for the Master actor given a varysUrl /bin/bash: varys://host:ip: No such file or directory. */
+  /** Returns an `akka://...` URL for the Master actor given a sparkUrl `spark://host:ip`. */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>

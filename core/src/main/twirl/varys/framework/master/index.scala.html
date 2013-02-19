@@ -12,9 +12,7 @@
         <li><strong>Slaves:</strong> @state.slaves.size </li>
         <li><strong>Cores:</strong> @{state.slaves.map(_.cores).sum} Total,
                                     @{state.slaves.map(_.coresUsed).sum} Used</li>
-        <li><strong>Memory:</strong> @{Utils.memoryMegabytesToString(state.slaves.map(_.memory).sum)} Total, 
-                                     @{Utils.memoryMegabytesToString(state.slaves.map(_.memoryUsed).sum)} Used</li>
-        <li><strong>Jobs:</strong> @state.activeJobs.size Running, @state.completedJobs.size Completed </li>
+        <li><strong>Coflows:</strong> @state.activeCoflows.size Running, @state.completedCoflows.size Completed </li>
       </ul>
     </div>
   </div>
@@ -30,23 +28,23 @@
 
   <hr/>
 
-  <!-- Job Summary (Running) -->
+  <!-- Coflow Summary (Running) -->
   <div class="row">
     <div class="span12">
-      <h3> Running Jobs </h3>
+      <h3> Running Coflows </h3>
       <br/>
-      @job_table(state.activeJobs.sortBy(_.startTime).reverse)
+      @coflow_table(state.activeCoflows.sortBy(_.startTime).reverse)
     </div>
   </div>
 
   <hr/>
 
-  <!-- Job Summary (Completed) -->
+  <!-- Coflow Summary (Completed) -->
   <div class="row">
     <div class="span12">
-      <h3> Completed Jobs </h3>
+      <h3> Completed Coflows </h3>
       <br/>
-      @job_table(state.completedJobs.sortBy(_.endTime).reverse)
+      @coflow_table(state.completedCoflows.sortBy(_.endTime).reverse)
     </div>
   </div>
 

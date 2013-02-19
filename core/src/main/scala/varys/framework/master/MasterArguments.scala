@@ -8,8 +8,8 @@ import varys.Utils
  */
 private[varys] class MasterArguments(args: Array[String]) {
   var ip = Utils.localHostName()
-  var port = 7077
-  var webUiPort = 8080
+  var port = 1606
+  var webUiPort = 16016
   
   // Check for settings in environment variables 
   if (System.getenv("VARYS_MASTER_IP") != null) {
@@ -55,8 +55,8 @@ private[varys] class MasterArguments(args: Array[String]) {
       "\n" +
       "Options:\n" +
       "  -i IP, --ip IP         IP address or DNS name to listen on\n" +
-      "  -p PORT, --port PORT   Port to listen on (default: 7077)\n" +
-      "  --webui-port PORT      Port for web UI (default: 8080)")
+      "  -p PORT, --port PORT   Port to listen on (default: 1606)\n" +
+      "  --webui-port PORT      Port for web UI (default: 16016)")
     System.exit(exitCode)
   }
 }

@@ -32,4 +32,4 @@ if [ "$VARYS_PUBLIC_DNS" = "" ]; then
     fi
 fi
 
-"$bin"/varys-daemon.sh start varys.VarysMaster
+"$bin"/varys-daemon.sh start varys.framework.master.Master --ip $VARYS_MASTER_IP --port $VARYS_MASTER_PORT --webui-port $VARYS_MASTER_WEBUI_PORT

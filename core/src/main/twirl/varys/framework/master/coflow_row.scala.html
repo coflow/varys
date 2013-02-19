@@ -1,0 +1,19 @@
+@(coflow: varys.framework.master.CoflowInfo)
+
+@import varys.Utils
+@import varys.framework.WebUI.formatDate
+@import varys.framework.WebUI.formatDuration
+
+<tr>
+  <td>
+    <a href="coflow?coflowId=@(coflow.id)">@coflow.id</a>
+  </td>
+  <td>@coflow.desc.name</td>
+  <td>
+    @coflow.coresGranted
+  </td>
+  <td>@formatDate(coflow.submitDate)</td>
+  <td>@coflow.desc.user</td>
+  <td>@coflow.state.toString()</td>
+  <td>@formatDuration(coflow.duration)</td>
+</tr>

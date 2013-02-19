@@ -13,14 +13,38 @@ if [ -e $FWDIR/conf/varys-env.sh ] ; then
   . $FWDIR/conf/varys-env.sh
 fi
 
-if [ `command -v java` ]; then
-  RUNNER="java"
-else
-  if [ -z "$JAVA_HOME" ]; then
-    echo "JAVA_HOME is not set" >&2
-    exit 1
+if [ -z "$1" ]; then
+  echo "Usage: run <varys-class> [<args>]" >&2
+  exit 1
+fi
+
+if [ "$VARYS_LAUNCH_WITH_SCALA" == "1" ]; then
+  if [ `command -v scala` ]; then
+    RUNNER="scala"
+  else
+    if [ -z "$SCALA_HOME" ]; then
+      echo "SCALA_HOME is not set" >&2
+      exit 1
+    fi
+    RUNNER="${SCALA_HOME}/bin/scala"
   fi
-  RUNNER="${JAVA_HOME}/bin/java"
+else
+  if [ `command -v java` ]; then
+    RUNNER="java"
+  else
+    if [ -z "$JAVA_HOME" ]; then
+      echo "JAVA_HOME is not set" >&2
+      exit 1
+    fi
+    RUNNER="${JAVA_HOME}/bin/java"
+  fi
+  if [ -z "$SCALA_LIBRARY_PATH" ]; then
+    if [ -z "$SCALA_HOME" ]; then
+      echo "SCALA_HOME is not set" >&2
+      exit 1
+    fi
+    SCALA_LIBRARY_PATH="$SCALA_HOME/lib"
+  fi
 fi
 
 # Set JAVA_OPTS to be able to load native libraries and to set heap size
@@ -36,11 +60,29 @@ CORE_DIR="$FWDIR/core"
 
 # Build up classpath
 CLASSPATH="$VARYS_CLASSPATH"
+CLASSPATH+=":$FWDIR/conf"
 CLASSPATH+=":$CORE_DIR/target/scala-$SCALA_VERSION/classes"
 CLASSPATH+=":$CORE_DIR/src/main/resources"
 if [ -e "$FWDIR/lib_managed" ]; then
   CLASSPATH+=":$FWDIR/lib_managed/jars/*"
   CLASSPATH+=":$FWDIR/lib_managed/bundles/*"
 fi
+export CLASSPATH
 
-exec "$RUNNER" -cp "$CLASSPATH" "$@"
+# Figure out whether to run our class with java or with the scala launcher.
+# In most cases, we'd prefer to execute our process with java because scala
+# creates a shell script as the parent of its Java process, which makes it
+# hard to kill the child with stuff like Process.destroy(). However, for
+# the Varys shell, the wrapper is necessary to properly reset the terminal
+# when we exit, so we allow it to set a variable to launch with scala.
+if [ "$VARYS_LAUNCH_WITH_SCALA" == "1" ]; then
+  EXTRA_ARGS=""     # Java options will be passed to scala as JAVA_OPTS
+else
+  CLASSPATH+=":$SCALA_LIBRARY_PATH/scala-library.jar"
+  CLASSPATH+=":$SCALA_LIBRARY_PATH/scala-compiler.jar"
+  CLASSPATH+=":$SCALA_LIBRARY_PATH/jline.jar"
+  # The JVM doesn't read JAVA_OPTS by default so we need to pass it in
+  EXTRA_ARGS="$JAVA_OPTS"
+fi
+
+exec "$RUNNER" -cp "$CLASSPATH" $EXTRA_ARGS "$@"

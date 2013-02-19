@@ -97,25 +97,6 @@ private object Utils extends Logging {
     return dir
   }
 
-  /** Copy all data from an InputStream to an OutputStream */
-  def copyStream(in: InputStream,
-                 out: OutputStream,
-                 closeStreams: Boolean = false)
-  {
-    val buf = new Array[Byte](8192)
-    var n = 0
-    while (n != -1) {
-      n = in.read(buf)
-      if (n != -1) {
-        out.write(buf, 0, n)
-      }
-    }
-    if (closeStreams) {
-      in.close()
-      out.close()
-    }
-  }
-
   /**
    * Get a temporary directory using Varys's varys.local.dir property, if set. This will always
    * return a single directory, even though the varys.local.dir property might be a list of
@@ -234,58 +215,6 @@ private object Utils extends Logging {
     if (!file.delete()) {
       throw new IOException("Failed to delete: " + file)
     }
-  }
-
-  /**
-   * Convert a Java memory parameter passed to -Xmx (such as 300m or 1g) to a number of megabytes.
-   * This is used to figure out how much memory to claim from Mesos based on the VARYS_MEM
-   * environment variable.
-   */
-  def memoryStringToMb(str: String): Int = {
-    val lower = str.toLowerCase
-    if (lower.endsWith("k")) {
-      (lower.substring(0, lower.length-1).toLong / 1024).toInt
-    } else if (lower.endsWith("m")) {
-      lower.substring(0, lower.length-1).toInt
-    } else if (lower.endsWith("g")) {
-      lower.substring(0, lower.length-1).toInt * 1024
-    } else if (lower.endsWith("t")) {
-      lower.substring(0, lower.length-1).toInt * 1024 * 1024
-    } else {// no suffix, so it's just a number in bytes
-      (lower.toLong / 1024 / 1024).toInt
-    }
-  }
-
-  /**
-   * Convert a memory quantity in bytes to a human-readable string such as "4.0 MB".
-   */
-  def memoryBytesToString(size: Long): String = {
-    val TB = 1L << 40
-    val GB = 1L << 30
-    val MB = 1L << 20
-    val KB = 1L << 10
-
-    val (value, unit) = {
-      if (size >= 2*TB) {
-        (size.asInstanceOf[Double] / TB, "TB")
-      } else if (size >= 2*GB) {
-        (size.asInstanceOf[Double] / GB, "GB")
-      } else if (size >= 2*MB) {
-        (size.asInstanceOf[Double] / MB, "MB")
-      } else if (size >= 2*KB) {
-        (size.asInstanceOf[Double] / KB, "KB")
-      } else {
-        (size.asInstanceOf[Double], "B")
-      }
-    }
-    "%.1f %s".formatLocal(Locale.US, value, unit)
-  }
-
-  /**
-   * Convert a memory quantity in megabytes to a human-readable string such as "4.0 MB".
-   */
-  def memoryMegabytesToString(megabytes: Long): String = {
-    memoryBytesToString(megabytes * 1024L * 1024L)
   }
 
   /**

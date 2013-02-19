@@ -8,25 +8,25 @@ import akka.pattern.AskTimeoutException
 import varys.{VarysException, Logging}
 import akka.remote.RemoteClientLifeCycleEvent
 import akka.remote.RemoteClientShutdown
-import varys.framework.RegisterJob
+import varys.framework.RegisterCoflow
 import varys.framework.master.Master
 import akka.remote.RemoteClientDisconnected
 import akka.actor.Terminated
 import akka.dispatch.Await
 
 /**
- * The main class used to talk to a Varys framework cluster. Takes a master URL, a job description,
- * and a listener for job events, and calls back the listener when various events occur.
+ * The main class used to talk to a Varys framework cluster. Takes a master URL, a coflow description,
+ * and a listener for coflow events, and calls back the listener when various events occur.
  */
 private[varys] class Client(
     actorSystem: ActorSystem,
     masterUrl: String,
-    jobDescription: JobDescription,
+    coflowDescription: CoflowDescription,
     listener: ClientListener)
   extends Logging {
 
   var actor: ActorRef = null
-  var jobId: String = null
+  var coflowId: String = null
 
   class ClientActor extends Actor with Logging {
     var master: ActorRef = null
@@ -38,7 +38,7 @@ private[varys] class Client(
       try {
         master = context.actorFor(Master.toAkkaUrl(masterUrl))
         masterAddress = master.path.address
-        master ! RegisterJob(jobDescription)
+        master ! RegisterCoflow(coflowDescription)
         context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
         context.watch(master)  // Doesn't work with remote actors, but useful for testing
       } catch {
@@ -50,9 +50,9 @@ private[varys] class Client(
     }
 
     override def receive = {
-      case RegisteredJob(jobId_) =>
-        jobId = jobId_
-        listener.connected(jobId)
+      case RegisteredCoflow(coflowId_) =>
+        coflowId = coflowId_
+        listener.connected(coflowId)
 
       case Terminated(actor_) if actor_ == master =>
         logError("Connection to master failed; stopping client")

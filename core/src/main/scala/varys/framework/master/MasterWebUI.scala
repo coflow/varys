@@ -40,27 +40,27 @@ class MasterWebUI(val actorSystem: ActorSystem, master: ActorRef) extends Direct
             }
           }
       } ~
-      path("job") {
-        parameters("jobId", 'format ?) {
-          case (jobId, Some(js)) if (js.equalsIgnoreCase("json")) =>
+      path("coflow") {
+        parameters("coflowId", 'format ?) {
+          case (coflowId, Some(js)) if (js.equalsIgnoreCase("json")) =>
             val future = master ? RequestMasterState
-            val jobInfo = for (masterState <- future.mapTo[MasterState]) yield {
-              masterState.activeJobs.find(_.id == jobId).getOrElse({
-                masterState.completedJobs.find(_.id == jobId).getOrElse(null)
+            val coflowInfo = for (masterState <- future.mapTo[MasterState]) yield {
+              masterState.activeCoflows.find(_.id == coflowId).getOrElse({
+                masterState.completedCoflows.find(_.id == coflowId).getOrElse(null)
               })
             }
             respondWithMediaType(MediaTypes.`application/json`) { ctx =>
-              ctx.complete(jobInfo.mapTo[JobInfo])
+              ctx.complete(coflowInfo.mapTo[CoflowInfo])
             }
-          case (jobId, _) =>
+          case (coflowId, _) =>
             completeWith {
               val future = master ? RequestMasterState
               future.map { state =>
                 val masterState = state.asInstanceOf[MasterState]
-                val job = masterState.activeJobs.find(_.id == jobId).getOrElse({
-                  masterState.completedJobs.find(_.id == jobId).getOrElse(null)
+                val coflow = masterState.activeCoflows.find(_.id == coflowId).getOrElse({
+                  masterState.completedCoflows.find(_.id == coflowId).getOrElse(null)
                 })
-                varys.framework.master.html.job_details.render(job)
+                varys.framework.master.html.coflow_details.render(coflow)
               }
             }
         }

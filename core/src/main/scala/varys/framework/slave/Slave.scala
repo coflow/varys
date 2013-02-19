@@ -1,33 +1,36 @@
 package varys.framework.slave
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
-import akka.actor.{ActorRef, Props, Actor, ActorSystem, Terminated}
-import akka.util.duration._
-import varys.{Logging, Utils}
-import varys.util.AkkaUtils
-import varys.framework._
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
+
+import scala.collection.mutable.{ArrayBuffer, HashMap}
+
+import akka.actor.{ActorRef, Props, Actor, ActorSystem, Terminated}
+import akka.util.duration._
+import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
+
 import varys.framework.RegisterSlave
 import varys.framework.RegisterSlaveFailed
 import varys.framework.master.Master
-import java.io.File
+import varys.{VarysCommon, Logging, Utils}
+import varys.util.AkkaUtils
+import varys.framework._
+
+import org.hyperic.sigar.Sigar;
+import org.hyperic.sigar.SigarException;
+import org.hyperic.sigar.NetInterfaceStat;
 
 private[varys] class Slave(
     ip: String,
     port: Int,
     webUiPort: Int,
     cores: Int,
-    memory: Int,
     masterUrl: String,
     workDirPath: String = null)
   extends Actor with Logging {
 
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For slave IDs
-
-  // Send a heartbeat every (heartbeat timeout) / 4 milliseconds
-  val HEARTBEAT_MILLIS = System.getProperty("varys.slave.timeout", "60").toLong * 1000 / 4
 
   var master: ActorRef = null
   var masterWebUiUrl : String = ""
@@ -40,10 +43,11 @@ private[varys] class Slave(
   }
 
   var coresUsed = 0
-  var memoryUsed = 0
-
   def coresFree: Int = cores - coresUsed
-  def memoryFree: Int = memory - memoryUsed
+
+  var sigar = new Sigar()
+  var lastRxBytes = -1.0
+  var lastTxBytes = -1.0
 
   def createWorkDir() {
     workDir = Option(workDirPath).map(new File(_)).getOrElse(new File(varysHome, "work"))
@@ -60,8 +64,8 @@ private[varys] class Slave(
   }
 
   override def preStart() {
-    logInfo("Starting Varys slave %s:%d with %d cores, %s RAM".format(
-      ip, port, cores, Utils.memoryMegabytesToString(memory)))
+    logInfo("Starting Varys slave %s:%d with %d cores".format(
+      ip, port, cores))
     varysHome = new File(Option(System.getenv("VARYS_HOME")).getOrElse("."))
     logInfo("Varys home: " + varysHome)
     createWorkDir()
@@ -73,7 +77,7 @@ private[varys] class Slave(
     logInfo("Connecting to master " + masterUrl)
     try {
       master = context.actorFor(Master.toAkkaUrl(masterUrl))
-      master ! RegisterSlave(slaveId, ip, port, cores, memory, webUiPort, publicAddress)
+      master ! RegisterSlave(slaveId, ip, port, cores, webUiPort, publicAddress)
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
       context.watch(master) // Doesn't work with remote actors, but useful for testing
     } catch {
@@ -98,8 +102,9 @@ private[varys] class Slave(
     case RegisteredSlave(url) =>
       masterWebUiUrl = url
       logInfo("Successfully registered with master")
-      context.system.scheduler.schedule(0 millis, HEARTBEAT_MILLIS millis) {
-        master ! Heartbeat(slaveId)
+      context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC seconds) {
+        updateNetStats()
+        master ! Heartbeat(slaveId, lastRxBytes, lastTxBytes)
       }
 
     case RegisterSlaveFailed(message) =>
@@ -110,8 +115,8 @@ private[varys] class Slave(
       masterDisconnected()
       
     case RequestSlaveState => {
-      sender ! SlaveState(ip, port, slaveId, masterUrl, cores, memory, 
-        coresUsed, memoryUsed, masterWebUiUrl)
+      sender ! SlaveState(ip, port, slaveId, masterUrl, cores, 
+        coresUsed, masterWebUiUrl)
     }
   }
 
@@ -125,22 +130,61 @@ private[varys] class Slave(
   def generateSlaveId(): String = {
     "slave-%s-%s-%d".format(DATE_FORMAT.format(new Date), ip, port)
   }
+  
+  /**
+   * Update last{Rx|Tx}Bytes before each heartbeat
+   */
+  def updateNetStats() = {
+    var curRxBytes = 0.0;
+    var curTxBytes = 0.0;
+    
+    try {
+      val netIfs = sigar.getNetInterfaceList()
+      for (i <- 0 until netIfs.length) {
+        val net = sigar.getNetInterfaceStat(netIfs(i))
+      
+        val r = net.getRxBytes()
+        if (r >= 0) {
+          curRxBytes += r
+        }
+      
+        val t = net.getTxBytes()
+        if (t >= 0.0) {
+          curTxBytes += t
+        }
+      }
+    } catch {
+      case se: SigarException => {} 
+    }
+    
+    var rxBps = 0.0
+    var txBps = 0.0
+
+    if (lastRxBytes >= 0.0 && lastTxBytes >= 0.0) {
+      rxBps = (curRxBytes - lastRxBytes) / VarysCommon.HEARTBEAT_SEC;
+      txBps = (curTxBytes - lastTxBytes) / VarysCommon.HEARTBEAT_SEC;
+    } 
+    
+    lastRxBytes = curRxBytes
+    lastTxBytes = curTxBytes
+  }
+  
 }
 
 private[varys] object Slave {
   def main(argStrings: Array[String]) {
     val args = new SlaveArguments(argStrings)
     val (actorSystem, _) = startSystemAndActor(args.ip, args.port, args.webUiPort, args.cores,
-      args.memory, args.master, args.workDir)
+      args.master, args.workDir)
     actorSystem.awaitTermination()
   }
 
-  def startSystemAndActor(host: String, port: Int, webUiPort: Int, cores: Int, memory: Int,
+  def startSystemAndActor(host: String, port: Int, webUiPort: Int, cores: Int,
     masterUrl: String, workDir: String, slaveNumber: Option[Int] = None): (ActorSystem, Int) = {
     // The LocalVarysCluster runs multiple local varysSlaveX actor systems
     val systemName = "varysSlave" + slaveNumber.map(_.toString).getOrElse("")
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)
-    val actor = actorSystem.actorOf(Props(new Slave(host, boundPort, webUiPort, cores, memory,
+    val actor = actorSystem.actorOf(Props(new Slave(host, boundPort, webUiPort, cores,
       masterUrl, workDir)), name = "Slave")
     (actorSystem, boundPort)
   }

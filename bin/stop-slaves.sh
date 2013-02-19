@@ -7,4 +7,4 @@ bin=`cd "$bin"; pwd`
 
 . "$bin/varys-config.sh"
 
-"$bin"/varys-daemons.sh stop varys.VarysSlave
+"$bin"/varys-daemons.sh stop varys.framework.slave.Slave

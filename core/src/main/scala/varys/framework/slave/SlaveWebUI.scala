@@ -41,9 +41,9 @@ class SlaveWebUI(val actorSystem: ActorSystem, slave: ActorRef) extends Directiv
           }
       } ~
       path("log") {
-        parameters("jobId", "executorId", "logType") { (jobId, executorId, logType) =>
+        parameters("coflowId", "executorId", "logType") { (coflowId, executorId, logType) =>
           respondWithMediaType(cc.spray.http.MediaTypes.`text/plain`) {
-            getFromFileName("work/" + jobId + "/" + executorId + "/" + logType)
+            getFromFileName("work/" + coflowId + "/" + executorId + "/" + logType)
           }
         }
       } ~

@@ -11,4 +11,4 @@ if [ "$VARYS_PUBLIC_DNS" = "" ]; then
     fi
 fi
 
-"$bin"/varys-daemon.sh start varys.VarysSlave $1
+"$bin"/varys-daemon.sh start varys.framework.slave.Slave $1

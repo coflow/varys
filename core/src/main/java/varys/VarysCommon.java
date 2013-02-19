@@ -19,7 +19,7 @@ public class VarysCommon {
     
   public static final String MASTERS_FILENAME = CONFIG_DIR + "/masters";
 
-  public static final long HEARTBEAT_INTERVAL_SEC = 1;
+  public static final long HEARTBEAT_SEC = 1;
   
   public static final String PATH_TO_PROPERTIES_FILE = CONFIG_DIR + "/varys.properties";
 

@@ -1,18 +1,18 @@
 package varys.framework.master
 
-import varys.framework.JobDescription
+import varys.framework.CoflowDescription
 import java.util.Date
 import akka.actor.ActorRef
 import scala.collection.mutable
 
-private[varys] class JobInfo(
+private[varys] class CoflowInfo(
     val startTime: Long,
     val id: String,
-    val desc: JobDescription,
+    val desc: CoflowDescription,
     val submitDate: Date,
     val driver: ActorRef)
 {
-  var state = JobState.WAITING
+  var state = CoflowState.WAITING
   var coresGranted = 0
   var endTime = -1L
 
@@ -27,7 +27,7 @@ private[varys] class JobInfo(
     _retryCount
   }
 
-  def markFinished(endState: JobState.Value) {
+  def markFinished(endState: CoflowState.Value) {
     state = endState
     endTime = System.currentTimeMillis()
   }

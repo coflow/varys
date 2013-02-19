@@ -1,7 +1,6 @@
 package varys.framework.slave
 
 import varys.util.IntParam
-import varys.util.MemoryParam
 import varys.Utils
 import java.lang.management.ManagementFactory
 
@@ -11,9 +10,8 @@ import java.lang.management.ManagementFactory
 private[varys] class SlaveArguments(args: Array[String]) {
   var ip = Utils.localHostName()
   var port = 0
-  var webUiPort = 8081
+  var webUiPort = 16017
   var cores = inferDefaultCores()
-  var memory = inferDefaultMemory()
   var master: String = null
   var workDir: String = null
   
@@ -23,9 +21,6 @@ private[varys] class SlaveArguments(args: Array[String]) {
   }
   if (System.getenv("VARYS_SLAVE_CORES") != null) {
     cores = System.getenv("VARYS_SLAVE_CORES").toInt
-  }
-  if (System.getenv("VARYS_SLAVE_MEMORY") != null) {
-    memory = Utils.memoryStringToMb(System.getenv("VARYS_SLAVE_MEMORY"))
   }
   if (System.getenv("VARYS_SLAVE_WEBUI_PORT") != null) {
     webUiPort = System.getenv("VARYS_SLAVE_WEBUI_PORT").toInt
@@ -47,10 +42,6 @@ private[varys] class SlaveArguments(args: Array[String]) {
 
     case ("--cores" | "-c") :: IntParam(value) :: tail =>
       cores = value
-      parse(tail)
-
-    case ("--memory" | "-m") :: MemoryParam(value) :: tail =>
-      memory = value
       parse(tail)
 
     case ("--work-dir" | "-d") :: value :: tail =>
@@ -91,11 +82,10 @@ private[varys] class SlaveArguments(args: Array[String]) {
       "\n" +
       "Options:\n" +
       "  -c CORES, --cores CORES  Number of cores to use\n" +
-      "  -m MEM, --memory MEM     Amount of memory to use (e.g. 1000M, 2G)\n" +
-      "  -d DIR, --work-dir DIR   Directory to run jobs in (default: VARYS_HOME/work)\n" +
+      "  -d DIR, --work-dir DIR   Directory to run coflows in (default: VARYS_HOME/work)\n" +
       "  -i IP, --ip IP           IP address or DNS name to listen on\n" +
       "  -p PORT, --port PORT     Port to listen on (default: random)\n" +
-      "  --webui-port PORT        Port for web UI (default: 8081)")
+      "  --webui-port PORT        Port for web UI (default: 16017)")
     System.exit(exitCode)
   }
 
@@ -103,27 +93,4 @@ private[varys] class SlaveArguments(args: Array[String]) {
     Runtime.getRuntime.availableProcessors()
   }
 
-  def inferDefaultMemory(): Int = {
-    val ibmVendor = System.getProperty("java.vendor").contains("IBM")
-    var totalMb = 0
-    try {
-      val bean = ManagementFactory.getOperatingSystemMXBean()
-      if (ibmVendor) {
-        val beanClass = Class.forName("com.ibm.lang.management.OperatingSystemMXBean")
-        val method = beanClass.getDeclaredMethod("getTotalPhysicalMemory")
-        totalMb = (method.invoke(bean).asInstanceOf[Long] / 1024 / 1024).toInt
-      } else {
-        val beanClass = Class.forName("com.sun.management.OperatingSystemMXBean")
-        val method = beanClass.getDeclaredMethod("getTotalPhysicalMemorySize")
-        totalMb = (method.invoke(bean).asInstanceOf[Long] / 1024 / 1024).toInt
-      }
-    } catch {
-      case e: Exception => {
-        totalMb = 2*1024
-        System.out.println("Failed to get total physical memory. Using " + totalMb + " MB")
-      }
-    }
-    // Leave out 1 GB for the operating system, but don't return a negative memory size
-    math.max(totalMb - 1024, 512)
-  }
 }

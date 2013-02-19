@@ -18,24 +18,6 @@
 
 namespace java varys
 
-struct MachineStat {
-  1: string hostname
-  2: double rx_bps
-  3: double tx_bps
-}
-
-struct EndPoint {
-  1: string hostname
-  2: i32 port
-}
-
 service VarysMasterService {
-  void putOne(1:string hostname, 2:MachineStat machineStat),
-  map<string, MachineStat> getAll(),
-  list<string> getMachines(1:i32 numMachines, 2:i64 avgTxBytes),
-  void writeBlock(1:i64 blockSize, 2:EndPoint listenFrom)
-}
-
-service VarysSlaveService {
-  void writeBlock(1:i64 blockSize, 2:EndPoint listenFrom)
+  list<string> getMachines(1:i32 numMachines, 2:i64 avgTxBytes)
 }
