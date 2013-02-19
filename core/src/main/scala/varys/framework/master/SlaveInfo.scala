@@ -20,8 +20,8 @@ private[varys] class SlaveInfo(
   val rxBpsInfo = new BpsInfo()
   val txBpsInfo = new BpsInfo()
 
-  val rxBps = rxBpsInfo.bps
-  val txBps = txBpsInfo.bps
+  def rxBps = rxBpsInfo.bps
+  def txBps = txBpsInfo.bps
 
   def coresFree: Int = cores - coresUsed
 

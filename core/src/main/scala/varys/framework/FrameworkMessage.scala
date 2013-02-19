@@ -63,4 +63,6 @@ case class SlaveState(
     masterUrl: String, 
     cores: Int, 
     coresUsed: Int, 
+    rxBps: Double,
+    txBps: Double,
     masterWebUiUrl: String)

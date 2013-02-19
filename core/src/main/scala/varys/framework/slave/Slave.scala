@@ -48,6 +48,9 @@ private[varys] class Slave(
   var sigar = new Sigar()
   var lastRxBytes = -1.0
   var lastTxBytes = -1.0
+  
+  var curRxBps = 0.0
+  var curTxBps = 0.0
 
   def createWorkDir() {
     workDir = Option(workDirPath).map(new File(_)).getOrElse(new File(varysHome, "work"))
@@ -102,9 +105,10 @@ private[varys] class Slave(
     case RegisteredSlave(url) =>
       masterWebUiUrl = url
       logInfo("Successfully registered with master")
-      context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC seconds) {
+      context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC * 1000 millis) {
+        // Uodate last{Rx|Tx}Bytes
         updateNetStats()
-        master ! Heartbeat(slaveId, lastRxBytes, lastTxBytes)
+        master ! Heartbeat(slaveId, curRxBps, curTxBps)
       }
 
     case RegisterSlaveFailed(message) =>
@@ -116,7 +120,7 @@ private[varys] class Slave(
       
     case RequestSlaveState => {
       sender ! SlaveState(ip, port, slaveId, masterUrl, cores, 
-        coresUsed, masterWebUiUrl)
+        coresUsed, curRxBps, curTxBps, masterWebUiUrl)
     }
   }
 
@@ -133,6 +137,7 @@ private[varys] class Slave(
   
   /**
    * Update last{Rx|Tx}Bytes before each heartbeat
+   * Return the pair (rxBps, txBps)
    */
   def updateNetStats() = {
     var curRxBytes = 0.0;
@@ -154,12 +159,13 @@ private[varys] class Slave(
         }
       }
     } catch {
-      case se: SigarException => {} 
+      case se: SigarException => {
+        println(se)
+      }
     }
     
     var rxBps = 0.0
     var txBps = 0.0
-
     if (lastRxBytes >= 0.0 && lastTxBytes >= 0.0) {
       rxBps = (curRxBytes - lastRxBytes) / VarysCommon.HEARTBEAT_SEC;
       txBps = (curTxBytes - lastTxBytes) / VarysCommon.HEARTBEAT_SEC;
@@ -167,8 +173,10 @@ private[varys] class Slave(
     
     lastRxBytes = curRxBytes
     lastTxBytes = curTxBytes
+    
+    curRxBps = rxBps
+    curTxBps = txBps
   }
-  
 }
 
 private[varys] object Slave {

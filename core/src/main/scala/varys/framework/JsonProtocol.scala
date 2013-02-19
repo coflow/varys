@@ -52,7 +52,9 @@ private[varys] object JsonProtocol extends DefaultJsonProtocol {
       "masterurl" -> JsString(obj.masterUrl),
       "masterwebuiurl" -> JsString(obj.masterWebUiUrl),
       "cores" -> JsNumber(obj.cores),
-      "coresused" -> JsNumber(obj.coresUsed)
+      "coresused" -> JsNumber(obj.coresUsed),
+      "rxbps" -> JsNumber(obj.rxBps),
+      "txbps" -> JsNumber(obj.txBps)
     )
   }
 }
