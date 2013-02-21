@@ -28,10 +28,14 @@ private[varys] case class RegisterSlaveFailed(message: String) extends Framework
 
 // Client to Master
 private[varys] case class RegisterCoflow(coflowDescription: CoflowDescription) extends FrameworkMessage
+private[varys] case class RequestBestRxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage
+private[varys] case class RequestBestTxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage
 
 // Master to Client
 private[varys] case class RegisteredCoflow(coflowId: String) extends FrameworkMessage
 private[varys] case class CoflowKilled(message: String)
+private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
+private[varys] case class BestTxMachines(bestTxMachines: Array[String]) extends FrameworkMessage
 
 // Internal message in Client
 private[varys] case object StopClient

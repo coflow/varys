@@ -26,11 +26,6 @@ private[varys] class SlaveToBpsMap {
     bpsInfo.modBps
   }
 
-  def getRandom(adjustBytes: Long): String = this.synchronized {
-    val ret = getRandomN(1, adjustBytes)
-    if (ret == null || ret.size == 0) null else ret(0)
-  }
-  
   def getRandomN(numMachines: Int, adjustBytes: Long): ArrayBuffer[String] = this.synchronized {
     val retVal = new ArrayBuffer[String]
     val machines = idToBpsMap.keys.toList
@@ -52,11 +47,6 @@ private[varys] class SlaveToBpsMap {
       wasSelected(toAdd) = true
     }
     retVal
-  }
-  
-  def getTop(adjustBytes: Long): String = this.synchronized {
-    val ret = getTopN(1, adjustBytes)
-    if (ret == null || ret.size == 0) null else ret(0)
   }
   
   def getTopN(numMachines: Int, adjustBytes: Long): ArrayBuffer[String] = this.synchronized {

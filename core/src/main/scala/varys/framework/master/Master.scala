@@ -120,11 +120,19 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
     case RequestMasterState => {
       sender ! MasterState(ip, port, slaves.toArray, coflows.toArray, completedCoflows.toArray)
     }
+    
+    case RequestBestRxMachines(howMany, bytes) => {
+      sender ! BestRxMachines(idToRxBps.getTopN(howMany, bytes).toArray.map(idToSlave(_).host))
+    }
+    
+    case RequestBestTxMachines(howMany, bytes) => {
+      sender ! BestTxMachines(idToTxBps.getTopN(howMany, bytes).toArray.map(idToSlave(_).host))
+    }
   }
 
   def addSlave(id: String, host: String, port: Int, cores: Int, webUiPort: Int,
     publicAddress: String): SlaveInfo = {
-    // There may be one or more refs to dead slaves on this same node (w/ different ID's), remove them.
+    // There may be one or more refs to dead slaves on this same node (w/ diff. IDs), remove them.
     slaves.filter(w => (w.host == host) && (w.state == SlaveState.DEAD)).foreach(slaves -= _)
     val slave = new SlaveInfo(id, host, port, cores, sender, webUiPort, publicAddress)
     slaves += slave
