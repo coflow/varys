@@ -14,6 +14,8 @@ import varys.framework._
 import varys.{VarysException, Logging}
 import varys.framework.RegisterCoflow
 import varys.framework.master.{Master, CoflowInfo}
+import varys.framework.slave.Slave
+import varys.Utils
 
 private[varys] class Client(
     clientName: String,
@@ -26,9 +28,12 @@ private[varys] class Client(
   val AKKA_RETRY_ATTEMPTS: Int = System.getProperty("varys.akka.num.retries", "3").toInt
   val AKKA_RETRY_INTERVAL_MS: Int = System.getProperty("varys.akka.retry.wait", "3000").toInt
 
-  var clientId: String = null
-
   var masterActor: ActorRef = null
+
+  var slaveUrl: String = null
+  var slaveActor: ActorRef = null
+  
+  var clientId: String = null
   var clientActor: ActorRef = null
 
   class ClientActor extends Actor with Logging {
@@ -40,7 +45,7 @@ private[varys] class Client(
       try {
         masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
         masterAddress = masterActor.path.address
-        masterActor ! RegisterClient(clientName)
+        masterActor ! RegisterClient(clientName, Utils.localHostName())
         context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
         context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
       } catch {
@@ -52,8 +57,10 @@ private[varys] class Client(
     }
 
     override def receive = {
-      case RegisteredClient(clientId_) =>
+      case RegisteredClient(clientId_, slaveUrl_) =>
         clientId = clientId_
+        slaveUrl = slaveUrl_
+        slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
         listener.connected()
 
       case Terminated(actor_) if actor_ == masterActor =>
@@ -87,8 +94,6 @@ private[varys] class Client(
       }
     }
     
-    def registerCoflow(coflowDesc: CoflowDescription) {
-    }
   }
 
   def start() {

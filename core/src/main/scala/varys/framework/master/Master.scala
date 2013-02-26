@@ -15,7 +15,6 @@ import varys.framework._
 import varys.{Logging, VarysException, Utils}
 import varys.util.AkkaUtils
 
-
 private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
@@ -24,6 +23,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val idToSlave = new HashMap[String, SlaveInfo]
   val actorToSlave = new HashMap[ActorRef, SlaveInfo]
   val addressToSlave = new HashMap[Address, SlaveInfo]
+  val hostToSlave = new HashMap[String, SlaveInfo]
 
   val idToRxBps = new SlaveToBpsMap
   val idToTxBps = new SlaveToBpsMap
@@ -41,8 +41,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val idToClient = new HashMap[String, ClientInfo]
   val actorToClient = new HashMap[ActorRef, ClientInfo]
   val addressToClient = new HashMap[Address, ClientInfo]
-  val waitingClients = new ArrayBuffer[ClientInfo]
-  val completedClients = new ArrayBuffer[ClientInfo]
 
   val masterPublicAddress = {
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
@@ -80,13 +78,17 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       }
     }
 
-    case RegisterClient(clientName) => {
-      logInfo("Registering client " + clientName)
-      val client = addClient(clientName, sender)
-      logInfo("Registered client " + clientName + " with ID " + client.id)
-      waitingClients += client
-      context.watch(sender)  // This doesn't work with remote actors but helps for testing
-      sender ! RegisteredClient
+    case RegisterClient(clientName, host) => {
+      logInfo("Registering client %s@%s".format(clientName, host))
+      if (hostToSlave.contains(host)) {
+        val client = addClient(clientName, host, sender)
+        logInfo("Registered client " + clientName + " with ID " + client.id)
+        context.watch(sender)  // This doesn't work with remote actors but helps for testing
+        val slave = hostToSlave(host)
+        sender ! RegisteredClient(client.id, "varys://" + slave.host + ":" + slave.port)
+      } else {
+        sender ! RegisterClientFailed("No Varys slave at " + host)
+      }
     }
 
     case RegisterCoflow(description) => {
@@ -161,6 +163,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     idToSlave(slave.id) = slave
     actorToSlave(sender) = slave
     addressToSlave(sender.path.address) = slave
+    hostToSlave(slave.host) = slave
     return slave
   }
 
@@ -170,11 +173,12 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     idToSlave -= slave.id
     actorToSlave -= slave.actor
     addressToSlave -= slave.actor.path.address
+    hostToSlave -= slave.host
   }
 
-  def addClient(clientName: String, driver: ActorRef): ClientInfo = {
+  def addClient(clientName: String, host: String, driver: ActorRef): ClientInfo = {
     val date = new Date(System.currentTimeMillis())
-    val client = new ClientInfo(newClientId(date), driver)
+    val client = new ClientInfo(newClientId(date), host, driver)
     clients += client
     idToClient(client.id) = client
     actorToClient(driver) = client
@@ -189,7 +193,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       idToClient -= client.id
       actorToClient -= client.driver
       addressToClient -= client.driver.path.address
-      completedClients += client  // Remember it in our history
     }
   }
 

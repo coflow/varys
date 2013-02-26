@@ -13,7 +13,7 @@ import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClie
 import varys.framework.RegisterSlave
 import varys.framework.RegisterSlaveFailed
 import varys.framework.master.Master
-import varys.{VarysCommon, Logging, Utils}
+import varys.{VarysCommon, Logging, Utils, VarysException}
 import varys.util.AkkaUtils
 import varys.framework._
 
@@ -174,11 +174,25 @@ private[varys] class SlaveActor(
 }
 
 private[varys] object Slave {
+  private val systemName = "varysSlave"
+  private val actorName = "Slave"
+  private val varysUrlRegex = "varys://([^:]+):([0-9]+)".r
+
   def main(argStrings: Array[String]) {
     val args = new SlaveArguments(argStrings)
     val (actorSystem, _) = startSystemAndActor(args.ip, args.port, args.webUiPort,
       args.master, args.workDir)
     actorSystem.awaitTermination()
+  }
+
+  /** Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. */
+  def toAkkaUrl(varysUrl: String): String = {
+    varysUrl match {
+      case varysUrlRegex(host, port) =>
+        "akka://%s@%s:%s/user/%s".format(systemName, host, port, actorName)
+      case _ =>
+        throw new VarysException("Invalid master URL: " + varysUrl)
+    }
   }
 
   def startSystemAndActor(host: String, port: Int, webUiPort: Int,

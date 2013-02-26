@@ -26,14 +26,15 @@ private[varys] case class RegisteredSlave(masterWebUiUrl: String) extends Framew
 private[varys] case class RegisterSlaveFailed(message: String) extends FrameworkMessage
 
 // Client to Master
-private[varys] case class RegisterClient(clientName: String) extends FrameworkMessage
+private[varys] case class RegisterClient(clientName: String, host: String) extends FrameworkMessage
 private[varys] case class RegisterCoflow(coflowDescription: CoflowDescription) extends FrameworkMessage
 private[varys] case class UnregisterCoflow(coflowId: String) extends FrameworkMessage
 private[varys] case class RequestBestRxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage
 private[varys] case class RequestBestTxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage
 
 // Master to Client
-private[varys] case class RegisteredClient(clientId: String) extends FrameworkMessage
+private[varys] case class RegisteredClient(clientId: String, slaveUrl:String) extends FrameworkMessage
+private[varys] case class RegisterClientFailed(message: String) extends FrameworkMessage
 private[varys] case class RegisteredCoflow(coflowId: String) extends FrameworkMessage
 private[varys] case class CoflowKilled(message: String)
 private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
