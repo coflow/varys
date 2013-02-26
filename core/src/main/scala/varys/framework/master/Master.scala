@@ -7,6 +7,7 @@ import akka.util.duration._
 
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
@@ -15,11 +16,10 @@ import varys.{Logging, VarysException, Utils}
 import varys.util.AkkaUtils
 
 
-private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
+private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
 
-  var nextCoflowNumber = 0
   val slaves = new HashSet[SlaveInfo]
   val idToSlave = new HashMap[String, SlaveInfo]
   val actorToSlave = new HashMap[ActorRef, SlaveInfo]
@@ -28,13 +28,21 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
   val idToRxBps = new SlaveToBpsMap
   val idToTxBps = new SlaveToBpsMap
 
+  var nextCoflowNumber = new AtomicInteger()
   val coflows = new HashSet[CoflowInfo]
   val idToCoflow = new HashMap[String, CoflowInfo]
   val actorToCoflow = new HashMap[ActorRef, CoflowInfo]
   val addressToCoflow = new HashMap[Address, CoflowInfo]
-
   val waitingCoflows = new ArrayBuffer[CoflowInfo]
   val completedCoflows = new ArrayBuffer[CoflowInfo]
+
+  var nextClientNumber = new AtomicInteger()
+  val clients = new HashSet[ClientInfo]
+  val idToClient = new HashMap[String, ClientInfo]
+  val actorToClient = new HashMap[ActorRef, ClientInfo]
+  val addressToClient = new HashMap[Address, ClientInfo]
+  val waitingClients = new ArrayBuffer[ClientInfo]
+  val completedClients = new ArrayBuffer[ClientInfo]
 
   val masterPublicAddress = {
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
@@ -61,17 +69,24 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
   }
 
   override def receive = {
-    case RegisterSlave(id, host, slavePort, cores, slave_webUiPort, publicAddress) => {
-      logInfo("Registering slave %s:%d with %d cores".format(
-        host, slavePort, cores))
+    case RegisterSlave(id, host, slavePort, slave_webUiPort, publicAddress) => {
+      logInfo("Registering slave %s:%d".format(host, slavePort))
       if (idToSlave.contains(id)) {
         sender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
-        addSlave(id, host, slavePort, cores, slave_webUiPort, publicAddress)
+        addSlave(id, host, slavePort, slave_webUiPort, publicAddress)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         sender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
-        // schedule()
       }
+    }
+
+    case RegisterClient(clientName) => {
+      logInfo("Registering client " + clientName)
+      val client = addClient(clientName, sender)
+      logInfo("Registered client " + clientName + " with ID " + client.id)
+      waitingClients += client
+      context.watch(sender)  // This doesn't work with remote actors but helps for testing
+      sender ! RegisteredClient
     }
 
     case RegisterCoflow(description) => {
@@ -82,6 +97,11 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
       context.watch(sender)  // This doesn't work with remote actors but helps for testing
       sender ! RegisteredCoflow(coflow.id)
       // schedule()
+    }
+
+    case UnregisterCoflow(coflowId) => {
+      idToCoflow.get(coflowId).foreach(removeCoflow)
+      sender ! true
     }
 
     case Heartbeat(slaveId, newRxBps, newTxBps) => {
@@ -99,21 +119,23 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
     }
 
     case Terminated(actor) => {
-      // The disconnected actor could've been either a slave or a coflow; remove whichever of
-      // those we have an entry for in the corresponding actor hashmap
+      // The disconnected actor could've been a slave, a client, or a coflow; remove accordingly
       actorToSlave.get(actor).foreach(removeSlave)
+      actorToClient.get(actor).foreach(removeClient)
       actorToCoflow.get(actor).foreach(removeCoflow)
     }
 
     case RemoteClientDisconnected(transport, address) => {
-      // The disconnected client could've been either a slave or a coflow; remove whichever it was
+      // The disconnected actor could've been a slave, a client, or a coflow; remove accordingly
       addressToSlave.get(address).foreach(removeSlave)
+      addressToClient.get(address).foreach(removeClient)
       addressToCoflow.get(address).foreach(removeCoflow)
     }
 
     case RemoteClientShutdown(transport, address) => {
-      // The disconnected client could've been either a slave or a coflow; remove whichever it was
+      // The disconnected actor could've been a slave, a client, or a coflow; remove accordingly
       addressToSlave.get(address).foreach(removeSlave)
+      addressToClient.get(address).foreach(removeClient)
       addressToCoflow.get(address).foreach(removeCoflow)
     }
 
@@ -130,11 +152,11 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
     }
   }
 
-  def addSlave(id: String, host: String, port: Int, cores: Int, webUiPort: Int,
+  def addSlave(id: String, host: String, port: Int, webUiPort: Int,
     publicAddress: String): SlaveInfo = {
     // There may be one or more refs to dead slaves on this same node (w/ diff. IDs), remove them.
     slaves.filter(w => (w.host == host) && (w.state == SlaveState.DEAD)).foreach(slaves -= _)
-    val slave = new SlaveInfo(id, host, port, cores, sender, webUiPort, publicAddress)
+    val slave = new SlaveInfo(id, host, port, sender, webUiPort, publicAddress)
     slaves += slave
     idToSlave(slave.id) = slave
     actorToSlave(sender) = slave
@@ -148,6 +170,27 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
     idToSlave -= slave.id
     actorToSlave -= slave.actor
     addressToSlave -= slave.actor.path.address
+  }
+
+  def addClient(clientName: String, driver: ActorRef): ClientInfo = {
+    val date = new Date(System.currentTimeMillis())
+    val client = new ClientInfo(newClientId(date), driver)
+    clients += client
+    idToClient(client.id) = client
+    actorToClient(driver) = client
+    addressToClient(driver.path.address) = client
+    return client
+  }
+
+  def removeClient(client: ClientInfo) {
+    if (clients.contains(client)) {
+      logInfo("Removing client " + client.id)
+      clients -= client
+      idToClient -= client.id
+      actorToClient -= client.driver
+      addressToClient -= client.driver.path.address
+      completedClients += client  // Remember it in our history
+    }
   }
 
   def addCoflow(desc: CoflowDescription, driver: ActorRef): CoflowInfo = {
@@ -167,8 +210,8 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
       coflows -= coflow
       idToCoflow -= coflow.id
       actorToCoflow -= coflow.driver
-      addressToSlave -= coflow.driver.path.address
-      completedCoflows += coflow   // Remember it in our history
+      addressToCoflow -= coflow.driver.path.address
+      completedCoflows += coflow  // Remember it in our history
       waitingCoflows -= coflow
       coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
       // schedule()
@@ -177,9 +220,12 @@ private[varys] class Master(ip: String, port: Int, webUiPort: Int) extends Actor
 
   /** Generate a new coflow ID given a coflow's submission date */
   def newCoflowId(submitDate: Date): String = {
-    val coflowId = "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber)
-    nextCoflowNumber += 1
-    coflowId
+    "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber.getAndIncrement())
+  }
+
+  /** Generate a new client ID given a client's connection date */
+  def newClientId(submitDate: Date): String = {
+    "client-%s-%04d".format(DATE_FORMAT.format(submitDate), nextClientNumber.getAndIncrement())
   }
 
   /** Check for, and remove, any timed-out slaves */
@@ -206,7 +252,7 @@ private[varys] object Master {
     actorSystem.awaitTermination()
   }
 
-  /** Returns an `akka://...` URL for the Master actor given a sparkUrl `spark://host:ip`. */
+  /** Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>
@@ -218,7 +264,8 @@ private[varys] object Master {
 
   def startSystemAndActor(host: String, port: Int, webUiPort: Int): (ActorSystem, Int) = {
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)
-    val actor = actorSystem.actorOf(Props(new Master(host, boundPort, webUiPort)), name = actorName)
+    val actor = actorSystem.actorOf(Props(new MasterActor(host, boundPort, webUiPort)), 
+      name = actorName)
     (actorSystem, boundPort)
   }
 }

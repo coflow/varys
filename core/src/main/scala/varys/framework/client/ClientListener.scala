@@ -7,7 +7,7 @@ package varys.framework.client
  * Users of this API should *not* block inside the callback methods.
  */
 private[varys] trait ClientListener {
-  def connected(coflowId: String): Unit
+  def connected(): Unit
 
   def disconnected(): Unit
 }

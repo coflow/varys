@@ -13,10 +13,7 @@ private[varys] class CoflowInfo(
     val driver: ActorRef)
 {
   var state = CoflowState.WAITING
-  var coresGranted = 0
   var endTime = -1L
-
-  def coresLeft: Int = desc.cores - coresGranted
 
   private var _retryCount = 0
 

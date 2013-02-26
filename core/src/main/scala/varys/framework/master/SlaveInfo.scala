@@ -7,13 +7,11 @@ private[varys] class SlaveInfo(
   val id: String,
   val host: String,
   val port: Int,
-  val cores: Int,
   val actor: ActorRef,
   val webUiPort: Int,
   val publicAddress: String) {
 
   var state: SlaveState.Value = SlaveState.ALIVE
-  var coresUsed = 0
 
   var lastHeartbeat = System.currentTimeMillis()
 
@@ -22,8 +20,6 @@ private[varys] class SlaveInfo(
 
   def rxBps = rxBpsInfo.bps
   def txBps = txBpsInfo.bps
-
-  def coresFree: Int = cores - coresUsed
 
   def webUiAddress : String = {
     "http://" + this.publicAddress + ":" + this.webUiPort

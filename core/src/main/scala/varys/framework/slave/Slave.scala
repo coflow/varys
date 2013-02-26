@@ -21,11 +21,10 @@ import org.hyperic.sigar.Sigar;
 import org.hyperic.sigar.SigarException;
 import org.hyperic.sigar.NetInterfaceStat;
 
-private[varys] class Slave(
+private[varys] class SlaveActor(
     ip: String,
     port: Int,
     webUiPort: Int,
-    cores: Int,
     masterUrl: String,
     workDirPath: String = null)
   extends Actor with Logging {
@@ -41,9 +40,6 @@ private[varys] class Slave(
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
     if (envVar != null) envVar else ip
   }
-
-  var coresUsed = 0
-  def coresFree: Int = cores - coresUsed
 
   var sigar = new Sigar()
   var lastRxBytes = -1.0
@@ -67,8 +63,7 @@ private[varys] class Slave(
   }
 
   override def preStart() {
-    logInfo("Starting Varys slave %s:%d with %d cores".format(
-      ip, port, cores))
+    logInfo("Starting Varys slave %s:%d".format(ip, port))
     varysHome = new File(Option(System.getenv("VARYS_HOME")).getOrElse("."))
     logInfo("Varys home: " + varysHome)
     createWorkDir()
@@ -80,7 +75,7 @@ private[varys] class Slave(
     logInfo("Connecting to master " + masterUrl)
     try {
       master = context.actorFor(Master.toAkkaUrl(masterUrl))
-      master ! RegisterSlave(slaveId, ip, port, cores, webUiPort, publicAddress)
+      master ! RegisterSlave(slaveId, ip, port, webUiPort, publicAddress)
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
       context.watch(master) // Doesn't work with remote actors, but useful for testing
     } catch {
@@ -119,8 +114,7 @@ private[varys] class Slave(
       masterDisconnected()
       
     case RequestSlaveState => {
-      sender ! SlaveState(ip, port, slaveId, masterUrl, cores, 
-        coresUsed, curRxBps, curTxBps, masterWebUiUrl)
+      sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
   }
 
@@ -182,17 +176,17 @@ private[varys] class Slave(
 private[varys] object Slave {
   def main(argStrings: Array[String]) {
     val args = new SlaveArguments(argStrings)
-    val (actorSystem, _) = startSystemAndActor(args.ip, args.port, args.webUiPort, args.cores,
+    val (actorSystem, _) = startSystemAndActor(args.ip, args.port, args.webUiPort,
       args.master, args.workDir)
     actorSystem.awaitTermination()
   }
 
-  def startSystemAndActor(host: String, port: Int, webUiPort: Int, cores: Int,
+  def startSystemAndActor(host: String, port: Int, webUiPort: Int,
     masterUrl: String, workDir: String, slaveNumber: Option[Int] = None): (ActorSystem, Int) = {
     // The LocalVarysCluster runs multiple local varysSlaveX actor systems
     val systemName = "varysSlave" + slaveNumber.map(_.toString).getOrElse("")
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)
-    val actor = actorSystem.actorOf(Props(new Slave(host, boundPort, webUiPort, cores,
+    val actor = actorSystem.actorOf(Props(new SlaveActor(host, boundPort, webUiPort,
       masterUrl, workDir)), name = "Slave")
     (actorSystem, boundPort)
   }

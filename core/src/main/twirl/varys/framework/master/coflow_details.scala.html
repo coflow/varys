@@ -9,16 +9,6 @@
         <li><strong>ID:</strong> @coflow.id</li>
         <li><strong>Description:</strong> @coflow.desc.name</li>
         <li><strong>User:</strong> @coflow.desc.user</li>
-        <li><strong>Cores:</strong> 
-          @coflow.desc.cores 
-          (@coflow.coresGranted Granted 
-          @if(coflow.desc.cores == Integer.MAX_VALUE) {
-
-          } else {
-            , @coflow.coresLeft
-          }
-          )
-        </li>
         <li><strong>Submit Date:</strong> @coflow.submitDate</li>
         <li><strong>State:</strong> @coflow.state</li>
       </ul>

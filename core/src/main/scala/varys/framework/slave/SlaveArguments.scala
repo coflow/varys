@@ -11,16 +11,12 @@ private[varys] class SlaveArguments(args: Array[String]) {
   var ip = Utils.localHostName()
   var port = 0
   var webUiPort = 16017
-  var cores = inferDefaultCores()
   var master: String = null
   var workDir: String = null
   
   // Check for settings in environment variables 
   if (System.getenv("VARYS_SLAVE_PORT") != null) {
     port = System.getenv("VARYS_SLAVE_PORT").toInt
-  }
-  if (System.getenv("VARYS_SLAVE_CORES") != null) {
-    cores = System.getenv("VARYS_SLAVE_CORES").toInt
   }
   if (System.getenv("VARYS_SLAVE_WEBUI_PORT") != null) {
     webUiPort = System.getenv("VARYS_SLAVE_WEBUI_PORT").toInt
@@ -38,10 +34,6 @@ private[varys] class SlaveArguments(args: Array[String]) {
 
     case ("--port" | "-p") :: IntParam(value) :: tail =>
       port = value
-      parse(tail)
-
-    case ("--cores" | "-c") :: IntParam(value) :: tail =>
-      cores = value
       parse(tail)
 
     case ("--work-dir" | "-d") :: value :: tail =>
@@ -81,16 +73,11 @@ private[varys] class SlaveArguments(args: Array[String]) {
       "Master must be a URL of the form varys://hostname:port\n" +
       "\n" +
       "Options:\n" +
-      "  -c CORES, --cores CORES  Number of cores to use\n" +
       "  -d DIR, --work-dir DIR   Directory to run coflows in (default: VARYS_HOME/work)\n" +
       "  -i IP, --ip IP           IP address or DNS name to listen on\n" +
       "  -p PORT, --port PORT     Port to listen on (default: random)\n" +
       "  --webui-port PORT        Port for web UI (default: 16017)")
     System.exit(exitCode)
-  }
-
-  def inferDefaultCores(): Int = {
-    Runtime.getRuntime.availableProcessors()
   }
 
 }

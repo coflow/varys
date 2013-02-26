@@ -1,46 +1,48 @@
 package varys.framework.client
 
-import varys.framework._
 import akka.actor._
 import akka.pattern.ask
 import akka.util.duration._
 import akka.pattern.AskTimeoutException
-import varys.{VarysException, Logging}
 import akka.remote.RemoteClientLifeCycleEvent
 import akka.remote.RemoteClientShutdown
-import varys.framework.RegisterCoflow
-import varys.framework.master.Master
 import akka.remote.RemoteClientDisconnected
 import akka.actor.Terminated
 import akka.dispatch.Await
 
-/**
- * The main class used to talk to a Varys framework cluster. Takes a master URL, a coflow description,
- * and a listener for coflow events, and calls back the listener when various events occur.
- */
+import varys.framework._
+import varys.{VarysException, Logging}
+import varys.framework.RegisterCoflow
+import varys.framework.master.{Master, CoflowInfo}
+
 private[varys] class Client(
+    clientName: String,
     actorSystem: ActorSystem,
     masterUrl: String,
-    coflowDescription: CoflowDescription,
     listener: ClientListener)
   extends Logging {
 
-  var actor: ActorRef = null
-  var coflowId: String = null
+  val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.framework.ask.wait", "5000").toInt
+  val AKKA_RETRY_ATTEMPTS: Int = System.getProperty("varys.akka.num.retries", "3").toInt
+  val AKKA_RETRY_INTERVAL_MS: Int = System.getProperty("varys.akka.retry.wait", "3000").toInt
+
+  var clientId: String = null
+
+  var masterActor: ActorRef = null
+  var clientActor: ActorRef = null
 
   class ClientActor extends Actor with Logging {
-    var master: ActorRef = null
     var masterAddress: Address = null
     var alreadyDisconnected = false  // To avoid calling listener.disconnected() multiple times
 
     override def preStart() {
       logInfo("Connecting to master " + masterUrl)
       try {
-        master = context.actorFor(Master.toAkkaUrl(masterUrl))
-        masterAddress = master.path.address
-        master ! RegisterCoflow(coflowDescription)
+        masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
+        masterAddress = masterActor.path.address
+        masterActor ! RegisterClient(clientName)
         context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-        context.watch(master)  // Doesn't work with remote actors, but useful for testing
+        context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
       } catch {
         case e: Exception =>
           logError("Failed to connect to master", e)
@@ -50,11 +52,11 @@ private[varys] class Client(
     }
 
     override def receive = {
-      case RegisteredCoflow(coflowId_) =>
-        coflowId = coflowId_
-        listener.connected(coflowId)
+      case RegisteredClient(clientId_) =>
+        clientId = clientId_
+        listener.connected()
 
-      case Terminated(actor_) if actor_ == master =>
+      case Terminated(actor_) if actor_ == masterActor =>
         logError("Connection to master failed; stopping client")
         markDisconnected()
         context.stop(self)
@@ -84,23 +86,90 @@ private[varys] class Client(
         alreadyDisconnected = true
       }
     }
+    
+    def registerCoflow(coflowDesc: CoflowDescription) {
+    }
   }
 
   def start() {
     // Just launch an actor; it will call back into the listener.
-    actor = actorSystem.actorOf(Props(new ClientActor))
+    clientActor = actorSystem.actorOf(Props(new ClientActor))
   }
 
   def stop() {
-    if (actor != null) {
+    if (clientActor != null) {
       try {
-        val timeout = 5.seconds
-        val future = actor.ask(StopClient)(timeout)
+        val timeout = INTERNAL_ASK_TIMEOUT_MS.millis
+        val future = clientActor.ask(StopClient)(timeout)
         Await.result(future, timeout)
       } catch {
         case e: AskTimeoutException =>  // Ignore it, maybe master went away
       }
-      actor = null
+      clientActor = null
     }
   }
+  
+  def registerCoflow(coflowDesc: CoflowDescription): String = {
+    askActorWithReply[String](masterActor, RegisterCoflow(coflowDesc))
+  }
+  
+  def unregisterCoflow(coflowId: String) {
+    tellActor(masterActor, UnregisterCoflow(coflowId))
+  }
+
+  def put() {
+    // Store data locally
+
+    // Register with the master
+    
+  }
+  
+  def get() {
+    // Find location
+    
+    // Get data
+  }
+  
+  /** Send a one-way message to an actor, to which we expect it to reply with true. */
+  private def tellActor(actor: ActorRef, message: Any) {
+    if (!askActorWithReply[Boolean](actor, message)) {
+      throw new VarysException(actor + " returned false, expected true.")
+    }
+  }
+
+  /**
+   * Send a message to an actor and get its result within a default timeout, or
+   * throw a VarysException if this fails.
+   */
+  private def askActorWithReply[T](actor: ActorRef, message: Any): T = {
+    // TODO: Consider removing multiple attempts
+    if (actor == null) {
+      throw new VarysException("Error sending message as the actor is null " +
+        "[message = " + message + "]")
+    }
+    var attempts = 0
+    var lastException: Exception = null
+    while (attempts < AKKA_RETRY_ATTEMPTS) {
+      attempts += 1
+      try {
+        val timeout = INTERNAL_ASK_TIMEOUT_MS.millis
+        val future = actor.ask(message)(timeout)
+        val result = Await.result(future, timeout)
+        if (result == null) {
+          throw new Exception(actor + " returned null")
+        }
+        return result.asInstanceOf[T]
+      } catch {
+        case ie: InterruptedException => throw ie
+        case e: Exception =>
+          lastException = e
+          logWarning("Error sending message to " + actor + " in " + attempts + " attempts", e)
+      }
+      Thread.sleep(AKKA_RETRY_INTERVAL_MS)
+    }
+
+    throw new VarysException(
+      "Error sending message to " + actor + " [message = " + message + "]", lastException)
+  }
+  
 }
