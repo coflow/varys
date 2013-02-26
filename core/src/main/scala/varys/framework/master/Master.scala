@@ -223,12 +223,14 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
   /** Generate a new coflow ID given a coflow's submission date */
   def newCoflowId(submitDate: Date): String = {
-    "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber.getAndIncrement())
+    // "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber.getAndIncrement())
+    "coflow-%04d".format(nextCoflowNumber.getAndIncrement())
   }
 
   /** Generate a new client ID given a client's connection date */
   def newClientId(submitDate: Date): String = {
-    "client-%s-%04d".format(DATE_FORMAT.format(submitDate), nextClientNumber.getAndIncrement())
+    // "client-%s-%04d".format(DATE_FORMAT.format(submitDate), nextClientNumber.getAndIncrement())
+    "client-%04d".format(nextClientNumber.getAndIncrement())
   }
 
   /** Check for, and remove, any timed-out slaves */

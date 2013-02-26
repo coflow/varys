@@ -12,14 +12,14 @@ import akka.dispatch.Await
 
 import varys.framework._
 import varys.{VarysException, Logging}
-import varys.framework.RegisterCoflow
+import varys.framework.{RegisterCoflow, RegisteredCoflow}
 import varys.framework.master.{Master, CoflowInfo}
 import varys.framework.slave.Slave
+import varys.util.AkkaUtils
 import varys.Utils
 
 private[varys] class Client(
     clientName: String,
-    actorSystem: ActorSystem,
     masterUrl: String,
     listener: ClientListener)
   extends Logging {
@@ -28,8 +28,11 @@ private[varys] class Client(
   val AKKA_RETRY_ATTEMPTS: Int = System.getProperty("varys.akka.num.retries", "3").toInt
   val AKKA_RETRY_INTERVAL_MS: Int = System.getProperty("varys.akka.retry.wait", "3000").toInt
 
+  var actorSystem: ActorSystem = null
+  
   var masterActor: ActorRef = null
-
+  val clientRegisterLock = new Object
+  
   var slaveUrl: String = null
   var slaveActor: ActorRef = null
   
@@ -61,7 +64,9 @@ private[varys] class Client(
         clientId = clientId_
         slaveUrl = slaveUrl_
         slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
-        listener.connected()
+        listener.connected(clientId)
+        clientRegisterLock.synchronized { clientRegisterLock.notifyAll() }  // Ready to go!
+        logInfo("Registered to master. Local slave url = " + slaveUrl)
 
       case Terminated(actor_) if actor_ == masterActor =>
         logError("Connection to master failed; stopping client")
@@ -98,6 +103,8 @@ private[varys] class Client(
 
   def start() {
     // Just launch an actor; it will call back into the listener.
+    val (actorSystem_, _) = AkkaUtils.createActorSystem("varysClient", Utils.localIpAddress, 0)
+    actorSystem = actorSystem_
     clientActor = actorSystem.actorOf(Props(new ClientActor))
   }
 
@@ -114,11 +121,21 @@ private[varys] class Client(
     }
   }
   
+  def awaitTermination() { actorSystem.awaitTermination() }
+  
   def registerCoflow(coflowDesc: CoflowDescription): String = {
-    askActorWithReply[String](masterActor, RegisterCoflow(coflowDesc))
+    // Wait until the client has been registered
+    while (clientId == null) {
+      clientRegisterLock.synchronized { clientRegisterLock.wait() }
+    }
+    val RegisteredCoflow(coflowId) = askActorWithReply[RegisteredCoflow](masterActor, RegisterCoflow(coflowDesc))
+    coflowId
   }
   
   def unregisterCoflow(coflowId: String) {
+    while (clientId == null) {
+      clientRegisterLock.synchronized { clientRegisterLock.wait() }
+    }
     tellActor(masterActor, UnregisterCoflow(coflowId))
   }
 
