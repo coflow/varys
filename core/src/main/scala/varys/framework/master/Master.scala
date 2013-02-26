@@ -92,9 +92,13 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       }
     }
 
-    case RegisterCoflow(description) => {
+    case RegisterCoflow(clientId, description) => {
+      // clientId will always be in clients
+      val client = idToClient(clientId)
+      assert(clients.contains(client))
+      
       logInfo("Registering coflow " + description.name)
-      val coflow = addCoflow(description, sender)
+      val coflow = addCoflow(client, description, sender)
       logInfo("Registered coflow " + description.name + " with ID " + coflow.id)
       waitingCoflows += coflow
       context.watch(sender)  // This doesn't work with remote actors but helps for testing
@@ -122,24 +126,24 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
 
     case Terminated(actor) => {
-      // The disconnected actor could've been a slave, a client, or a coflow; remove accordingly
+      // The disconnected actor could've been a slave or a client; remove accordingly. 
+      // Coflow termination is handled explicitly through UnregisterCoflow or when its client dies.
       actorToSlave.get(actor).foreach(removeSlave)
       actorToClient.get(actor).foreach(removeClient)
-      actorToCoflow.get(actor).foreach(removeCoflow)
     }
 
     case RemoteClientDisconnected(transport, address) => {
-      // The disconnected actor could've been a slave, a client, or a coflow; remove accordingly
+      // The disconnected actor could've been a slave or a client; remove accordingly. 
+      // Coflow termination is handled explicitly through UnregisterCoflow or when its client dies.
       addressToSlave.get(address).foreach(removeSlave)
       addressToClient.get(address).foreach(removeClient)
-      addressToCoflow.get(address).foreach(removeCoflow)
     }
 
     case RemoteClientShutdown(transport, address) => {
-      // The disconnected actor could've been a slave, a client, or a coflow; remove accordingly
+      // The disconnected actor could've been a slave or a client; remove accordingly. 
+      // Coflow termination is handled explicitly through UnregisterCoflow or when its client dies.
       addressToSlave.get(address).foreach(removeSlave)
       addressToClient.get(address).foreach(removeClient)
-      addressToCoflow.get(address).foreach(removeCoflow)
     }
 
     case RequestMasterState => {
@@ -198,17 +202,23 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       addressToClient -= client.driver.path.address
       completedClients += client  // Remember it in our history
       client.markFinished()
+      
+      client.coflows.foreach(removeCoflow)  // Remove child coflows as well
     }
   }
 
-  def addCoflow(desc: CoflowDescription, driver: ActorRef): CoflowInfo = {
+  def addCoflow(client:ClientInfo, desc: CoflowDescription, driver: ActorRef): CoflowInfo = {
     val now = System.currentTimeMillis()
     val date = new Date(now)
     val coflow = new CoflowInfo(now, newCoflowId(date), desc, date, driver)
+    
     coflows += coflow
     idToCoflow(coflow.id) = coflow
     actorToCoflow(driver) = coflow
     addressToCoflow(driver.path.address) = coflow
+    
+    client.addCoflow(coflow)  // Update its parent client
+    
     return coflow
   }
 

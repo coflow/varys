@@ -27,7 +27,10 @@ private[varys] case class RegisterSlaveFailed(message: String) extends Framework
 
 // Client to Master
 private[varys] case class RegisterClient(clientName: String, host: String) extends FrameworkMessage
-private[varys] case class RegisterCoflow(coflowDescription: CoflowDescription) extends FrameworkMessage
+private[varys] case class RegisterCoflow(
+    clientId: String, 
+    coflowDescription: CoflowDescription) 
+  extends FrameworkMessage
 private[varys] case class UnregisterCoflow(coflowId: String) extends FrameworkMessage
 private[varys] case class RequestBestRxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage
 private[varys] case class RequestBestTxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage

@@ -127,7 +127,8 @@ private[varys] class Client(
     while (clientId == null) {
       clientRegisterLock.synchronized { clientRegisterLock.wait() }
     }
-    val RegisteredCoflow(coflowId) = askActorWithReply[RegisteredCoflow](masterActor, RegisterCoflow(coflowDesc))
+    val RegisteredCoflow(coflowId) = askActorWithReply[RegisteredCoflow](masterActor, 
+      RegisterCoflow(clientId, coflowDesc))
     coflowId
   }
   
