@@ -1,6 +1,6 @@
 package varys.framework
 
-import master.{CoflowInfo, SlaveInfo}
+import master.{ClientInfo, CoflowInfo, SlaveInfo}
 import cc.spray.json._
 
 /**
@@ -24,6 +24,14 @@ private[varys] object JsonProtocol extends DefaultJsonProtocol {
       "submitdate" -> JsString(obj.submitDate.toString))
   }
 
+  implicit object ClientInfoJsonFormat extends RootJsonWriter[ClientInfo] {
+    def write(obj: ClientInfo) = JsObject(
+      "starttime" -> JsNumber(obj.startTime),
+      "host" -> JsString(obj.host),
+      "id" -> JsString(obj.id),
+      "submitdate" -> JsString(obj.submitDate.toString))
+  }
+
   implicit object CoflowDescriptionJsonFormat extends RootJsonWriter[CoflowDescription] {
     def write(obj: CoflowDescription) = JsObject(
       "name" -> JsString(obj.name),
@@ -36,7 +44,9 @@ private[varys] object JsonProtocol extends DefaultJsonProtocol {
       "url" -> JsString("varys://" + obj.uri),
       "slaves" -> JsArray(obj.slaves.toList.map(_.toJson)),
       "activecoflows" -> JsArray(obj.activeCoflows.toList.map(_.toJson)),
-      "completedcoflows" -> JsArray(obj.completedCoflows.toList.map(_.toJson))
+      "completedcoflows" -> JsArray(obj.completedCoflows.toList.map(_.toJson)),
+      "activeclients" -> JsArray(obj.activeClients.toList.map(_.toJson)),
+      "completedclients" -> JsArray(obj.completedClients.toList.map(_.toJson))
     )
   }
 

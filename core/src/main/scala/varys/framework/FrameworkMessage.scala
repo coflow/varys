@@ -1,6 +1,6 @@
 package varys.framework
 
-import varys.framework.master.{SlaveInfo, CoflowInfo}
+import varys.framework.master.{CoflowInfo, ClientInfo, SlaveInfo}
 import scala.collection.immutable.List
 
 private[varys] sealed trait FrameworkMessage extends Serializable
@@ -53,7 +53,9 @@ case class MasterState(
     port: Int, 
     slaves: Array[SlaveInfo],
     activeCoflows: Array[CoflowInfo], 
-    completedCoflows: Array[CoflowInfo]) {
+    completedCoflows: Array[CoflowInfo],
+    activeClients: Array[ClientInfo],
+    completedClients: Array[ClientInfo]) {
 
   def uri = "varys://" + host + ":" + port
 }

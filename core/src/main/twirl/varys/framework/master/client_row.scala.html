@@ -1,0 +1,14 @@
+@(client: varys.framework.master.ClientInfo)
+
+@import varys.Utils
+@import varys.framework.WebUI.formatDate
+@import varys.framework.WebUI.formatDuration
+
+<tr>
+  <td>
+    <a href="client?clientId=@(client.id)">@client.id</a>
+  </td>
+  <td>@client.host</td>
+  <td>@formatDate(client.submitDate)</td>
+  <td>@formatDuration(client.duration)</td>
+</tr>

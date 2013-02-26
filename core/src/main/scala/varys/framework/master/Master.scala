@@ -41,6 +41,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val idToClient = new HashMap[String, ClientInfo]
   val actorToClient = new HashMap[ActorRef, ClientInfo]
   val addressToClient = new HashMap[Address, ClientInfo]
+  val completedClients = new ArrayBuffer[ClientInfo]
 
   val masterPublicAddress = {
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
@@ -142,7 +143,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
 
     case RequestMasterState => {
-      sender ! MasterState(ip, port, slaves.toArray, coflows.toArray, completedCoflows.toArray)
+      sender ! MasterState(ip, port, slaves.toArray, coflows.toArray, completedCoflows.toArray, 
+        clients.toArray, completedClients.toArray)
     }
     
     case RequestBestRxMachines(howMany, bytes) => {
@@ -177,8 +179,9 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def addClient(clientName: String, host: String, driver: ActorRef): ClientInfo = {
-    val date = new Date(System.currentTimeMillis())
-    val client = new ClientInfo(newClientId(date), host, driver)
+    val now = System.currentTimeMillis()
+    val date = new Date(now)
+    val client = new ClientInfo(now, newClientId(date), host, date, driver)
     clients += client
     idToClient(client.id) = client
     actorToClient(driver) = client
@@ -193,6 +196,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       idToClient -= client.id
       actorToClient -= client.driver
       addressToClient -= client.driver.path.address
+      completedClients += client  // Remember it in our history
+      client.markFinished()
     }
   }
 

@@ -1,0 +1,17 @@
+@(clients: Array[varys.framework.master.ClientInfo])
+
+<table class="table table-bordered table-striped table-condensed sortable">
+  <thead>
+    <tr>
+      <th>ClientID</th>
+      <th>Connected From</th>
+      <th>Submit Time</th>
+      <th>Duration</th>
+    </tr>
+  </thead>
+  <tbody>
+    @for(j <- clients) {
+      @client_row(j)
+    }
+  </tbody>
+</table>
