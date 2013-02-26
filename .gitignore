@@ -5,6 +5,7 @@
 *.out
 *.class
 *.iml
+.idea/
 build/
 varys.jar
 target/

@@ -17,9 +17,9 @@ import varys.{VarysCommon, Logging, Utils}
 import varys.util.AkkaUtils
 import varys.framework._
 
-import org.hyperic.sigar.Sigar;
-import org.hyperic.sigar.SigarException;
-import org.hyperic.sigar.NetInterfaceStat;
+import org.hyperic.sigar.Sigar
+import org.hyperic.sigar.SigarException
+import org.hyperic.sigar.NetInterfaceStat
 
 private[varys] class SlaveActor(
     ip: String,
