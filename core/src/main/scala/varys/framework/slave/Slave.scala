@@ -203,6 +203,9 @@ private[varys] class SlaveActor(
     
     curRxBps = rxBps
     curTxBps = txBps
+
+    // FIXME: Sometimes Sigar stops responding, and printing something in this method brings it back
+    // logInfo(rxBps + " " + txBps)
   }
 }
 
