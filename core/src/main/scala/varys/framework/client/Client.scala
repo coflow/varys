@@ -150,8 +150,8 @@ private[varys] class Client(
   /**
    * Emulates the process without having to actually put anything
    */
-  def putFake(blockId: String, coflowId: String, size: Long): Long = {
-    val desc = new FlowDescription(blockId, coflowId, FlowType.FAKE, size, Utils.localHostName())
+  def putFake(blockId: String, coflowId: String, size: Long, numReceivers: Int): Long = {
+    val desc = new FlowDescription(blockId, coflowId, FlowType.FAKE, size, numReceivers, Utils.localHostName())
     AkkaUtils.tellActor(slaveActor, AddFlow(desc))
     size
   }
@@ -169,9 +169,7 @@ private[varys] class Client(
    * Blocking call.
    */
   def getFake(blockId: String, coflowId: String) {
-    // Find location
-    
-    // Get data
+    AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId))
   }
   
   def delete(flowId: String, coflowId: String) {

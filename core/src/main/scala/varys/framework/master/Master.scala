@@ -170,12 +170,17 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       // schedule()
     }
     
-    case GetFlow(flowId, coflowId, destHost) => {
+    case GetFlow(flowId, coflowId, slaveId) => {
       val coflow = idToCoflow(coflowId)
       assert(coflows.contains(coflow))
       assert(coflow.contains(flowId))
       
-      coflow.addDestination(flowId, destHost)
+      val slave = idToSlave(slaveId)
+      assert(slaves.contains(slave))
+      
+      coflow.addDestination(flowId, slave.host)
+      logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
+      sender ! GotFlow(coflow.getFlowDesc(flowId))
       // schedule()
     }
     

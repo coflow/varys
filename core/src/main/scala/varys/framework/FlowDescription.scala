@@ -11,6 +11,7 @@ private[varys] class FlowDescription(
     val coflowId: String,  // Must be a valid coflow
     val flowType: FlowType.FlowType,  // http://www.scala-lang.org/node/7661
     val sizeInBytes: Long,
+    val maxReceivers: Int,  // Upper-bound on the number of receivers (how long to keep it around?)
     val originHost: String)
   extends Serializable {
 

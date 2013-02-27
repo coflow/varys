@@ -141,8 +141,17 @@ private[varys] class SlaveActor(
       }
     }
     
-    case GetFlow(flowId, coflowId, destHost) => {
-      master ! GetFlow(flowId, coflowId, destHost)
+    case GetFlow(flowId, coflowId, _) => {
+      // Notify master and retrieve the FlowDescription in response
+      val GotFlow(flowDesc) = AkkaUtils.askActorWithReply[GotFlow](master, GetFlow(flowId, coflowId, 
+        slaveId))
+
+      if (flowDesc.flowType == FlowType.FAKE) {
+        // Nothing to send back to the fake receiver. Notify that the request is being processed.
+        sender ! true
+      } else {
+        // TODO: Handle other FlowTypes
+      }
     }
     
     case DeleteFlow(flowId, coflowId) => {

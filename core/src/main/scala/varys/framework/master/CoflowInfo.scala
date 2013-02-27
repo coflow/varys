@@ -22,6 +22,10 @@ private[varys] class CoflowInfo(
 
   def retryCount = _retryCount
 
+  def getFlowDesc(flowId: String): FlowDescription = {
+    idToFlow(flowId).desc
+  }
+
   def contains(flowId: String): Boolean = {
     idToFlow.contains(flowId)
   }

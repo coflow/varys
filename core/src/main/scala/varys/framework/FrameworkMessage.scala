@@ -48,12 +48,12 @@ private[varys] case class AddFlow(flowDescription: FlowDescription) extends Fram
 private[varys] case class GetFlow(
     flowId: String, 
     coflowId: String, 
-    destHost: String) 
+    slaveId: String = null) 
   extends FrameworkMessage
 private[varys] case class DeleteFlow(flowId: String, coflowId: String) extends FrameworkMessage
 
 // Slave/Master to Client/Slave
-private[varys] case class GotFlow() extends FrameworkMessage
+private[varys] case class GotFlow(flowDescription: FlowDescription) extends FrameworkMessage
 
 // Internal message in Client
 private[varys] case object StopClient
