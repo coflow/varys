@@ -6,7 +6,7 @@ import java.util.Date
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
-import akka.actor.{ActorRef, Props, Actor, ActorSystem, Terminated}
+import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
 import akka.util.duration._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
 
@@ -32,6 +32,8 @@ private[varys] class SlaveActor(
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For slave IDs
 
   var master: ActorRef = null
+  var masterAddress: Address = null
+  
   var masterWebUiUrl : String = ""
   val slaveId = generateSlaveId()
   var varysHome: File = null
@@ -75,6 +77,7 @@ private[varys] class SlaveActor(
     logInfo("Connecting to master " + masterUrl)
     try {
       master = context.actorFor(Master.toAkkaUrl(masterUrl))
+      masterAddress = master.path.address
       master ! RegisterSlave(slaveId, ip, port, webUiPort, publicAddress)
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
       context.watch(master) // Doesn't work with remote actors, but useful for testing
@@ -97,7 +100,7 @@ private[varys] class SlaveActor(
   }
 
   override def receive = {
-    case RegisteredSlave(url) =>
+    case RegisteredSlave(url) => {
       masterWebUiUrl = url
       logInfo("Successfully registered with master")
       context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC * 1000 millis) {
@@ -105,16 +108,46 @@ private[varys] class SlaveActor(
         updateNetStats()
         master ! Heartbeat(slaveId, curRxBps, curTxBps)
       }
+    }
 
-    case RegisterSlaveFailed(message) =>
+    case RegisterSlaveFailed(message) => {
       logError("Slave registration failed: " + message)
       System.exit(1)
+    }
 
-    case Terminated(_) | RemoteClientDisconnected(_, _) | RemoteClientShutdown(_, _) =>
+    case Terminated(actor) if actor == master => {
       masterDisconnected()
-      
+    }
+    
+    case RemoteClientDisconnected(_, address) if address == masterAddress => {
+      masterDisconnected()
+    }
+     
+    case RemoteClientShutdown(_, address) if address == masterAddress => {
+      masterDisconnected()
+    }
+
     case RequestSlaveState => {
       sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
+    }
+    
+    case AddFlow(flowDesc) => {
+      logInfo("Adding " + flowDesc)
+      if (flowDesc.flowType == FlowType.FAKE) {
+        AkkaUtils.tellActor(master, AddFlow(flowDesc))
+        sender ! true
+      } else {
+        // TODO: Handle other FlowTypes
+      }
+    }
+    
+    case GetFlow(flowId, coflowId, destHost) => {
+      master ! GetFlow(flowId, coflowId, destHost)
+    }
+    
+    case DeleteFlow(flowId, coflowId) => {
+      // TODO: Actually remove
+      sender ! true
     }
   }
 

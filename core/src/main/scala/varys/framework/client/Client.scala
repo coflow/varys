@@ -24,8 +24,6 @@ private[varys] class Client(
   extends Logging {
 
   val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.framework.ask.wait", "5000").toInt
-  val AKKA_RETRY_ATTEMPTS: Int = System.getProperty("varys.akka.num.retries", "3").toInt
-  val AKKA_RETRY_INTERVAL_MS: Int = System.getProperty("varys.akka.retry.wait", "3000").toInt
 
   var actorSystem: ActorSystem = null
   
@@ -72,12 +70,12 @@ private[varys] class Client(
         markDisconnected()
         context.stop(self)
 
-      case RemoteClientDisconnected(transport, address) if address == masterAddress =>
+      case RemoteClientDisconnected(_, address) if address == masterAddress =>
         logError("Connection to master failed; stopping client")
         markDisconnected()
         context.stop(self)
 
-      case RemoteClientShutdown(transport, address) if address == masterAddress =>
+      case RemoteClientShutdown(_, address) if address == masterAddress =>
         logError("Connection to master failed; stopping client")
         markDisconnected()
         context.stop(self)
@@ -127,7 +125,8 @@ private[varys] class Client(
     while (clientId == null) {
       clientRegisterLock.synchronized { clientRegisterLock.wait() }
     }
-    val RegisteredCoflow(coflowId) = askActorWithReply[RegisteredCoflow](masterActor, 
+    
+    val RegisteredCoflow(coflowId) = AkkaUtils.askActorWithReply[RegisteredCoflow](masterActor, 
       RegisterCoflow(clientId, coflowDesc))
     coflowId
   }
@@ -136,62 +135,47 @@ private[varys] class Client(
     while (clientId == null) {
       clientRegisterLock.synchronized { clientRegisterLock.wait() }
     }
-    tellActor(masterActor, UnregisterCoflow(coflowId))
+    AkkaUtils.tellActor(masterActor, UnregisterCoflow(coflowId))
   }
 
-  def put() {
-    // Store data locally
-
-    // Register with the master
+  /**
+   * Stores data in the local slave, which will register it with the master.
+   * TODO: Blocking VS. Non-blocking? 
+   * Returns its estimated size in bytes.
+   */
+  def put(): Long = {
+    0L
+  }
+  
+  /**
+   * Emulates the process without having to actually put anything
+   */
+  def putFake(blockId: String, coflowId: String, size: Long): Long = {
+    val desc = new FlowDescription(blockId, coflowId, FlowType.FAKE, size, Utils.localHostName())
+    AkkaUtils.tellActor(slaveActor, AddFlow(desc))
+    size
+  }
+  
+  /**
+   * Retrieves data from any of the feasible locations. 
+   * Blocking call.
+   */
+  def get() {
     
   }
   
-  def get() {
+  /**
+   * Paired get() for putFake. Doesn't return anything, but emulates the retrieval process.
+   * Blocking call.
+   */
+  def getFake(blockId: String, coflowId: String) {
     // Find location
     
     // Get data
   }
   
-  /** Send a one-way message to an actor, to which we expect it to reply with true. */
-  private def tellActor(actor: ActorRef, message: Any) {
-    if (!askActorWithReply[Boolean](actor, message)) {
-      throw new VarysException(actor + " returned false, expected true.")
-    }
+  def delete(flowId: String, coflowId: String) {
+    AkkaUtils.tellActor(slaveActor, DeleteFlow(flowId, coflowId))
   }
 
-  /**
-   * Send a message to an actor and get its result within a default timeout, or
-   * throw a VarysException if this fails.
-   */
-  private def askActorWithReply[T](actor: ActorRef, message: Any): T = {
-    // TODO: Consider removing multiple attempts
-    if (actor == null) {
-      throw new VarysException("Error sending message as the actor is null " +
-        "[message = " + message + "]")
-    }
-    var attempts = 0
-    var lastException: Exception = null
-    while (attempts < AKKA_RETRY_ATTEMPTS) {
-      attempts += 1
-      try {
-        val timeout = INTERNAL_ASK_TIMEOUT_MS.millis
-        val future = actor.ask(message)(timeout)
-        val result = Await.result(future, timeout)
-        if (result == null) {
-          throw new Exception(actor + " returned null")
-        }
-        return result.asInstanceOf[T]
-      } catch {
-        case ie: InterruptedException => throw ie
-        case e: Exception =>
-          lastException = e
-          logWarning("Error sending message to " + actor + " in " + attempts + " attempts", e)
-      }
-      Thread.sleep(AKKA_RETRY_INTERVAL_MS)
-    }
-
-    throw new VarysException(
-      "Error sending message to " + actor + " [message = " + message + "]", lastException)
-  }
-  
 }

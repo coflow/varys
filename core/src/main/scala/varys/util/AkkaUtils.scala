@@ -19,6 +19,9 @@ import java.util.concurrent.TimeoutException
  */
 private[varys] object AkkaUtils {
 
+  val AKKA_RETRY_ATTEMPTS: Int = System.getProperty("varys.akka.num.retries", "3").toInt
+  val AKKA_RETRY_INTERVAL_MS: Int = System.getProperty("varys.akka.retry.wait", "3000").toInt
+
   /**
    * Creates an ActorSystem ready for remoting, with various Varys features. Returns both the
    * ActorSystem itself and its port (which is hard to get from Akka).
@@ -81,4 +84,47 @@ private[varys] object AkkaUtils {
         throw new VarysException("Failed to bind web UI to port " + port)
     }
   }
+  
+  /** 
+   * Send a one-way message to an actor, to which we expect it to reply with true. 
+   */
+  def tellActor(actor: ActorRef, message: Any) {
+    if (!askActorWithReply[Boolean](actor, message)) {
+      throw new VarysException(actor + " returned false, expected true.")
+    }
+  }
+
+  /**
+   * Send a message to an actor and get its result within a default timeout, or
+   * throw a VarysException if this fails.
+   */
+  def askActorWithReply[T](actor: ActorRef, message: Any): T = {
+    // TODO: Consider removing multiple attempts
+    if (actor == null) {
+      throw new VarysException("Error sending message as the actor is null " +
+        "[message = " + message + "]")
+    }
+    var attempts = 0
+    var lastException: Exception = null
+    while (attempts < AKKA_RETRY_ATTEMPTS) {
+      attempts += 1
+      try {
+        val timeout = AKKA_RETRY_INTERVAL_MS.millis
+        val future = actor.ask(message)(timeout)
+        val result = Await.result(future, timeout)
+        if (result == null) {
+          throw new Exception(actor + " returned null")
+        }
+        return result.asInstanceOf[T]
+      } catch {
+        case ie: InterruptedException => throw ie
+        case e: Exception => lastException = e
+      }
+      Thread.sleep(AKKA_RETRY_INTERVAL_MS)
+    }
+
+    throw new VarysException(
+      "Error sending message to " + actor + " in " + attempts + " attempts" + " [message = " + message + "]", lastException)
+  }
+  
 }

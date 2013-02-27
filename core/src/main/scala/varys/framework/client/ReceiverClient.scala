@@ -18,13 +18,25 @@ private[varys] object ReceiverClient {
   }
 
   def main(args: Array[String]) {
+    if (args.length < 2) {
+      println("USAGE: ReceiverClient <masterUrl> <coflowId> [dataName]")
+      System.exit(1)
+    }
+    
     val url = args(0)
     val coflowId = args(1)
+    val DATA_NAME = if (args.length > 2) args(2) else "DATA"
 
     val listener = new TestListener
     val client = new Client("ReceiverClient", url, listener)
     client.start()
-
+    
+    Thread.sleep(5000)
+    
+    println("Trying to retrieve " + DATA_NAME)
+    client.getFake(DATA_NAME, coflowId)
+    println("Got " + DATA_NAME + ". Now waiting to die.")
+    
     client.awaitTermination()
   }
 }

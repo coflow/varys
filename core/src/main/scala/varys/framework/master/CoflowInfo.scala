@@ -1,9 +1,9 @@
 package varys.framework.master
 
-import varys.framework.CoflowDescription
+import varys.framework.{FlowDescription, CoflowDescription}
 import java.util.Date
 import akka.actor.ActorRef
-import scala.collection.mutable
+import scala.collection.mutable.{HashMap, HashSet}
 
 private[varys] class CoflowInfo(
     val startTime: Long,
@@ -14,10 +14,32 @@ private[varys] class CoflowInfo(
 {
   var state = CoflowState.WAITING
   var endTime = -1L
+  
+  var flows = new HashSet[FlowInfo]
+  val idToFlow = new HashMap[String, FlowInfo]
 
   private var _retryCount = 0
 
   def retryCount = _retryCount
+
+  def contains(flowId: String): Boolean = {
+    idToFlow.contains(flowId)
+  }
+
+  def addFlow(flowDesc: FlowDescription) {
+    val flow = new FlowInfo(flowDesc)
+    flows += flow
+    idToFlow(flowDesc.id) = flow
+  }
+
+  def addDestination(flowId: String, destHost: String) {
+    val flow = idToFlow(flowId)
+    flow.addDestination(destHost)
+  }
+
+  def removeFlow(flowId: String) {
+    // TODO: 
+  }
 
   def incrementRetryCount = {
     _retryCount += 1

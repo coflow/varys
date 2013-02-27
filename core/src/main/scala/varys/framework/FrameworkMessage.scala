@@ -43,6 +43,18 @@ private[varys] case class CoflowKilled(message: String)
 private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
 private[varys] case class BestTxMachines(bestTxMachines: Array[String]) extends FrameworkMessage
 
+// Client/Slave to Slave/Master
+private[varys] case class AddFlow(flowDescription: FlowDescription) extends FrameworkMessage
+private[varys] case class GetFlow(
+    flowId: String, 
+    coflowId: String, 
+    destHost: String) 
+  extends FrameworkMessage
+private[varys] case class DeleteFlow(flowId: String, coflowId: String) extends FrameworkMessage
+
+// Slave/Master to Client/Slave
+private[varys] case class GotFlow() extends FrameworkMessage
+
 // Internal message in Client
 private[varys] case object StopClient
 

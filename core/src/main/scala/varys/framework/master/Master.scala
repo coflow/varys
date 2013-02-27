@@ -158,6 +158,30 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     case RequestBestTxMachines(howMany, bytes) => {
       sender ! BestTxMachines(idToTxBps.getTopN(howMany, bytes).toArray.map(idToSlave(_).host))
     }
+    
+    case AddFlow(flowDesc) => {
+      // coflowId will always be valid
+      val coflow = idToCoflow(flowDesc.coflowId)
+      assert(coflows.contains(coflow))
+      
+      logInfo("Adding " + flowDesc)
+      coflow.addFlow(flowDesc)
+      sender ! true
+      // schedule()
+    }
+    
+    case GetFlow(flowId, coflowId, destHost) => {
+      val coflow = idToCoflow(coflowId)
+      assert(coflows.contains(coflow))
+      assert(coflow.contains(flowId))
+      
+      coflow.addDestination(flowId, destHost)
+      // schedule()
+    }
+    
+    case DeleteFlow(flowId, coflowId) => {
+      // TODO: Actually do something
+    }
   }
 
   def addSlave(id: String, host: String, port: Int, webUiPort: Int,
