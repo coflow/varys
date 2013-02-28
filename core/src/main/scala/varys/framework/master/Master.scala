@@ -68,12 +68,12 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   override def receive = {
-    case RegisterSlave(id, host, slavePort, slave_webUiPort, publicAddress) => {
+    case RegisterSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress) => {
       logInfo("Registering slave %s:%d".format(host, slavePort))
       if (idToSlave.contains(id)) {
         sender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
-        addSlave(id, host, slavePort, slave_webUiPort, publicAddress)
+        addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         sender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
       }
@@ -103,7 +103,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       waitingCoflows += coflow
       context.watch(sender)  // This doesn't work with remote actors but helps for testing
       sender ! RegisteredCoflow(coflow.id)
-      // schedule()
+      schedule()
     }
 
     case UnregisterCoflow(coflowId) => {
@@ -167,7 +167,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logInfo("Adding " + flowDesc)
       coflow.addFlow(flowDesc)
       sender ! true
-      // schedule()
+      
+      schedule()
     }
     
     case GetFlow(flowId, coflowId, slaveId) => {
@@ -180,20 +181,23 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       
       coflow.addDestination(flowId, slave.host)
       logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
-      sender ! GotFlow(coflow.getFlowDesc(flowId))
-      // schedule()
+      sender ! GotFlow(coflow.getFlowDesc(flowId), slave.commPort)
+      
+      schedule()
     }
     
     case DeleteFlow(flowId, coflowId) => {
       // TODO: Actually do something
+      
+      schedule()
     }
   }
 
-  def addSlave(id: String, host: String, port: Int, webUiPort: Int,
+  def addSlave(id: String, host: String, port: Int, webUiPort: Int, commPort: Int,
     publicAddress: String): SlaveInfo = {
     // There may be one or more refs to dead slaves on this same node (w/ diff. IDs), remove them.
     slaves.filter(w => (w.host == host) && (w.state == SlaveState.DEAD)).foreach(slaves -= _)
-    val slave = new SlaveInfo(id, host, port, sender, webUiPort, publicAddress)
+    val slave = new SlaveInfo(id, host, port, sender, webUiPort, commPort, publicAddress)
     slaves += slave
     idToSlave(slave.id) = slave
     actorToSlave(sender) = slave
@@ -261,8 +265,19 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       completedCoflows += coflow  // Remember it in our history
       waitingCoflows -= coflow
       coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
-      // schedule()
+      schedule()
     }
+  }
+
+  /**
+   * Schedule ongoing coflows and flows. This method is called every time a new flow or coflow joins 
+   * or leaves.
+   */
+  def schedule() {
+    // Right now this is a very simple FIFO scheduler.
+    // There is no preemption either.
+    
+    // TODO: Actually schedule and communicate to the slaves
   }
 
   /** Generate a new coflow ID given a coflow's submission date */

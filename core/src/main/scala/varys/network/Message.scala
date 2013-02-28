@@ -216,4 +216,14 @@ private[varys] object Message {
     newMessage.senderAddress = header.address
     newMessage
   }
+  
+  def getBytes(bufferMessage: BufferMessage):Array[Byte] = {
+    val byteArr = new Array[Byte](bufferMessage.size)
+    var curLen = 0
+    bufferMessage.buffers.foreach(x => {
+      x.get(byteArr, curLen, x.remaining)
+      curLen += x.remaining
+    })
+    byteArr
+  }
 }

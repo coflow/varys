@@ -28,8 +28,6 @@ private[varys] object SenderTest {
     val buffer = ByteBuffer.allocate(size).put(Array.tabulate[Byte](size)(x => x.toByte))
     buffer.flip
 
-    val targetServer = args(0)
-
     val count = 100
     (0 until count).foreach(i => {
       val dataMessage = Message.createBufferMessage(buffer.duplicate)
@@ -44,8 +42,7 @@ private[varys] object SenderTest {
       val finishTime = System.currentTimeMillis
       val mb = size / 1024.0 / 1024.0
       val ms = finishTime - startTime
-      /*val resultStr = "Sent " + mb + " MB " + targetServer + " in " + ms + " ms at " + (mb / ms * 1000.0) + " MB/s"*/
-      val resultStr = "Sent " + mb + " MB " + targetServer + " in " + ms + " ms (" +  (mb / ms * 1000.0).toInt + "MB/s) | Response = " + responseStr
+      val resultStr = "Sent " + mb + " MB " + targetHost + " in " + ms + " ms (" +  (mb / ms * 1000.0).toInt + "MB/s) | Response = " + responseStr
       println(resultStr)
     })
   }

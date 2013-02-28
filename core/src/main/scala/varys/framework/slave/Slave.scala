@@ -1,8 +1,10 @@
 package varys.framework.slave
 
-import java.io.File
+import java.nio.ByteBuffer
+import java.io.{File, ObjectInputStream, ObjectOutputStream}
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.concurrent.ArrayBlockingQueue
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
@@ -16,18 +18,85 @@ import varys.framework.master.Master
 import varys.{VarysCommon, Logging, Utils, VarysException}
 import varys.util.AkkaUtils
 import varys.framework._
+import varys.network._
 
 import org.hyperic.sigar.Sigar
 import org.hyperic.sigar.SigarException
 import org.hyperic.sigar.NetInterfaceStat
 
+case class GetRequest(
+    var flowDesc: FlowDescription, 
+    var targetConManId: ConnectionManagerId, 
+    @transient var requester: ActorRef) {
+  
+  override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
+} 
+
 private[varys] class SlaveActor(
     ip: String,
     port: Int,
     webUiPort: Int,
+    commPort: Int,
     masterUrl: String,
     workDirPath: String = null)
   extends Actor with Logging {
+
+  // TODO: Think about a better solution (may be in a separate actor)  
+  val getReQ = new ArrayBlockingQueue[GetRequest](1000)
+  val receiverThread = new Thread("ReceiverThread for Slave @ " + Utils.localHostName()) {
+    override def run() {
+      while (true) {
+        val req = getReQ.take()
+        logInfo("Processing " + req)
+
+        // Actually retrieve it
+        val buffer = ByteBuffer.wrap(Utils.serialize[GetRequest](req))
+        val respMessage = sendMan.sendMessageReliablySync(req.targetConManId, 
+          Message.createBufferMessage(buffer))
+
+        // FIXME: Throwing away the response for now. 
+        // Need to handle response to the original client
+        respMessage match {
+          case Some(bufferMessage) => {
+            logInfo("Received " + bufferMessage)
+          }
+          case None => logError("Nothing received!")
+        }
+      }
+    }
+  }
+  receiverThread.start()
+
+  val sendMan = new ConnectionManager(0)
+  sendMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => { 
+    logInfo("Inside sendMan" + msg)
+    // Expecting response. Throw it away for now. (ASSUMING FAKE)
+    // FIXME: 
+    None
+  })
+  
+  val recvMan = new ConnectionManager(commPort)
+  recvMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => {
+    logInfo("Inside recvMan" + msg)
+
+    // Parse request
+    val byteArr = Message.getBytes(msg.asInstanceOf[BufferMessage])
+    val req = Utils.deserialize[GetRequest](byteArr)
+    
+    // FIXME: Only handling FAKE FlowType for now
+    assert(req.flowDesc.flowType == FlowType.FAKE)
+    
+    // Create Data
+    val size = req.flowDesc.sizeInBytes.toInt
+    val buffer = ByteBuffer.allocate(size).put(Array.tabulate[Byte](size)(x => x.toByte))
+    buffer.flip
+    
+    // Send
+    Some(Message.createBufferMessage(buffer.duplicate))
+  })
+
+  // TODO: Keep track of local data
+  val idsToFlow = new HashMap[(String, String), FlowDescription]
 
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For slave IDs
 
@@ -78,7 +147,7 @@ private[varys] class SlaveActor(
     try {
       master = context.actorFor(Master.toAkkaUrl(masterUrl))
       masterAddress = master.path.address
-      master ! RegisterSlave(slaveId, ip, port, webUiPort, publicAddress)
+      master ! RegisterSlave(slaveId, ip, port, webUiPort, commPort, publicAddress)
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
       context.watch(master) // Doesn't work with remote actors, but useful for testing
     } catch {
@@ -103,8 +172,9 @@ private[varys] class SlaveActor(
     case RegisteredSlave(url) => {
       masterWebUiUrl = url
       logInfo("Successfully registered with master")
+
+      // Thread to periodically uodate last{Rx|Tx}Bytes
       context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC * 1000 millis) {
-        // Uodate last{Rx|Tx}Bytes
         updateNetStats()
         master ! Heartbeat(slaveId, curRxBps, curTxBps)
       }
@@ -133,6 +203,7 @@ private[varys] class SlaveActor(
     
     case AddFlow(flowDesc) => {
       logInfo("Adding " + flowDesc)
+      // TODO: Locally keep track of flows
       if (flowDesc.flowType == FlowType.FAKE) {
         AkkaUtils.tellActor(master, AddFlow(flowDesc))
         sender ! true
@@ -143,9 +214,15 @@ private[varys] class SlaveActor(
     
     case GetFlow(flowId, coflowId, _) => {
       // Notify master and retrieve the FlowDescription in response
-      val GotFlow(flowDesc) = AkkaUtils.askActorWithReply[GotFlow](master, GetFlow(flowId, coflowId, 
+      val GotFlow(flowDesc, commPort_) = AkkaUtils.askActorWithReply[GotFlow](master, GetFlow(flowId, coflowId, 
         slaveId))
 
+      // Add to the queue
+      logInfo("Adding " + flowDesc + " to the Q")
+      val targetConManId = new ConnectionManagerId(flowDesc.originHost, commPort_)
+      getReQ.put(GetRequest(flowDesc, targetConManId, sender))
+      
+      // FIXME: This has to be made BLOCKING
       if (flowDesc.flowType == FlowType.FAKE) {
         // Nothing to send back to the fake receiver. Notify that the request is being processed.
         sender ! true
@@ -225,7 +302,7 @@ private[varys] object Slave {
 
   def main(argStrings: Array[String]) {
     val args = new SlaveArguments(argStrings)
-    val (actorSystem, _) = startSystemAndActor(args.ip, args.port, args.webUiPort,
+    val (actorSystem, _) = startSystemAndActor(args.ip, args.port, args.webUiPort, args.commPort,
       args.master, args.workDir)
     actorSystem.awaitTermination()
   }
@@ -240,12 +317,12 @@ private[varys] object Slave {
     }
   }
 
-  def startSystemAndActor(host: String, port: Int, webUiPort: Int,
+  def startSystemAndActor(host: String, port: Int, webUiPort: Int, commPort: Int,
     masterUrl: String, workDir: String, slaveNumber: Option[Int] = None): (ActorSystem, Int) = {
     // The LocalVarysCluster runs multiple local varysSlaveX actor systems
     val systemName = "varysSlave" + slaveNumber.map(_.toString).getOrElse("")
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)
-    val actor = actorSystem.actorOf(Props(new SlaveActor(host, boundPort, webUiPort,
+    val actor = actorSystem.actorOf(Props(new SlaveActor(host, boundPort, webUiPort, commPort,
       masterUrl, workDir)), name = "Slave")
     (actorSystem, boundPort)
   }

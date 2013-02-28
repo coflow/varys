@@ -12,6 +12,7 @@ case class RegisterSlave(
     host: String,
     port: Int,
     webUiPort: Int,
+    commPort: Int,
     publicAddress: String)
   extends FrameworkMessage
 private[varys]
@@ -53,7 +54,10 @@ private[varys] case class GetFlow(
 private[varys] case class DeleteFlow(flowId: String, coflowId: String) extends FrameworkMessage
 
 // Slave/Master to Client/Slave
-private[varys] case class GotFlow(flowDescription: FlowDescription) extends FrameworkMessage
+private[varys] case class GotFlow(
+    flowDescription: FlowDescription, 
+    commPort: Int) 
+  extends FrameworkMessage
 
 // Internal message in Client
 private[varys] case object StopClient

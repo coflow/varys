@@ -47,9 +47,15 @@ else
   fi
 fi
 
+if [ -z "$VARYS_MEM" ] ; then
+  VARYS_MEM="512m"
+fi
+export VARYS_MEM
+
 # Set JAVA_OPTS to be able to load native libraries and to set heap size
 JAVA_OPTS="$VARYS_JAVA_OPTS"
 JAVA_OPTS+=" -Djava.library.path=$VARYS_LIBRARY_PATH"
+JAVA_OPTS+=" -Xms$VARYS_MEM -Xmx$VARYS_MEM"
 # Load extra JAVA_OPTS from conf/java-opts, if it exists
 if [ -e $FWDIR/conf/java-opts ] ; then
   JAVA_OPTS+=" `cat $FWDIR/conf/java-opts`"

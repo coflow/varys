@@ -37,7 +37,7 @@ private[varys] object SenderClient {
     println("Registered coflow " + coflowId + ". Now sleeping for " + SLEEP_MS1 + " milliseconds.")
     Thread.sleep(SLEEP_MS1)
     
-    val LEN_BYTES = 1000000L
+    val LEN_BYTES = 1010101L
     client.putFake(DATA_NAME, coflowId, LEN_BYTES, 1)
     println("Put a fake piece of data of " + LEN_BYTES + " bytes. Now waiting to die.")
     

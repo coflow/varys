@@ -11,6 +11,7 @@ private[varys] class SlaveArguments(args: Array[String]) {
   var ip = Utils.localHostName()
   var port = 0
   var webUiPort = 16017
+  var commPort = 1607
   var master: String = null
   var workDir: String = null
   
@@ -20,6 +21,9 @@ private[varys] class SlaveArguments(args: Array[String]) {
   }
   if (System.getenv("VARYS_SLAVE_WEBUI_PORT") != null) {
     webUiPort = System.getenv("VARYS_SLAVE_WEBUI_PORT").toInt
+  }
+  if (System.getenv("VARYS_SLAVE_COMM_PORT") != null) {
+    commPort = System.getenv("VARYS_SLAVE_COMM_PORT").toInt
   }
   if (System.getenv("VARYS_SLAVE_DIR") != null) {
     workDir = System.getenv("VARYS_SLAVE_DIR")
@@ -42,6 +46,10 @@ private[varys] class SlaveArguments(args: Array[String]) {
       
     case "--webui-port" :: IntParam(value) :: tail =>
       webUiPort = value
+      parse(tail)
+
+    case "--comm-port" :: IntParam(value) :: tail =>
+      commPort = value
       parse(tail)
 
     case ("--help" | "-h") :: tail =>
@@ -76,7 +84,8 @@ private[varys] class SlaveArguments(args: Array[String]) {
       "  -d DIR, --work-dir DIR   Directory to run coflows in (default: VARYS_HOME/work)\n" +
       "  -i IP, --ip IP           IP address or DNS name to listen on\n" +
       "  -p PORT, --port PORT     Port to listen on (default: random)\n" +
-      "  --webui-port PORT        Port for web UI (default: 16017)")
+      "  --webui-port PORT        Port for web UI (default: 16017)\n" + 
+      "  --comm-port PORT        Port for Slave-To-Slave communication (default: 1607)")
     System.exit(exitCode)
   }
 
