@@ -98,7 +98,7 @@ private[varys] object AkkaUtils {
    * Send a message to an actor and get its result within a default timeout, or
    * throw a VarysException if this fails.
    */
-  def askActorWithReply[T](actor: ActorRef, message: Any): T = {
+  def askActorWithReply[T](actor: ActorRef, message: Any, timeout: Int = AKKA_RETRY_INTERVAL_MS): T = {
     // TODO: Consider removing multiple attempts
     if (actor == null) {
       throw new VarysException("Error sending message as the actor is null " +
@@ -109,9 +109,8 @@ private[varys] object AkkaUtils {
     while (attempts < AKKA_RETRY_ATTEMPTS) {
       attempts += 1
       try {
-        val timeout = AKKA_RETRY_INTERVAL_MS.millis
-        val future = actor.ask(message)(timeout)
-        val result = Await.result(future, timeout)
+        val future = actor.ask(message)(timeout.millis)
+        val result = Await.result(future, timeout.millis)
         if (result == null) {
           throw new Exception(actor + " returned null")
         }

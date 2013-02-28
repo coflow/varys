@@ -12,25 +12,13 @@ import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
 import akka.util.duration._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
 
-import varys.framework.RegisterSlave
-import varys.framework.RegisterSlaveFailed
 import varys.framework.master.Master
 import varys.{VarysCommon, Logging, Utils, VarysException}
 import varys.util.AkkaUtils
 import varys.framework._
 import varys.network._
 
-import org.hyperic.sigar.Sigar
-import org.hyperic.sigar.SigarException
-import org.hyperic.sigar.NetInterfaceStat
-
-case class GetRequest(
-    var flowDesc: FlowDescription, 
-    var targetConManId: ConnectionManagerId, 
-    @transient var requester: ActorRef) {
-  
-  override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
-} 
+import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
 private[varys] class SlaveActor(
     ip: String,
@@ -69,9 +57,8 @@ private[varys] class SlaveActor(
 
   val sendMan = new ConnectionManager(0)
   sendMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => { 
-    logInfo("Inside sendMan" + msg)
-    // Expecting response. Throw it away for now. (ASSUMING FAKE)
-    // FIXME: 
+    logError("ENTER SANDMAN!")
+    // Should NEVER be called
     None
   })
   
@@ -83,13 +70,15 @@ private[varys] class SlaveActor(
     val byteArr = Message.getBytes(msg.asInstanceOf[BufferMessage])
     val req = Utils.deserialize[GetRequest](byteArr)
     
-    // FIXME: Only handling FAKE FlowType for now
-    assert(req.flowDesc.flowType == FlowType.FAKE)
-    
-    // Create Data
-    val size = req.flowDesc.sizeInBytes.toInt
-    val buffer = ByteBuffer.allocate(size).put(Array.tabulate[Byte](size)(x => x.toByte))
-    buffer.flip
+    var buffer:ByteBuffer = null
+    if (req.flowDesc.flowType == FlowType.FAKE) {
+      // Create Data
+      val size = req.flowDesc.sizeInBytes.toInt
+      buffer = ByteBuffer.allocate(size).put(Array.tabulate[Byte](size)(_.toByte))
+      buffer.flip
+    } else {
+      // TODO: Handle other FlowTypes
+    }
     
     // Send
     Some(Message.createBufferMessage(buffer.duplicate))

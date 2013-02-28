@@ -2,6 +2,8 @@ package varys.framework
 
 import varys.framework.master.{CoflowInfo, ClientInfo, SlaveInfo}
 import scala.collection.immutable.List
+import akka.actor.ActorRef
+import varys.network.ConnectionManagerId
 
 private[varys] sealed trait FrameworkMessage extends Serializable
 
@@ -40,7 +42,7 @@ private[varys] case class RequestBestTxMachines(howMany: Int, adjustBytes: Long)
 private[varys] case class RegisteredClient(clientId: String, slaveUrl:String) extends FrameworkMessage
 private[varys] case class RegisterClientFailed(message: String) extends FrameworkMessage
 private[varys] case class RegisteredCoflow(coflowId: String) extends FrameworkMessage
-private[varys] case class CoflowKilled(message: String)
+private[varys] case class CoflowKilled(message: String) extends FrameworkMessage
 private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
 private[varys] case class BestTxMachines(bestTxMachines: Array[String]) extends FrameworkMessage
 
@@ -83,7 +85,6 @@ case class MasterState(
 private[varys] case object RequestSlaveState
 
 // Slave to SlaveWebUI
-private[varys]
 case class SlaveState(
     host: String, 
     port: Int, 
@@ -92,3 +93,13 @@ case class SlaveState(
     rxBps: Double,
     txBps: Double,
     masterWebUiUrl: String)
+
+// Slave to Slave
+private[varys]
+case class GetRequest(
+    flowDesc: FlowDescription, 
+    targetConManId: ConnectionManagerId, 
+    @transient requester: ActorRef) {
+  
+  override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
+} 
