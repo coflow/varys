@@ -79,14 +79,14 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       }
     }
 
-    case RegisterClient(clientName, host) => {
-      logInfo("Registering client %s@%s".format(clientName, host))
+    case RegisterClient(clientName, host, commPort) => {
+      logInfo("Registering client %s@%s:%d".format(clientName, host, commPort))
       if (hostToSlave.contains(host)) {
-        val client = addClient(clientName, host, sender)
+        val client = addClient(clientName, host, commPort, sender)
         logInfo("Registered client " + clientName + " with ID " + client.id)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         val slave = hostToSlave(host)
-        sender ! RegisteredClient(client.id, "varys://" + slave.host + ":" + slave.port)
+        sender ! RegisteredClient(client.id, slave.id, "varys://" + slave.host + ":" + slave.port)
       } else {
         sender ! RegisterClientFailed("No Varys slave at " + host)
       }
@@ -171,23 +171,28 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       schedule()
     }
     
-    case GetFlow(flowId, coflowId, slaveId) => {
+    case GetFlow(flowId, coflowId, clientId, slaveId, _) => {
+      val slave = idToSlave(slaveId)
+      assert(slaves.contains(slave))
+      
+      val client = idToClient(clientId)
+      assert(clients.contains(client))
+
       val coflow = idToCoflow(coflowId)
       assert(coflows.contains(coflow))
       assert(coflow.contains(flowId))
       
-      val slave = idToSlave(slaveId)
-      assert(slaves.contains(slave))
-      
+      val flowDesc = coflow.getFlowDesc(flowId)
+
       coflow.addDestination(flowId, slave.host)
       logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
-      sender ! GotFlow(coflow.getFlowDesc(flowId), slave.commPort)
+      sender ! GotFlowDesc(flowDesc)
       
       schedule()
     }
     
     case DeleteFlow(flowId, coflowId) => {
-      // TODO: Actually do something
+      // TODO: Actually do something; e.g., remove destination?
       
       schedule()
     }
@@ -215,10 +220,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     hostToSlave -= slave.host
   }
 
-  def addClient(clientName: String, host: String, driver: ActorRef): ClientInfo = {
+  def addClient(clientName: String, host: String, commPort: Int, driver: ActorRef): ClientInfo = {
     val now = System.currentTimeMillis()
     val date = new Date(now)
-    val client = new ClientInfo(now, newClientId(date), host, date, driver)
+    val client = new ClientInfo(now, newClientId(date), host, commPort, date, driver)
     clients += client
     idToClient(client.id) = client
     actorToClient(driver) = client

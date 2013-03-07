@@ -4,7 +4,6 @@ import java.nio.ByteBuffer
 import java.io.{File, ObjectInputStream, ObjectOutputStream}
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.concurrent.ArrayBlockingQueue
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
@@ -28,39 +27,6 @@ private[varys] class SlaveActor(
     masterUrl: String,
     workDirPath: String = null)
   extends Actor with Logging {
-
-  // TODO: Think about a better solution (may be in a separate actor)  
-  val getReQ = new ArrayBlockingQueue[GetRequest](1000)
-  val receiverThread = new Thread("ReceiverThread for Slave @ " + Utils.localHostName()) {
-    override def run() {
-      while (true) {
-        val req = getReQ.take()
-        logInfo("Processing " + req)
-
-        // Actually retrieve it
-        val buffer = ByteBuffer.wrap(Utils.serialize[GetRequest](req))
-        val respMessage = sendMan.sendMessageReliablySync(req.targetConManId, 
-          Message.createBufferMessage(buffer))
-
-        // FIXME: Throwing away the response for now. 
-        // Need to handle response to the original client
-        respMessage match {
-          case Some(bufferMessage) => {
-            logInfo("Received " + bufferMessage)
-          }
-          case None => logError("Nothing received!")
-        }
-      }
-    }
-  }
-  receiverThread.start()
-
-  val sendMan = new ConnectionManager(0)
-  sendMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => { 
-    logError("ENTER SANDMAN!")
-    // Should NEVER be called
-    None
-  })
   
   val recvMan = new ConnectionManager(commPort)
   recvMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => {
@@ -190,34 +156,34 @@ private[varys] class SlaveActor(
       sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
     
-    case AddFlow(flowDesc) => {
-      logInfo("Adding " + flowDesc)
-      // TODO: Locally keep track of flows
-      if (flowDesc.flowType == FlowType.FAKE) {
-        AkkaUtils.tellActor(master, AddFlow(flowDesc))
-        sender ! true
-      } else {
-        // TODO: Handle other FlowTypes
-      }
+    case RegisteredCoflow(coflowId) => {
+      // TODO: Do something!
+      sender ! true
     }
     
-    case GetFlow(flowId, coflowId, _) => {
-      // Notify master and retrieve the FlowDescription in response
-      val GotFlow(flowDesc, commPort_) = AkkaUtils.askActorWithReply[GotFlow](master, GetFlow(flowId, coflowId, 
-        slaveId))
-
-      // Add to the queue
-      logInfo("Adding " + flowDesc + " to the Q")
-      val targetConManId = new ConnectionManagerId(flowDesc.originHost, commPort_)
-      getReQ.put(GetRequest(flowDesc, targetConManId, sender))
+    case UnregisterCoflow(coflowId) => {
+      // TODO: Do something!
+      sender ! true
+    }
+    
+    case AddFlow(flowDesc) => {
+      // TODO: Do something!
+      logInfo("Handling " + flowDesc)
       
-      // FIXME: This has to be made BLOCKING
-      if (flowDesc.flowType == FlowType.FAKE) {
-        // Nothing to send back to the fake receiver. Notify that the request is being processed.
-        sender ! true
-      } else {
-        // TODO: Handle other FlowTypes
+      // Update commPort if the end point will be a client
+      if (flowDesc.flowType != FlowType.INMEMORY) {
+        flowDesc.updateCommPort(commPort)
       }
+      
+      // Now let the master know and notify the client
+      AkkaUtils.tellActor(master, AddFlow(flowDesc))
+      sender ! true
+    }
+    
+    case GetFlow(flowId, coflowId, clientId, _, flowDesc) => {
+      // TODO: Do something!
+      
+      sender ! true
     }
     
     case DeleteFlow(flowId, coflowId) => {

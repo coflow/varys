@@ -8,6 +8,7 @@ private[varys] class ClientInfo(
     val startTime: Long,
     val id: String, 
     val host: String, 
+    val commPort: Int,
     val submitDate: Date,
     val driver: ActorRef) 
 { 

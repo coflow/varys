@@ -29,7 +29,7 @@ private[varys] case class RegisteredSlave(masterWebUiUrl: String) extends Framew
 private[varys] case class RegisterSlaveFailed(message: String) extends FrameworkMessage
 
 // Client to Master
-private[varys] case class RegisterClient(clientName: String, host: String) extends FrameworkMessage
+private[varys] case class RegisterClient(clientName: String, host: String, commPort: Int) extends FrameworkMessage
 private[varys] case class RegisterCoflow(
     clientId: String, 
     coflowDescription: CoflowDescription) 
@@ -38,11 +38,17 @@ private[varys] case class UnregisterCoflow(coflowId: String) extends FrameworkMe
 private[varys] case class RequestBestRxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage
 private[varys] case class RequestBestTxMachines(howMany: Int, adjustBytes: Long) extends FrameworkMessage
 
+// Master/Client to Client/Slave
+private[varys] case class RegisteredClient(
+    clientId: String, 
+    slaveId: String,
+    slaveUrl:String) 
+  extends FrameworkMessage
+private[varys] case class CoflowKilled(message: String) extends FrameworkMessage
+
 // Master to Client
-private[varys] case class RegisteredClient(clientId: String, slaveUrl:String) extends FrameworkMessage
 private[varys] case class RegisterClientFailed(message: String) extends FrameworkMessage
 private[varys] case class RegisteredCoflow(coflowId: String) extends FrameworkMessage
-private[varys] case class CoflowKilled(message: String) extends FrameworkMessage
 private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
 private[varys] case class BestTxMachines(bestTxMachines: Array[String]) extends FrameworkMessage
 
@@ -51,18 +57,30 @@ private[varys] case class AddFlow(flowDescription: FlowDescription) extends Fram
 private[varys] case class GetFlow(
     flowId: String, 
     coflowId: String, 
-    slaveId: String = null) 
+    clientId: String,
+    slaveId: String,
+    flowDesc: FlowDescription = null) 
   extends FrameworkMessage
 private[varys] case class DeleteFlow(flowId: String, coflowId: String) extends FrameworkMessage
 
 // Slave/Master to Client/Slave
-private[varys] case class GotFlow(
-    flowDescription: FlowDescription, 
-    commPort: Int) 
-  extends FrameworkMessage
+private[varys] case class GotFlowDesc(flowDescription: FlowDescription) extends FrameworkMessage
 
-// Internal message in Client
+// Internal message in Client/Slave
 private[varys] case object StopClient
+private[varys]
+case class GetRequest(
+    flowDesc: FlowDescription, 
+    targetConManId: ConnectionManagerId) 
+  extends FrameworkMessage {
+  
+  override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
+} 
+private[varys]
+case class PutRequest(flowDesc: FlowDescription) extends FrameworkMessage {
+  
+  override def toString: String = "PutRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
+} 
 
 // MasterWebUI To Master
 private[varys] case object RequestMasterState
@@ -93,13 +111,3 @@ case class SlaveState(
     rxBps: Double,
     txBps: Double,
     masterWebUiUrl: String)
-
-// Slave to Slave
-private[varys]
-case class GetRequest(
-    flowDesc: FlowDescription, 
-    targetConManId: ConnectionManagerId, 
-    @transient requester: ActorRef) {
-  
-  override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
-} 

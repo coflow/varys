@@ -12,10 +12,15 @@ private[varys] class FlowDescription(
     val flowType: FlowType.FlowType,  // http://www.scala-lang.org/node/7661
     val sizeInBytes: Long,
     val maxReceivers: Int,  // Upper-bound on the number of receivers (how long to keep it around?)
-    val originHost: String)
+    val originHost: String,
+    var originCommPort: Int)
   extends Serializable {
 
   val user = System.getProperty("user.name", "<unknown>")
 
   override def toString: String = "FlowDescription(" + id + ":" + coflowId + ")"
+  
+  def updateCommPort(commPort: Int) {
+    originCommPort = commPort
+  }
 }
