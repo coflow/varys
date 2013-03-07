@@ -1,7 +1,8 @@
 package varys.framework.slave
 
-import java.nio.ByteBuffer
-import java.io.{File, ObjectInputStream, ObjectOutputStream}
+import java.nio.{ByteBuffer, MappedByteBuffer}
+import java.nio.channels.FileChannel
+import java.io.{File, RandomAccessFile, ObjectInputStream, ObjectOutputStream}
 import java.text.SimpleDateFormat
 import java.util.Date
 
@@ -36,14 +37,31 @@ private[varys] class SlaveActor(
     val byteArr = Message.getBytes(msg.asInstanceOf[BufferMessage])
     val req = Utils.deserialize[GetRequest](byteArr)
     
-    var buffer:ByteBuffer = null
-    if (req.flowDesc.flowType == FlowType.FAKE) {
-      // Create Data
-      val size = req.flowDesc.sizeInBytes.toInt
-      buffer = ByteBuffer.allocate(size).put(Array.tabulate[Byte](size)(_.toByte))
-      buffer.flip
-    } else {
-      // TODO: Handle other FlowTypes
+    var buffer: ByteBuffer = null
+    req.flowDesc.flowType match {
+      case FlowType.FAKE => {
+        // Create Data
+        val size = req.flowDesc.sizeInBytes.toInt
+        buffer = ByteBuffer.allocate(size).put(Array.tabulate[Byte](size)(_.toByte))
+        buffer.flip
+      }
+      
+      case FlowType.ONDISK => {
+        // Read data from file into memory and send it
+        val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
+        val inChannel = new RandomAccessFile(fileDesc.pathToFile, "r").getChannel()
+        buffer = inChannel.map(FileChannel.MapMode.READ_ONLY, 0, inChannel.size())
+        inChannel.close()
+      }
+      
+      case FlowType.INMEMORY => {
+        
+      }
+      
+      case _ => {
+        logError("Invalid FlowType!")
+        System.exit(1)
+      }
     }
     
     // Send

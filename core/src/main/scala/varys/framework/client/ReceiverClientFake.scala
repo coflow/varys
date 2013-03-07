@@ -4,7 +4,7 @@ import varys.util.AkkaUtils
 import varys.{Logging, Utils}
 import varys.framework._
 
-private[varys] object ReceiverClient {
+private[varys] object ReceiverClientFake {
 
   class TestListener extends ClientListener with Logging {
     def connected(id: String) {
@@ -19,7 +19,7 @@ private[varys] object ReceiverClient {
 
   def main(args: Array[String]) {
     if (args.length < 2) {
-      println("USAGE: ReceiverClient <masterUrl> <coflowId> [dataName]")
+      println("USAGE: ReceiverClientFake <masterUrl> <coflowId> [dataName]")
       System.exit(1)
     }
     
@@ -28,7 +28,7 @@ private[varys] object ReceiverClient {
     val DATA_NAME = if (args.length > 2) args(2) else "DATA"
 
     val listener = new TestListener
-    val client = new Client("ReceiverClient", url, listener)
+    val client = new Client("ReceiverClientFake", url, listener)
     client.start()
     
     Thread.sleep(5000)

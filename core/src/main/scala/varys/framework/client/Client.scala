@@ -58,8 +58,25 @@ private[varys] class Client(
         respMessage match {
           case Some(bufferMessage) => {
             logInfo("Received " + bufferMessage)
-            // FIXME: Throwing away the response for now.
-            // Need to handle response to the original client for non-FAKE requests
+
+            req.flowDesc.flowType match {
+              case FlowType.FAKE => {
+                // Throw away
+              }
+
+              case FlowType.ONDISK => {
+                // TODO: Write to disk or something else
+              }
+
+              case FlowType.INMEMORY => {
+                // TODO: Do something
+              }
+
+              case _ => {
+                logError("Invalid FlowType!")
+                System.exit(1)
+              }
+            }
           }
           case None => logError("Nothing received!")
         }
@@ -202,18 +219,16 @@ private[varys] class Client(
 
   /**
    * Makes data available for retrieval, and notifies local slave, which will register it with the master.
-   * Should be non-blocking.
+   * FIXME: Non-blocking for FAKE and ONDISK FlowTypes. Blocking for in-memory.
    */
   private def handlePut(flowDesc: FlowDescription) {
     // Notify the slave, which will notify the master
     AkkaUtils.tellActor(slaveActor, AddFlow(flowDesc))
     
-    // Now, hold it up for retrieval
-    if (flowDesc.flowType == FlowType.FAKE) {
+    // TODO: Block
+    if (flowDesc.flowType == FlowType.INMEMORY) {
       
-    } else {
-      
-    }
+    } 
   }
 
   /**
@@ -226,14 +241,18 @@ private[varys] class Client(
   /**
    * Puts a local file
    */
-  def putFile() {
+  def putFile(fileId: String, pathToFile: String, coflowId: String, size: Long, numReceivers: Int) {
+    val desc = new FileDescription(fileId, pathToFile, coflowId, FlowType.ONDISK, size, numReceivers, 
+      recvMan.id.host, recvMan.id.port)
+    handlePut(desc)
   }
   
   /**
    * Emulates the process without having to actually put anything
    */
   def putFake(blockId: String, coflowId: String, size: Long, numReceivers: Int) {
-    val desc = new FlowDescription(blockId, coflowId, FlowType.FAKE, size, numReceivers, recvMan.id.host, recvMan.id.port)
+    val desc = new FlowDescription(blockId, coflowId, FlowType.FAKE, size, numReceivers, 
+      recvMan.id.host, recvMan.id.port)
     handlePut(desc)
   }
   
@@ -265,8 +284,8 @@ private[varys] class Client(
   /**
    * Gets a file
    */
-  def getFile() {
-    
+  def getFile(fileId: String, coflowId: String) {
+    handleGet(fileId, FlowType.ONDISK, coflowId)
   }
   
   /**
