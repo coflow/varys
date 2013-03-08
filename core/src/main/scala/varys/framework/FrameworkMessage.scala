@@ -3,7 +3,6 @@ package varys.framework
 import varys.framework.master.{CoflowInfo, ClientInfo, SlaveInfo}
 import scala.collection.immutable.List
 import akka.actor.ActorRef
-import varys.network.ConnectionManagerId
 
 private[varys] sealed trait FrameworkMessage extends Serializable
 
@@ -71,7 +70,8 @@ private[varys] case object StopClient
 private[varys]
 case class GetRequest(
     flowDesc: FlowDescription, 
-    targetConManId: ConnectionManagerId) 
+    targetHost: String = null,
+    targetCommPort: Int = 0) 
   extends FrameworkMessage {
   
   override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"

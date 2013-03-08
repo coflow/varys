@@ -1,10 +1,9 @@
 package varys.framework.slave
 
-import java.nio.{ByteBuffer, MappedByteBuffer}
-import java.nio.channels.FileChannel
-import java.io.{File, RandomAccessFile, ObjectInputStream, ObjectOutputStream}
+import java.io.{File, ObjectInputStream, ObjectOutputStream, IOException}
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.net._
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
@@ -16,9 +15,10 @@ import varys.framework.master.Master
 import varys.{VarysCommon, Logging, Utils, VarysException}
 import varys.util.AkkaUtils
 import varys.framework._
-import varys.network._
 
 import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
+
+import com.google.common.io.Files
 
 private[varys] class SlaveActor(
     ip: String,
@@ -29,44 +29,92 @@ private[varys] class SlaveActor(
     workDirPath: String = null)
   extends Actor with Logging {
   
-  val recvMan = new ConnectionManager(commPort)
-  recvMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => {
-    logInfo("Inside recvMan" + msg)
+  var stopServer = false
+  val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
+  val serverThread = new Thread(serverThreadName) {
+    override def run() {
+      var threadPool = Utils.newDaemonCachedThreadPool
+      var serverSocket: ServerSocket = new ServerSocket(commPort)
 
-    // Parse request
-    val byteArr = Message.getBytes(msg.asInstanceOf[BufferMessage])
-    val req = Utils.deserialize[GetRequest](byteArr)
-    
-    var buffer: ByteBuffer = null
-    req.flowDesc.flowType match {
-      case FlowType.FAKE => {
-        // Create Data
-        val size = req.flowDesc.sizeInBytes.toInt
-        buffer = ByteBuffer.allocate(size).put(Array.tabulate[Byte](size)(_.toByte))
-        buffer.flip
+      try {
+        while (!stopServer) {
+          var clientSocket: Socket = null
+          try {
+            serverSocket.setSoTimeout(VarysCommon.HEARTBEAT_SEC * 1000)
+            clientSocket = serverSocket.accept
+          } catch {
+            case e: Exception => { 
+              if (stopServer) {
+                logInfo("Stopping " + serverThreadName)
+              }
+            }
+          }
+
+          if (clientSocket != null) {
+            try {
+              threadPool.execute (new Thread {
+                override def run: Unit = {
+                  val oos = new ObjectOutputStream(clientSocket.getOutputStream)
+                  oos.flush
+                  val ois = new ObjectInputStream(clientSocket.getInputStream)
+              
+                  try {
+                    val req = ois.readObject.asInstanceOf[GetRequest]
+                    // TODO: Should it be any type?
+                    val toSend: Option[Array[Byte]] = req.flowDesc.flowType match {
+                      case FlowType.FAKE => {
+                        // Create Data
+                        val size = req.flowDesc.sizeInBytes.toInt
+                        Some(Array.tabulate[Byte](size)(_.toByte))
+                      }
+
+                      case FlowType.ONDISK => {
+                        // Read data from file into memory and send it
+                        val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
+                        Some(Files.toByteArray(new File(fileDesc.pathToFile)))
+                      }
+
+                      case FlowType.INMEMORY => {
+                        logWarning("FlowType.INMEMORY shouldn't have reached a slave!")
+                        None
+                      }
+
+                      case _ => {
+                        logWarning("Invalid FlowType!")
+                        None
+                      }
+                    }
+                
+                    oos.writeObject(toSend)
+                    oos.flush
+                  } catch {
+                    case e: Exception => {
+                      logInfo (serverThreadName + " had a " + e)
+                    }
+                  } finally {
+                    ois.close
+                    oos.close
+                    clientSocket.close
+                  }
+                }
+              })
+            } catch {
+              // In failure, close socket here; else, client thread will close
+              case ioe: IOException => {
+                clientSocket.close
+              }
+            }
+          }
+        }
+      } finally {
+        serverSocket.close
       }
-      
-      case FlowType.ONDISK => {
-        // Read data from file into memory and send it
-        val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
-        val inChannel = new RandomAccessFile(fileDesc.pathToFile, "r").getChannel()
-        buffer = inChannel.map(FileChannel.MapMode.READ_ONLY, 0, inChannel.size())
-        inChannel.close()
-      }
-      
-      case FlowType.INMEMORY => {
-        
-      }
-      
-      case _ => {
-        logError("Invalid FlowType!")
-        System.exit(1)
-      }
+      // Shutdown the thread pool
+      threadPool.shutdown
     }
-    
-    // Send
-    Some(Message.createBufferMessage(buffer.duplicate))
-  })
+  }
+  serverThread.setDaemon(true)
+  serverThread.start()
 
   // TODO: Keep track of local data
   val idsToFlow = new HashMap[(String, String), FlowDescription]

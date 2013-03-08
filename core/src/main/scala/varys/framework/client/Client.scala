@@ -1,7 +1,9 @@
 package varys.framework.client
 
-import java.nio.ByteBuffer
-import java.util.concurrent.ArrayBlockingQueue
+// import java.nio.ByteBuffer
+// import java.util.concurrent.ArrayBlockingQueue
+import java.io._
+import java.net._
 
 import akka.actor._
 import akka.pattern.ask
@@ -17,9 +19,8 @@ import varys.{VarysException, Logging}
 import varys.framework._
 import varys.framework.master.{Master, CoflowInfo}
 import varys.framework.slave.Slave
-import varys.util.AkkaUtils
+import varys.util._
 import varys.Utils
-import varys.network._
 
 private[varys] class Client(
     clientName: String,
@@ -41,63 +42,26 @@ private[varys] class Client(
   var clientId: String = null
   var clientActor: ActorRef = null
 
-  // TODO: Think about a better solution (may be in a separate actor)  
-  val getReQ = new ArrayBlockingQueue[GetRequest](1000)
-  // Dequeues GetRequets in the FIFO order and processes them
-  val receiverThread = new Thread("ReceiverThread for Slave @ " + Utils.localHostName()) {
-    override def run() {
-      while (true) {
-        val req = getReQ.take()
-        logInfo("Processing " + req)
+  // FIXME: Handle ServerSocket
+  var serverSocket: ServerSocket = new ServerSocket(0)
 
-        // Actually retrieve it
-        val buffer = ByteBuffer.wrap(Utils.serialize[GetRequest](req))
-        val respMessage = sendMan.sendMessageReliablySync(req.targetConManId, 
-          Message.createBufferMessage(buffer))
+  var clientHost = Utils.localHostName()
+  var clientCommPort = serverSocket.getLocalPort
 
-        respMessage match {
-          case Some(bufferMessage) => {
-            logInfo("Received " + bufferMessage)
-
-            req.flowDesc.flowType match {
-              case FlowType.FAKE => {
-                // Throw away
-              }
-
-              case FlowType.ONDISK => {
-                // TODO: Write to disk or something else
-              }
-
-              case FlowType.INMEMORY => {
-                // TODO: Do something
-              }
-
-              case _ => {
-                logError("Invalid FlowType!")
-                System.exit(1)
-              }
-            }
-          }
-          case None => logError("Nothing received!")
-        }
-      }
-    }
-  }
-  receiverThread.setDaemon(true)
-  receiverThread.start()
-
-  val sendMan = new ConnectionManager(0)
-  sendMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => { 
-    logError("ENTER SANDMAN!")
-    // Should NEVER be called
-    None
-  })
-  
-  val recvMan = new ConnectionManager(0)
-  recvMan.onReceiveMessage((msg: Message, id: ConnectionManagerId) => {
-    // FIXME: 
-    None
-  })
+  // // TODO: Think about a better solution (may be in a separate actor)  
+  // val getReQ = new ArrayBlockingQueue[GetRequest](1000)
+  // // Dequeues GetRequets in the FIFO order and processes them
+  // val receiverThread = new Thread("ReceiverThread for Client @ " + Utils.localHostName()) {
+  //   override def run() {
+  //     while (true) {
+  //       val req = getReQ.take()
+  //       logInfo("Processing " + req)
+  // 
+  //     }
+  //   }
+  // }
+  // receiverThread.setDaemon(true)
+  // receiverThread.start()
 
   class ClientActor extends Actor with Logging {
     var masterAddress: Address = null
@@ -108,7 +72,7 @@ private[varys] class Client(
       try {
         masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
         masterAddress = masterActor.path.address
-        masterActor ! RegisterClient(clientName, recvMan.id.host, recvMan.id.port)
+        masterActor ! RegisterClient(clientName, clientHost, clientCommPort)
         context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
         context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
       } catch {
@@ -244,7 +208,7 @@ private[varys] class Client(
    */
   def putFile(fileId: String, pathToFile: String, coflowId: String, size: Long, numReceivers: Int) {
     val desc = new FileDescription(fileId, pathToFile, coflowId, FlowType.ONDISK, size, numReceivers, 
-      recvMan.id.host, recvMan.id.port)
+      clientHost, clientCommPort)
     handlePut(desc)
   }
   
@@ -253,7 +217,7 @@ private[varys] class Client(
    */
   def putFake(blockId: String, coflowId: String, size: Long, numReceivers: Int) {
     val desc = new FlowDescription(blockId, coflowId, FlowType.FAKE, size, numReceivers, 
-      recvMan.id.host, recvMan.id.port)
+      clientHost, clientCommPort)
     handlePut(desc)
   }
   
@@ -270,13 +234,57 @@ private[varys] class Client(
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
     
     // Add to the queue
-    logInfo("Adding " + flowDesc + " to the Q")
-    val targetConManId = new ConnectionManagerId(flowDesc.originHost, flowDesc.originCommPort)
-    getReQ.put(GetRequest(flowDesc, targetConManId))
+    // logInfo("Adding " + flowDesc + " to the Q")
+    // val targetConManId = new ConnectionManagerId(flowDesc.originHost, flowDesc.originCommPort)
+    // getReQ.put(GetRequest(flowDesc, targetConManId))
+    
+    val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)
+    val oos = new ObjectOutputStream(sock.getOutputStream)
+    oos.flush
+    val tis = new ThrottledInputStream(sock.getInputStream)
+    val ois = new ObjectInputStream(tis)
+    
+    oos.writeObject(GetRequest(flowDesc))
+    oos.flush
+    
+    val resp = ois.readObject.asInstanceOf[Option[Array[Byte]]]
+    resp match {
+      case Some(byteArr) => {
+        logInfo("Received response of " + byteArr.length + " bytes")
+        
+        flowType match {
+          case FlowType.FAKE => {
+            // Throw away
+          }
+
+          case FlowType.ONDISK => {
+            // TODO: Write to disk or something else
+          }
+
+          case FlowType.INMEMORY => {
+            // TODO: Do something
+          }
+
+          case _ => {
+            logError("Invalid FlowType!")
+            throw new VarysException("Invalid FlowType!")
+          }
+        }
+      }
+      case None => {
+        logError("Nothing received!")
+        throw new VarysException("Invalid FlowType!")
+      }
+    }
+    
+    ois.close
+    oos.close
+    sock.close
   }
   
   /**
    * Retrieves data from any of the feasible locations. 
+   * Blocking call.
    */
   def get() {
     
