@@ -282,7 +282,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     // Right now this is a very simple FIFO scheduler.
     // There is no preemption either.
     
-    // TODO: Actually schedule and communicate to the slaves
+    // TODO: Actually schedule
+    
+    // TODO: Communicate to clients
+    // coflows.foreach(cf => cf.flows.foreach(f => f.desc))
   }
 
   /** Generate a new coflow ID given a coflow's submission date */

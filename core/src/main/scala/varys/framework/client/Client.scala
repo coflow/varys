@@ -1,9 +1,9 @@
 package varys.framework.client
 
-// import java.nio.ByteBuffer
-// import java.util.concurrent.ArrayBlockingQueue
 import java.io._
 import java.net._
+
+import scala.collection.mutable.HashMap
 
 import akka.actor._
 import akka.pattern.ask
@@ -42,26 +42,13 @@ private[varys] class Client(
   var clientId: String = null
   var clientActor: ActorRef = null
 
+  val flowDescToTIS = new HashMap[FlowDescription, ThrottledInputStream]
+
   // FIXME: Handle ServerSocket
   var serverSocket: ServerSocket = new ServerSocket(0)
 
   var clientHost = Utils.localHostName()
   var clientCommPort = serverSocket.getLocalPort
-
-  // // TODO: Think about a better solution (may be in a separate actor)  
-  // val getReQ = new ArrayBlockingQueue[GetRequest](1000)
-  // // Dequeues GetRequets in the FIFO order and processes them
-  // val receiverThread = new Thread("ReceiverThread for Client @ " + Utils.localHostName()) {
-  //   override def run() {
-  //     while (true) {
-  //       val req = getReQ.take()
-  //       logInfo("Processing " + req)
-  // 
-  //     }
-  //   }
-  // }
-  // receiverThread.setDaemon(true)
-  // receiverThread.start()
 
   class ClientActor extends Actor with Logging {
     var masterAddress: Address = null
@@ -112,6 +99,13 @@ private[varys] class Client(
         markDisconnected()
         sender ! true
         context.stop(self)
+        
+      case UpdatedShares(newShares) => 
+        for ((flowDesc, newBPS) <- newShares) {
+          if (flowDescToTIS.contains(flowDesc)) {
+            flowDescToTIS(flowDesc).updateRate(newBPS)
+          }
+        }
     }
 
     /**
@@ -243,6 +237,8 @@ private[varys] class Client(
     oos.flush
     val tis = new ThrottledInputStream(sock.getInputStream)
     val ois = new ObjectInputStream(tis)
+    
+    flowDescToTIS(flowDesc) = tis
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush
