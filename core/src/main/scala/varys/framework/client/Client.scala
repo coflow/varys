@@ -83,6 +83,7 @@ private[varys] class Client(
       }
     }
   }
+  receiverThread.setDaemon(true)
   receiverThread.start()
 
   val sendMan = new ConnectionManager(0)
@@ -225,7 +226,7 @@ private[varys] class Client(
     // Notify the slave, which will notify the master
     AkkaUtils.tellActor(slaveActor, AddFlow(flowDesc))
     
-    // TODO: Block
+    // TODO: Block; non-blocking for other FlowTypes
     if (flowDesc.flowType == FlowType.INMEMORY) {
       
     } 
