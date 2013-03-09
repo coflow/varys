@@ -260,6 +260,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     return coflow
   }
 
+  // TODO: Let all involved clients know so that they can free up local resources
   def removeCoflow(coflow: CoflowInfo) {
     if (coflows.contains(coflow)) {
       logInfo("Removing coflow " + coflow.id)

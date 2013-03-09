@@ -60,7 +60,6 @@ private[varys] class SlaveActor(
               
                   try {
                     val req = ois.readObject.asInstanceOf[GetRequest]
-                    // TODO: Should it be any type?
                     val toSend: Option[Array[Byte]] = req.flowDesc.flowType match {
                       case FlowType.FAKE => {
                         // Create Data
@@ -74,13 +73,8 @@ private[varys] class SlaveActor(
                         Some(Files.toByteArray(new File(fileDesc.pathToFile)))
                       }
 
-                      case FlowType.INMEMORY => {
-                        logWarning("FlowType.INMEMORY shouldn't have reached a slave!")
-                        None
-                      }
-
                       case _ => {
-                        logWarning("Invalid FlowType!")
+                        logWarning("Invalid or Unexpected FlowType!")
                         None
                       }
                     }

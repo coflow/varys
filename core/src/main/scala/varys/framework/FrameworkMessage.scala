@@ -48,6 +48,7 @@ private[varys] case class CoflowKilled(message: String) extends FrameworkMessage
 // Master to Client
 private[varys] case class RegisterClientFailed(message: String) extends FrameworkMessage
 private[varys] case class RegisteredCoflow(coflowId: String) extends FrameworkMessage
+private[varys] case class UnregisteredCoflow(coflowId: String) extends FrameworkMessage
 private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
 private[varys] case class BestTxMachines(bestTxMachines: Array[String]) extends FrameworkMessage
 private[varys] case class UpdatedShares(newShares: HashMap[FlowDescription, Long]) extends FrameworkMessage

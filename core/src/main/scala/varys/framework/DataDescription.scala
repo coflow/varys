@@ -6,6 +6,8 @@ private[varys] object FlowType extends Enumeration("FAKE", "INMEMORY", "ONDISK")
   val FAKE, INMEMORY, ONDISK = Value
 }
 
+private[varys] case class DataIdentifier(dataId: String, coflowId: String)
+
 private[varys] class FlowDescription(
     val id: String,  // Expected to be unique within the coflow
     val coflowId: String,  // Must be a valid coflow
@@ -16,6 +18,7 @@ private[varys] class FlowDescription(
     var originCommPort: Int)
   extends Serializable {
 
+  val dataId = DataIdentifier(id, coflowId)
   val user = System.getProperty("user.name", "<unknown>")
 
   override def toString: String = "FlowDescription(" + id + ":" + coflowId + ")"
@@ -23,6 +26,7 @@ private[varys] class FlowDescription(
   def updateCommPort(commPort: Int) {
     originCommPort = commPort
   }
+  
 }
 
 private[varys] class FileDescription(
@@ -37,4 +41,18 @@ private[varys] class FileDescription(
   extends FlowDescription(id_, cId_, flowType_, size_, maxR_, originHost_, originCommPort_) {
 
   override def toString: String = "FileDescription(" + id + "["+ pathToFile + "]:" + coflowId + ")"
+}
+
+private[varys] class ObjectDescription(
+    val id_ : String,  // Expected to be unique within the coflow
+    val className: String, 
+    val cId_ : String,  // Must be a valid coflow
+    val flowType_ : FlowType.FlowType,
+    val serializedSize : Long,
+    val maxR_ : Int,
+    val originHost_ : String,
+    val originCommPort_ : Int)
+  extends FlowDescription(id_, cId_, flowType_, serializedSize, maxR_, originHost_, originCommPort_) {
+
+  override def toString: String = "ObjectDescription(" + id + "["+ className + "]:" + coflowId + ")"
 }

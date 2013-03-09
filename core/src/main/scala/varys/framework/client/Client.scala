@@ -15,7 +15,7 @@ import akka.remote.RemoteClientDisconnected
 import akka.actor.Terminated
 import akka.dispatch.Await
 
-import varys.{VarysException, Logging}
+import varys.{VarysCommon, VarysException, Logging}
 import varys.framework._
 import varys.framework.master.{Master, CoflowInfo}
 import varys.framework.slave.Slave
@@ -42,13 +42,89 @@ private[varys] class Client(
   var clientId: String = null
   var clientActor: ActorRef = null
 
-  val flowDescToTIS = new HashMap[FlowDescription, ThrottledInputStream]
+  val flowToThrottledInputStream = new HashMap[DataIdentifier, ThrottledInputStream]
+  val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
-  // FIXME: Handle ServerSocket
-  var serverSocket: ServerSocket = new ServerSocket(0)
-
+  var serverSocket = new ServerSocket(0)
   var clientHost = Utils.localHostName()
   var clientCommPort = serverSocket.getLocalPort
+
+  var stopServer = false
+  val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
+  val serverThread = new Thread(serverThreadName) {
+    override def run() {
+      var threadPool = Utils.newDaemonCachedThreadPool
+
+      try {
+        while (!stopServer) {
+          var clientSocket: Socket = null
+          try {
+            serverSocket.setSoTimeout(VarysCommon.HEARTBEAT_SEC * 1000)
+            clientSocket = serverSocket.accept
+          } catch {
+            case e: Exception => { 
+              if (stopServer) {
+                logInfo("Stopping " + serverThreadName)
+              }
+            }
+          }
+
+          if (clientSocket != null) {
+            try {
+              threadPool.execute (new Thread {
+                override def run: Unit = {
+                  val oos = new ObjectOutputStream(clientSocket.getOutputStream)
+                  oos.flush
+                  val ois = new ObjectInputStream(clientSocket.getInputStream)
+              
+                  try {
+                    val req = ois.readObject.asInstanceOf[GetRequest]
+                    val toSend: Option[Array[Byte]] = req.flowDesc.flowType match {
+                      case FlowType.INMEMORY => {
+                        if (flowToObject.contains(req.flowDesc.dataId))
+                          Some(flowToObject(req.flowDesc.dataId))
+                        else {
+                          logWarning("Requested object does not exist!" + flowToObject)
+                          None
+                        }
+                      }
+
+                      case _ => {
+                        logWarning("Invalid or Unexpected FlowType!")
+                        None
+                      }
+                    }
+                
+                    oos.writeObject(toSend)
+                    oos.flush
+                  } catch {
+                    case e: Exception => {
+                      logInfo (serverThreadName + " had a " + e)
+                    }
+                  } finally {
+                    ois.close
+                    oos.close
+                    clientSocket.close
+                  }
+                }
+              })
+            } catch {
+              // In failure, close socket here; else, client thread will close
+              case ioe: IOException => {
+                clientSocket.close
+              }
+            }
+          }
+        }
+      } finally {
+        serverSocket.close
+      }
+      // Shutdown the thread pool
+      threadPool.shutdown
+    }
+  }
+  serverThread.setDaemon(true)
+  serverThread.start()
 
   class ClientActor extends Actor with Logging {
     var masterAddress: Address = null
@@ -102,8 +178,8 @@ private[varys] class Client(
         
       case UpdatedShares(newShares) => 
         for ((flowDesc, newBPS) <- newShares) {
-          if (flowDescToTIS.contains(flowDesc)) {
-            flowDescToTIS(flowDesc).updateRate(newBPS)
+          if (flowToThrottledInputStream.contains(flowDesc.dataId)) {
+            flowToThrottledInputStream(flowDesc.dataId).updateRate(newBPS)
           }
         }
     }
@@ -138,6 +214,7 @@ private[varys] class Client(
       }
       clientActor = null
     }
+    stopServer = true
   }
   
   def awaitTermination() { 
@@ -174,27 +251,37 @@ private[varys] class Client(
     
     // Update local slave
     AkkaUtils.tellActor(slaveActor, UnregisterCoflow(coflowId))
+    
+    // Free local resources
+    flowToThrottledInputStream.retain((dataId, _) => dataId.coflowId != coflowId)
+    flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)
   }
 
   /**
    * Makes data available for retrieval, and notifies local slave, which will register it with the master.
-   * FIXME: Non-blocking for FAKE and ONDISK FlowTypes. Blocking for in-memory.
+   * Non-blocking call.
    */
-  private def handlePut(flowDesc: FlowDescription) {
+  private def handlePut(flowDesc: FlowDescription, serialObj: Array[Byte] = null) {
     // Notify the slave, which will notify the master
     AkkaUtils.tellActor(slaveActor, AddFlow(flowDesc))
     
-    // TODO: Block; non-blocking for other FlowTypes
+    // Keep a reference to the object to be served when asked for.
     if (flowDesc.flowType == FlowType.INMEMORY) {
-      
+      assert(serialObj != null)
+      flowToObject(flowDesc.dataId) = serialObj
     } 
   }
 
   /**
    * Puts any data structure
    */
-  def put() {
-    0L
+  def putObject[T: Manifest](objId: String, obj: T, coflowId: String, size: Long, numReceivers: Int) {
+    // TODO: Figure out class name
+    val className = "UnknownType" 
+    val desc = new ObjectDescription(objId, className, coflowId, FlowType.INMEMORY, size, 
+      numReceivers, clientHost, clientCommPort)
+    val serialObj = Utils.serialize[T](obj)
+    handlePut(desc, serialObj)
   }
   
   /**
@@ -217,9 +304,9 @@ private[varys] class Client(
   
   /**
    * Notifies the master and the slave. But everything is done in the client
-   * 
+   * Blocking call.
    */
-  private def handleGet(blockId: String, flowType: FlowType.FlowType, coflowId: String) {
+  private def handleGet(blockId: String, flowType: FlowType.FlowType, coflowId: String): Array[Byte] = {
     // Notify master and retrieve the FlowDescription in response
     val GotFlowDesc(flowDesc) = AkkaUtils.askActorWithReply[GotFlowDesc](masterActor, 
       GetFlow(blockId, coflowId, clientId, slaveId))
@@ -227,23 +314,20 @@ private[varys] class Client(
     // Notify local slave
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
     
-    // Add to the queue
-    // logInfo("Adding " + flowDesc + " to the Q")
-    // val targetConManId = new ConnectionManagerId(flowDesc.originHost, flowDesc.originCommPort)
-    // getReQ.put(GetRequest(flowDesc, targetConManId))
-    
+    // Get it!
     val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)
     val oos = new ObjectOutputStream(sock.getOutputStream)
     oos.flush
     val tis = new ThrottledInputStream(sock.getInputStream)
     val ois = new ObjectInputStream(tis)
     
-    flowDescToTIS(flowDesc) = tis
+    flowToThrottledInputStream(flowDesc.dataId) = tis
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush
     
     val resp = ois.readObject.asInstanceOf[Option[Array[Byte]]]
+    var retVal: Array[Byte] = null
     resp match {
       case Some(byteArr) => {
         logInfo("Received response of " + byteArr.length + " bytes")
@@ -255,10 +339,12 @@ private[varys] class Client(
 
           case FlowType.ONDISK => {
             // TODO: Write to disk or something else
+            retVal = byteArr
           }
 
           case FlowType.INMEMORY => {
             // TODO: Do something
+            retVal = byteArr
           }
 
           case _ => {
@@ -276,14 +362,16 @@ private[varys] class Client(
     ois.close
     oos.close
     sock.close
+    
+    return retVal
   }
   
   /**
    * Retrieves data from any of the feasible locations. 
-   * Blocking call.
    */
-  def get() {
-    
+  def getObject[T](objectId: String, coflowId: String): T = {
+    val resp = handleGet(objectId, FlowType.INMEMORY, coflowId)
+    Utils.deserialize[T](resp)
   }
   
   /**
