@@ -79,8 +79,8 @@ private[varys] class Client(
               
                   try {
                     val req = ois.readObject.asInstanceOf[GetRequest]
-                    val toSend: Option[Array[Byte]] = req.flowDesc.flowType match {
-                      case FlowType.INMEMORY => {
+                    val toSend: Option[Array[Byte]] = req.flowDesc.dataType match {
+                      case DataType.INMEMORY => {
                         if (flowToObject.contains(req.flowDesc.dataId))
                           Some(flowToObject(req.flowDesc.dataId))
                         else {
@@ -90,7 +90,7 @@ private[varys] class Client(
                       }
 
                       case _ => {
-                        logWarning("Invalid or Unexpected FlowType!")
+                        logWarning("Invalid or Unexpected DataType!")
                         None
                       }
                     }
@@ -266,7 +266,7 @@ private[varys] class Client(
     AkkaUtils.tellActor(slaveActor, AddFlow(flowDesc))
     
     // Keep a reference to the object to be served when asked for.
-    if (flowDesc.flowType == FlowType.INMEMORY) {
+    if (flowDesc.dataType == DataType.INMEMORY) {
       assert(serialObj != null)
       flowToObject(flowDesc.dataId) = serialObj
     } 
@@ -278,7 +278,7 @@ private[varys] class Client(
   def putObject[T: Manifest](objId: String, obj: T, coflowId: String, size: Long, numReceivers: Int) {
     // TODO: Figure out class name
     val className = "UnknownType" 
-    val desc = new ObjectDescription(objId, className, coflowId, FlowType.INMEMORY, size, 
+    val desc = new ObjectDescription(objId, className, coflowId, DataType.INMEMORY, size, 
       numReceivers, clientHost, clientCommPort)
     val serialObj = Utils.serialize[T](obj)
     handlePut(desc, serialObj)
@@ -288,7 +288,7 @@ private[varys] class Client(
    * Puts a local file
    */
   def putFile(fileId: String, pathToFile: String, coflowId: String, size: Long, numReceivers: Int) {
-    val desc = new FileDescription(fileId, pathToFile, coflowId, FlowType.ONDISK, size, numReceivers, 
+    val desc = new FileDescription(fileId, pathToFile, coflowId, DataType.ONDISK, size, numReceivers, 
       clientHost, clientCommPort)
     handlePut(desc)
   }
@@ -297,7 +297,7 @@ private[varys] class Client(
    * Emulates the process without having to actually put anything
    */
   def putFake(blockId: String, coflowId: String, size: Long, numReceivers: Int) {
-    val desc = new FlowDescription(blockId, coflowId, FlowType.FAKE, size, numReceivers, 
+    val desc = new FlowDescription(blockId, coflowId, DataType.FAKE, size, numReceivers, 
       clientHost, clientCommPort)
     handlePut(desc)
   }
@@ -306,7 +306,7 @@ private[varys] class Client(
    * Notifies the master and the slave. But everything is done in the client
    * Blocking call.
    */
-  private def handleGet(blockId: String, flowType: FlowType.FlowType, coflowId: String): Array[Byte] = {
+  private def handleGet(blockId: String, dataType: DataType.DataType, coflowId: String): Array[Byte] = {
     // Notify master and retrieve the FlowDescription in response
     val GotFlowDesc(flowDesc) = AkkaUtils.askActorWithReply[GotFlowDesc](masterActor, 
       GetFlow(blockId, coflowId, clientId, slaveId))
@@ -332,30 +332,30 @@ private[varys] class Client(
       case Some(byteArr) => {
         logInfo("Received response of " + byteArr.length + " bytes")
         
-        flowType match {
-          case FlowType.FAKE => {
+        dataType match {
+          case DataType.FAKE => {
             // Throw away
           }
 
-          case FlowType.ONDISK => {
+          case DataType.ONDISK => {
             // TODO: Write to disk or something else
             retVal = byteArr
           }
 
-          case FlowType.INMEMORY => {
+          case DataType.INMEMORY => {
             // TODO: Do something
             retVal = byteArr
           }
 
           case _ => {
-            logError("Invalid FlowType!")
-            throw new VarysException("Invalid FlowType!")
+            logError("Invalid DataType!")
+            throw new VarysException("Invalid DataType!")
           }
         }
       }
       case None => {
         logError("Nothing received!")
-        throw new VarysException("Invalid FlowType!")
+        throw new VarysException("Invalid DataType!")
       }
     }
     
@@ -370,7 +370,7 @@ private[varys] class Client(
    * Retrieves data from any of the feasible locations. 
    */
   def getObject[T](objectId: String, coflowId: String): T = {
-    val resp = handleGet(objectId, FlowType.INMEMORY, coflowId)
+    val resp = handleGet(objectId, DataType.INMEMORY, coflowId)
     Utils.deserialize[T](resp)
   }
   
@@ -378,14 +378,14 @@ private[varys] class Client(
    * Gets a file
    */
   def getFile(fileId: String, coflowId: String) {
-    handleGet(fileId, FlowType.ONDISK, coflowId)
+    handleGet(fileId, DataType.ONDISK, coflowId)
   }
   
   /**
    * Paired get() for putFake. Doesn't return anything, but emulates the retrieval process.
    */
   def getFake(blockId: String, coflowId: String) {
-    handleGet(blockId, FlowType.FAKE, coflowId)
+    handleGet(blockId, DataType.FAKE, coflowId)
   }
   
   def delete(flowId: String, coflowId: String) {

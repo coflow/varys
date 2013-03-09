@@ -60,21 +60,21 @@ private[varys] class SlaveActor(
               
                   try {
                     val req = ois.readObject.asInstanceOf[GetRequest]
-                    val toSend: Option[Array[Byte]] = req.flowDesc.flowType match {
-                      case FlowType.FAKE => {
+                    val toSend: Option[Array[Byte]] = req.flowDesc.dataType match {
+                      case DataType.FAKE => {
                         // Create Data
                         val size = req.flowDesc.sizeInBytes.toInt
                         Some(Array.tabulate[Byte](size)(_.toByte))
                       }
 
-                      case FlowType.ONDISK => {
+                      case DataType.ONDISK => {
                         // Read data from file into memory and send it
                         val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
                         Some(Files.toByteArray(new File(fileDesc.pathToFile)))
                       }
 
                       case _ => {
-                        logWarning("Invalid or Unexpected FlowType!")
+                        logWarning("Invalid or Unexpected DataType!")
                         None
                       }
                     }
@@ -231,7 +231,7 @@ private[varys] class SlaveActor(
       logInfo("Handling " + flowDesc)
       
       // Update commPort if the end point will be a client
-      if (flowDesc.flowType != FlowType.INMEMORY) {
+      if (flowDesc.dataType != DataType.INMEMORY) {
         flowDesc.updateCommPort(commPort)
       }
       

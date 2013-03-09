@@ -1,7 +1,7 @@
 package varys.framework
 
-private[varys] object FlowType extends Enumeration("FAKE", "INMEMORY", "ONDISK") {
-  type FlowType = Value
+private[varys] object DataType extends Enumeration("FAKE", "INMEMORY", "ONDISK") {
+  type DataType = Value
 
   val FAKE, INMEMORY, ONDISK = Value
 }
@@ -11,7 +11,7 @@ private[varys] case class DataIdentifier(dataId: String, coflowId: String)
 private[varys] class FlowDescription(
     val id: String,  // Expected to be unique within the coflow
     val coflowId: String,  // Must be a valid coflow
-    val flowType: FlowType.FlowType,  // http://www.scala-lang.org/node/7661
+    val dataType: DataType.DataType,  // http://www.scala-lang.org/node/7661
     val sizeInBytes: Long,
     val maxReceivers: Int,  // Upper-bound on the number of receivers (how long to keep it around?)
     val originHost: String,
@@ -33,12 +33,12 @@ private[varys] class FileDescription(
     val id_ : String,  // Expected to be unique within the coflow
     val pathToFile: String,
     val cId_ : String,  // Must be a valid coflow
-    val flowType_ : FlowType.FlowType,
+    val dataType_ : DataType.DataType,
     val size_ : Long,
     val maxR_ : Int,
     val originHost_ : String,
     val originCommPort_ : Int)
-  extends FlowDescription(id_, cId_, flowType_, size_, maxR_, originHost_, originCommPort_) {
+  extends FlowDescription(id_, cId_, dataType_, size_, maxR_, originHost_, originCommPort_) {
 
   override def toString: String = "FileDescription(" + id + "["+ pathToFile + "]:" + coflowId + ")"
 }
@@ -47,12 +47,12 @@ private[varys] class ObjectDescription(
     val id_ : String,  // Expected to be unique within the coflow
     val className: String, 
     val cId_ : String,  // Must be a valid coflow
-    val flowType_ : FlowType.FlowType,
+    val dataType_ : DataType.DataType,
     val serializedSize : Long,
     val maxR_ : Int,
     val originHost_ : String,
     val originCommPort_ : Int)
-  extends FlowDescription(id_, cId_, flowType_, serializedSize, maxR_, originHost_, originCommPort_) {
+  extends FlowDescription(id_, cId_, dataType_, serializedSize, maxR_, originHost_, originCommPort_) {
 
   override def toString: String = "ObjectDescription(" + id + "["+ className + "]:" + coflowId + ")"
 }
