@@ -8,9 +8,11 @@ import com.github.bigtoast.sbtthrift.ThriftPlugin
 import Classpaths.managedJars
 
 object VarysBuild extends Build {
-  lazy val root = Project("root", file("."), settings = rootSettings) aggregate(core)
+  lazy val root = Project("root", file("."), settings = rootSettings) aggregate(core, examples)
 
   lazy val core = Project("core", file("core"), settings = coreSettings)
+
+  lazy val examples = Project("examples", file("examples"), settings = examplesSettings) dependsOn (core)
 
   lazy val jarsToExtract = TaskKey[Seq[File]]("jars-to-extract", "JAR files to be extracted")
 
@@ -82,6 +84,10 @@ object VarysBuild extends Build {
 
   def rootSettings = sharedSettings ++ Seq(
     publish := {}
+  )
+
+  def examplesSettings = sharedSettings ++ Seq(
+    name := "varys-examples"
   )
 
 }

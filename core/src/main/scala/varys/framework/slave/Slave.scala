@@ -311,7 +311,8 @@ private[varys] class SlaveActor(
     curRxBps = rxBps
     curTxBps = txBps
 
-    // FIXME: Sometimes Sigar stops responding, and printing something in this method brings it back
+    // FIXME: Sometimes Sigar stops responding, and printing something here brings it back!!!
+    // This bug also causes Slave actors to stop responding, which causes the client failures.
     // logInfo(rxBps + " " + txBps)
   }
 }

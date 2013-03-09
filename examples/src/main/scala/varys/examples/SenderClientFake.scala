@@ -1,7 +1,8 @@
-package varys.framework.client
+package varys.examples
 
 import varys.util.AkkaUtils
 import varys.{Logging, Utils}
+import varys.framework.client._
 import varys.framework._
 
 private[varys] object SenderClientFake {

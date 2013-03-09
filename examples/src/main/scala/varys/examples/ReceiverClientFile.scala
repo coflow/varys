@@ -1,10 +1,11 @@
-package varys.framework.client
+package varys.examples
 
 import varys.util.AkkaUtils
 import varys.{Logging, Utils}
+import varys.framework.client._
 import varys.framework._
 
-private[varys] object ReceiverClientFake {
+private[varys] object ReceiverClientFile {
 
   class TestListener extends ClientListener with Logging {
     def connected(id: String) {
@@ -19,23 +20,23 @@ private[varys] object ReceiverClientFake {
 
   def main(args: Array[String]) {
     if (args.length < 2) {
-      println("USAGE: ReceiverClientFake <masterUrl> <coflowId> [dataName]")
+      println("USAGE: ReceiverClientFile <masterUrl> <coflowId> [fileName]")
       System.exit(1)
     }
     
     val url = args(0)
     val coflowId = args(1)
-    val DATA_NAME = if (args.length > 2) args(2) else "DATA"
+    val FILE_NAME = if (args.length > 2) args(2) else "INFILE"
 
     val listener = new TestListener
-    val client = new Client("ReceiverClientFake", url, listener)
+    val client = new Client("ReceiverClientFile", url, listener)
     client.start()
     
     Thread.sleep(5000)
     
-    println("Trying to retrieve " + DATA_NAME)
-    client.getFake(DATA_NAME, coflowId)
-    println("Got " + DATA_NAME + ". Now waiting to die.")
+    println("Trying to retrieve " + FILE_NAME)
+    client.getFile(FILE_NAME, coflowId)
+    println("Got " + FILE_NAME + ". Now waiting to die.")
     
     client.awaitTermination()
   }

@@ -63,12 +63,14 @@ fi
 export JAVA_OPTS
 
 CORE_DIR="$FWDIR/core"
+EXAMPLES_DIR="$FWDIR/examples"
 
 # Build up classpath
 CLASSPATH="$VARYS_CLASSPATH"
 CLASSPATH+=":$FWDIR/conf"
 CLASSPATH+=":$CORE_DIR/target/scala-$SCALA_VERSION/classes"
 CLASSPATH+=":$CORE_DIR/src/main/resources"
+CLASSPATH+=":$EXAMPLES_DIR/target/scala-$SCALA_VERSION/classes"
 if [ -e "$FWDIR/lib_managed" ]; then
   CLASSPATH+=":$FWDIR/lib_managed/jars/*"
   CLASSPATH+=":$FWDIR/lib_managed/bundles/*"
