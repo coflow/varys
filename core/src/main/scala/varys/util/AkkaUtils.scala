@@ -19,8 +19,7 @@ import java.util.concurrent.TimeoutException
  */
 private[varys] object AkkaUtils {
 
-  val AKKA_RETRY_ATTEMPTS: Int = System.getProperty("varys.akka.num.retries", "3").toInt
-  val AKKA_RETRY_INTERVAL_MS: Int = System.getProperty("varys.akka.retry.wait", "3000").toInt
+  val AKKA_TIMEOUT_MS: Int = System.getProperty("varys.akka.timeout", "3000").toInt
 
   /**
    * Creates an ActorSystem ready for remoting, with various Varys features. Returns both the
@@ -98,32 +97,25 @@ private[varys] object AkkaUtils {
    * Send a message to an actor and get its result within a default timeout, or
    * throw a VarysException if this fails.
    */
-  def askActorWithReply[T](actor: ActorRef, message: Any, timeout: Int = AKKA_RETRY_INTERVAL_MS): T = {
-    // TODO: Consider removing multiple attempts
+  def askActorWithReply[T](actor: ActorRef, message: Any, timeout: Int = AKKA_TIMEOUT_MS): T = {
     if (actor == null) {
       throw new VarysException("Error sending message as the actor is null " +
         "[message = " + message + "]")
     }
-    var attempts = 0
-    var lastException: Exception = null
-    while (attempts < AKKA_RETRY_ATTEMPTS) {
-      attempts += 1
-      try {
-        val future = actor.ask(message)(timeout.millis)
-        val result = Await.result(future, timeout.millis)
-        if (result == null) {
-          throw new Exception(actor + " returned null")
-        }
-        return result.asInstanceOf[T]
-      } catch {
-        case ie: InterruptedException => throw ie
-        case e: Exception => lastException = e
+    
+    try {
+      val future = actor.ask(message)(timeout.millis)
+      val result = Await.result(future, timeout.millis)
+      if (result == null) {
+        throw new Exception(actor + " returned null")
       }
-      Thread.sleep(AKKA_RETRY_INTERVAL_MS)
+      return result.asInstanceOf[T]
+    } catch {
+      case ie: InterruptedException => throw ie
+      case e: Exception => {
+        throw new VarysException(
+          "Error sending message to " + actor + " [message = " + message + "]", e)
+      }
     }
-
-    throw new VarysException(
-      "Error sending message to " + actor + " in " + attempts + " attempts" + " [message = " + message + "]", lastException)
   }
-  
 }
