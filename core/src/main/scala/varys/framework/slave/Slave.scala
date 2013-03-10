@@ -29,86 +29,9 @@ private[varys] class SlaveActor(
     workDirPath: String = null)
   extends Actor with Logging {
   
-  var stopServer = false
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
-  val serverThread = new Thread(serverThreadName) {
-    override def run() {
-      var threadPool = Utils.newDaemonCachedThreadPool
-      var serverSocket: ServerSocket = new ServerSocket(commPort)
-
-      try {
-        while (!stopServer) {
-          var clientSocket: Socket = null
-          try {
-            serverSocket.setSoTimeout(VarysCommon.HEARTBEAT_SEC * 1000)
-            clientSocket = serverSocket.accept
-          } catch {
-            case e: Exception => { 
-              if (stopServer) {
-                logInfo("Stopping " + serverThreadName)
-              }
-            }
-          }
-
-          if (clientSocket != null) {
-            try {
-              threadPool.execute (new Thread {
-                override def run: Unit = {
-                  val oos = new ObjectOutputStream(clientSocket.getOutputStream)
-                  oos.flush
-                  val ois = new ObjectInputStream(clientSocket.getInputStream)
-              
-                  try {
-                    val req = ois.readObject.asInstanceOf[GetRequest]
-                    val toSend: Option[Array[Byte]] = req.flowDesc.dataType match {
-                      case DataType.FAKE => {
-                        // Create Data
-                        val size = req.flowDesc.sizeInBytes.toInt
-                        Some(Array.tabulate[Byte](size)(_.toByte))
-                      }
-
-                      case DataType.ONDISK => {
-                        // Read data from file into memory and send it
-                        val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
-                        Some(Files.toByteArray(new File(fileDesc.pathToFile)))
-                      }
-
-                      case _ => {
-                        logWarning("Invalid or Unexpected DataType!")
-                        None
-                      }
-                    }
-                
-                    oos.writeObject(toSend)
-                    oos.flush
-                  } catch {
-                    case e: Exception => {
-                      logInfo (serverThreadName + " had a " + e)
-                    }
-                  } finally {
-                    ois.close
-                    oos.close
-                    clientSocket.close
-                  }
-                }
-              })
-            } catch {
-              // In failure, close socket here; else, client thread will close
-              case ioe: IOException => {
-                clientSocket.close
-              }
-            }
-          }
-        }
-      } finally {
-        serverSocket.close
-      }
-      // Shutdown the thread pool
-      threadPool.shutdown
-    }
-  }
-  serverThread.setDaemon(true)
-  serverThread.start()
+  var dataServer = new DataServer(commPort, serverThreadName)
+  dataServer.start()
 
   // TODO: Keep track of local data
   val idsToFlow = new HashMap[(String, String), FlowDescription]

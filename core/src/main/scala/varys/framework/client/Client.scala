@@ -45,86 +45,12 @@ private[varys] class Client(
   val flowToThrottledInputStream = new HashMap[DataIdentifier, ThrottledInputStream]
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
-  var serverSocket = new ServerSocket(0)
+  val serverThreadName = "ServerThread for Client@" + Utils.localHostName()
+  var dataServer = new DataServer(0, serverThreadName, flowToObject)
+  dataServer.start()
+
   var clientHost = Utils.localHostName()
-  var clientCommPort = serverSocket.getLocalPort
-
-  var stopServer = false
-  val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
-  val serverThread = new Thread(serverThreadName) {
-    override def run() {
-      var threadPool = Utils.newDaemonCachedThreadPool
-
-      try {
-        while (!stopServer) {
-          var clientSocket: Socket = null
-          try {
-            serverSocket.setSoTimeout(VarysCommon.HEARTBEAT_SEC * 1000)
-            clientSocket = serverSocket.accept
-          } catch {
-            case e: Exception => { 
-              if (stopServer) {
-                logInfo("Stopping " + serverThreadName)
-              }
-            }
-          }
-
-          if (clientSocket != null) {
-            try {
-              threadPool.execute (new Thread {
-                override def run: Unit = {
-                  val oos = new ObjectOutputStream(clientSocket.getOutputStream)
-                  oos.flush
-                  val ois = new ObjectInputStream(clientSocket.getInputStream)
-              
-                  try {
-                    val req = ois.readObject.asInstanceOf[GetRequest]
-                    val toSend: Option[Array[Byte]] = req.flowDesc.dataType match {
-                      case DataType.INMEMORY => {
-                        if (flowToObject.contains(req.flowDesc.dataId))
-                          Some(flowToObject(req.flowDesc.dataId))
-                        else {
-                          logWarning("Requested object does not exist!" + flowToObject)
-                          None
-                        }
-                      }
-
-                      case _ => {
-                        logWarning("Invalid or Unexpected DataType!")
-                        None
-                      }
-                    }
-                
-                    oos.writeObject(toSend)
-                    oos.flush
-                  } catch {
-                    case e: Exception => {
-                      logInfo (serverThreadName + " had a " + e)
-                    }
-                  } finally {
-                    ois.close
-                    oos.close
-                    clientSocket.close
-                  }
-                }
-              })
-            } catch {
-              // In failure, close socket here; else, client thread will close
-              case ioe: IOException => {
-                clientSocket.close
-              }
-            }
-          }
-        }
-      } finally {
-        serverSocket.close
-      }
-      // Shutdown the thread pool
-      threadPool.shutdown
-    }
-  }
-  serverThread.setDaemon(true)
-  serverThread.start()
+  var clientCommPort = dataServer.getCommPort
 
   class ClientActor extends Actor with Logging {
     var masterAddress: Address = null
@@ -214,7 +140,7 @@ private[varys] class Client(
       }
       clientActor = null
     }
-    stopServer = true
+    dataServer.stop()
   }
   
   def awaitTermination() { 
