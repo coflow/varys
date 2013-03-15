@@ -1,13 +1,11 @@
 package varys.framework
 
-import java.io.{File, ObjectInputStream, ObjectOutputStream}
+import java.io.{RandomAccessFile, ObjectInputStream, ObjectOutputStream}
 import java.net.{Socket, ServerSocket}
 
 import scala.collection.mutable.HashMap
 
 import varys.{VarysCommon, Logging, Utils}
-
-import com.google.common.io.Files
 
 /**
  * A common server to serve requested pieces of data. 
@@ -61,9 +59,14 @@ private[varys] class DataServer(
                       }
 
                       case DataType.ONDISK => {
-                        // Read data from file into memory and send it
+                        // Read the specified amount of data from file into memory and send it
                         val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
-                        Some(Files.toByteArray(new File(fileDesc.pathToFile)))
+                        val randFile = new RandomAccessFile(fileDesc.pathToFile, "r")
+                        randFile.seek(fileDesc.offset)
+                        val bArr = new Array[Byte](fileDesc.sizeInBytes.toInt)
+                        randFile.read(bArr, 0, fileDesc.sizeInBytes.toInt)
+                        randFile.close()
+                        Some(bArr)
                       }
                       
                       case DataType.INMEMORY => {

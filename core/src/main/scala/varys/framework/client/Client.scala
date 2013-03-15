@@ -25,7 +25,7 @@ import varys.Utils
 private[varys] class Client(
     clientName: String,
     masterUrl: String,
-    listener: ClientListener)
+    listener: ClientListener = null)
   extends Logging {
 
   val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.framework.ask.wait", "5000").toInt
@@ -78,7 +78,9 @@ private[varys] class Client(
         slaveId = slaveId_
         slaveUrl = slaveUrl_
         slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
-        listener.connected(clientId)
+        if (listener != null) {
+          listener.connected(clientId)
+        }
         clientRegisterLock.synchronized { clientRegisterLock.notifyAll() }  // Ready to go!
         logInfo("Registered to master. Local slave url = " + slaveUrl)
 
@@ -115,7 +117,9 @@ private[varys] class Client(
      */
     def markDisconnected() {
       if (!alreadyDisconnected) {
-        listener.disconnected()
+        if (listener != null) {
+          listener.disconnected()
+        }
         alreadyDisconnected = true
       }
     }
@@ -211,10 +215,17 @@ private[varys] class Client(
   }
   
   /**
-   * Puts a local file
+   * Puts a complete local file
    */
   def putFile(fileId: String, pathToFile: String, coflowId: String, size: Long, numReceivers: Int) {
-    val desc = new FileDescription(fileId, pathToFile, coflowId, DataType.ONDISK, size, numReceivers, 
+    putFile(fileId, pathToFile, coflowId, 0, size, numReceivers)
+  }
+
+  /**
+   * Puts a range of local file
+   */
+  def putFile(fileId: String, pathToFile: String, coflowId: String, offset: Long, size: Long, numReceivers: Int) {
+    val desc = new FileDescription(fileId, pathToFile, coflowId, DataType.ONDISK, offset, size, numReceivers, 
       clientHost, clientCommPort)
     handlePut(desc)
   }
@@ -303,7 +314,7 @@ private[varys] class Client(
   /**
    * Gets a file
    */
-  def getFile(fileId: String, coflowId: String) {
+  def getFile(fileId: String, coflowId: String): Array[Byte] = {
     handleGet(fileId, DataType.ONDISK, coflowId)
   }
   

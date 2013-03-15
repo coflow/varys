@@ -34,6 +34,7 @@ private[varys] class FileDescription(
     val pathToFile: String,
     val cId_ : String,  // Must be a valid coflow
     val dataType_ : DataType.DataType,
+    val offset : Long,
     val size_ : Long,
     val maxR_ : Int,
     val originHost_ : String,
