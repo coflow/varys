@@ -211,11 +211,11 @@ private[varys] object BroadcastReceiver extends Logging {
   }
 
   private def createSocket(host: String, port: Int): Socket = {
-    var sock: Socket = null
     var retriesLeft = BroadcastUtils.BROADCAST_SLAVE_NUM_RETRIES
     while (retriesLeft > 0) {
       try {
-        sock = new Socket(host, port)
+        val sock = new Socket(host, port)
+        return sock
       } catch {
         case e => { 
           logWarning("Failed to connect to " + host + ":" + port + " due to " + e.toString)
@@ -224,7 +224,7 @@ private[varys] object BroadcastReceiver extends Logging {
       Thread.sleep(BroadcastUtils.BROADCAST_SLAVE_RETRY_INTERVAL_MS)
       retriesLeft -= 1
     }
-    sock
+    null
   }
 
   def exitGracefully(exitCode: Int) {
@@ -275,6 +275,7 @@ private[varys] object BroadcastReceiver extends Logging {
     
     // Mark start
     oos.writeObject(BroadcastRequest())
+    oos.flush
 
     // Receive FileInfo
     bInfo = ois.readObject.asInstanceOf[BroadcastInfo]
@@ -336,6 +337,7 @@ private[varys] object BroadcastReceiver extends Logging {
     
     // Mark end
     oos.writeObject(BroadcastDone())
+    oos.flush
     
     // Close everything
     exitGracefully(0)
