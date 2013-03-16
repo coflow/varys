@@ -281,18 +281,22 @@ private[varys] object BroadcastReceiver extends Logging {
     bInfo = ois.readObject.asInstanceOf[BroadcastInfo]
     
     // Open file and setup variables
-    var pathToFile = bInfo.pathToFile
-    var fileName: String = null    
+    var origPathToFile = bInfo.pathToFile
+    var origFileName: String = null
+    var localPathToFile = bInfo.pathToFile
+    var localFileName: String = null
     try {
-      var tmpFile = new File(pathToFile)
-      fileName = tmpFile.getName()
+      var tmpFile = new File(origPathToFile)
+      localPathToFile = origPathToFile
+      origFileName = tmpFile.getName()
+      localFileName = origFileName
 
-      // If pathToFile exists, rename both pathToFile and fileName. 
+      // If pathToFile exists, rename both localPathToFile and localFileName. 
       // Required ONLY for local mode to avoid overwriting the original file.
       if (tmpFile.exists) {
-        pathToFile += ".NEW"
-        tmpFile = new File(pathToFile)
-        fileName += ".NEW"
+        localPathToFile += ".NEW"
+        tmpFile = new File(localPathToFile)
+        localFileName += ".NEW"
       }
 
       // Create parent directory, if required
@@ -327,10 +331,10 @@ private[varys] object BroadcastReceiver extends Logging {
     
     // Receive blocks in random order
     randomOffsets.foreach { offset =>
-      val blockName = fileName + "-" + offset
+      val blockName = origFileName + "-" + offset
       logInfo("Getting " + blockName + " from coflow " + bInfo.coflowId)
       val bArr = client.getFile(blockName, bInfo.coflowId)
-      logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + pathToFile + " at " + offset)
+      logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + " at " + offset)
       FILE.seek(offset)
       FILE.write(bArr)
     }

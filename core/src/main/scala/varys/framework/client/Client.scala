@@ -151,13 +151,17 @@ private[varys] class Client(
     actorSystem.awaitTermination() 
   }
   
-  def registerCoflow(coflowDesc: CoflowDescription): String = {
-    // Wait until the client has been registered
+  // Wait until the client has been registered
+  private def waitForRegistration = {
     while (clientId == null) {
       clientRegisterLock.synchronized { 
         clientRegisterLock.wait() 
       }
     }
+  }
+  
+  def registerCoflow(coflowDesc: CoflowDescription): String = {
+    waitForRegistration
     
     // Register with the master
     val RegisteredCoflow(coflowId) = AkkaUtils.askActorWithReply[RegisteredCoflow](masterActor, 
@@ -170,11 +174,7 @@ private[varys] class Client(
   }
   
   def unregisterCoflow(coflowId: String) {
-    while (clientId == null) {
-      clientRegisterLock.synchronized { 
-        clientRegisterLock.wait() 
-      }
-    }
+    waitForRegistration
     
     // Let the master know
     AkkaUtils.tellActor(masterActor, UnregisterCoflow(coflowId))
@@ -192,6 +192,8 @@ private[varys] class Client(
    * Non-blocking call.
    */
   private def handlePut(flowDesc: FlowDescription, serialObj: Array[Byte] = null) {
+    waitForRegistration
+    
     // Notify the slave, which will notify the master
     AkkaUtils.tellActor(slaveActor, AddFlow(flowDesc))
     
@@ -244,6 +246,8 @@ private[varys] class Client(
    * Blocking call.
    */
   private def handleGet(blockId: String, dataType: DataType.DataType, coflowId: String): Array[Byte] = {
+    waitForRegistration
+    
     // Notify master and retrieve the FlowDescription in response
     val GotFlowDesc(flowDesc) = AkkaUtils.askActorWithReply[GotFlowDesc](masterActor, 
       GetFlow(blockId, coflowId, clientId, slaveId))
