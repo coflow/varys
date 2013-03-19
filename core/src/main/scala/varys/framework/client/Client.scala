@@ -249,8 +249,19 @@ private[varys] class Client(
     waitForRegistration
     
     // Notify master and retrieve the FlowDescription in response
-    val GotFlowDesc(flowDesc) = AkkaUtils.askActorWithReply[GotFlowDesc](masterActor, 
+    var flowDesc: FlowDescription = null
+
+    val gotFlowDesc = AkkaUtils.askActorWithReply[Option[GotFlowDesc]](masterActor, 
       GetFlow(blockId, coflowId, clientId, slaveId))
+    gotFlowDesc match {
+      case Some(GotFlowDesc(x)) => flowDesc = x
+      case None => { }
+    }
+    
+    if (flowDesc == null) {
+      // TODO: Handle failure. Retry may be?
+    }
+    assert(flowDesc != null)
     
     // Notify local slave
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
@@ -279,12 +290,10 @@ private[varys] class Client(
           }
 
           case DataType.ONDISK => {
-            // TODO: Write to disk or something else
             retVal = byteArr
           }
 
           case DataType.INMEMORY => {
-            // TODO: Do something
             retVal = byteArr
           }
 

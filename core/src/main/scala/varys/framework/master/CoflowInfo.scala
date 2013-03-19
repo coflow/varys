@@ -3,7 +3,7 @@ package varys.framework.master
 import varys.framework.{FlowDescription, CoflowDescription}
 import java.util.Date
 import akka.actor.ActorRef
-import scala.collection.mutable.{HashMap, HashSet}
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 private[varys] class CoflowInfo(
     val startTime: Long,
@@ -15,15 +15,14 @@ private[varys] class CoflowInfo(
   var state = CoflowState.WAITING
   var endTime = -1L
   
-  var flows = new HashSet[FlowInfo]
-  val idToFlow = new HashMap[String, FlowInfo]
+  private val idToFlow = new HashMap[String, ArrayBuffer[FlowDescription]]
 
   private var _retryCount = 0
 
   def retryCount = _retryCount
 
-  def getFlowDesc(flowId: String): FlowDescription = {
-    idToFlow(flowId).desc
+  def getFlowDescs(flowId: String): Option[ArrayBuffer[FlowDescription]] = {
+    idToFlow.get(flowId)
   }
 
   def contains(flowId: String): Boolean = {
@@ -31,14 +30,14 @@ private[varys] class CoflowInfo(
   }
 
   def addFlow(flowDesc: FlowDescription) {
-    val flow = new FlowInfo(flowDesc)
-    flows += flow
-    idToFlow(flowDesc.id) = flow
+    if (!idToFlow.contains(flowDesc.id)) {
+      idToFlow(flowDesc.id) = new ArrayBuffer[FlowDescription]
+    }
+    idToFlow(flowDesc.id) += flowDesc
   }
 
-  def addDestination(flowId: String, destHost: String) {
-    val flow = idToFlow(flowId)
-    flow.addDestination(destHost)
+  def addDestination(flowId: String, flowDesc: FlowDescription, destHost: String) {
+    // TODO: 
   }
 
   def removeFlow(flowId: String) {

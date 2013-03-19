@@ -9,20 +9,20 @@ private[varys] class FlowInfo(val desc: FlowDescription) {
 
   sources += desc.originHost
 
-  def addSource(slaveId: String) {
-    sources += slaveId
+  def addSource(srcHost: String) {
+    sources += srcHost
   }
 
-  def removeSource(slaveId: String) {
-    sources -= slaveId
+  def removeSource(srcHost: String) {
+    sources -= srcHost
   }
 
-  def addDestination(slaveId: String) {
-    destinations += slaveId
+  def addDestination(dstHost: String) {
+    destinations += dstHost
   }
 
-  def removeDestination(slaveId: String) {
-    destinations -= slaveId
+  def removeDestination(dstHost: String) {
+    destinations -= dstHost
   }
 
 }

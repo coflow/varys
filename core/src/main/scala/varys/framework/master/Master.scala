@@ -182,11 +182,21 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       assert(coflows.contains(coflow))
       assert(coflow.contains(flowId))
       
-      val flowDesc = coflow.getFlowDesc(flowId)
+      coflow.getFlowDescs(flowId) match {
+        case Some(flowDescs) => {
+          // TODO: Always returning the first source. Considering selecting based on traffic etc.
+          val flowDesc = flowDescs(0)
+          
+          coflow.addDestination(flowId, flowDesc, slave.host)
+          logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
+          sender ! Some(GotFlowDesc(flowDesc))
+        }
+        case None => {
+          logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)
+          sender ! None
+        }
+      }
 
-      coflow.addDestination(flowId, slave.host)
-      logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
-      sender ! GotFlowDesc(flowDesc)
       
       schedule()
     }
