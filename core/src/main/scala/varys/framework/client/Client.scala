@@ -342,4 +342,39 @@ private[varys] class Client(
     AkkaUtils.tellActor(slaveActor, DeleteFlow(flowId, coflowId))
   }
 
+  /**
+   * Receive 'howMany' machines with the lowest incoming usage
+   */
+  def getBestRxMachines(howMany: Int, adjustBytes: Long): Array[String] = {
+    val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](masterActor,  
+      RequestBestRxMachines(howMany, adjustBytes))
+    bestRxMachines
+  }
+
+  /**
+   * Receive the machine with the lowest incoming usage
+   */
+  def getBestRxMachine(adjustBytes: Long): String = {
+    val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](masterActor,  
+      RequestBestRxMachines(1, adjustBytes))
+    bestRxMachines(0)
+  }
+
+  /**
+   * Receive 'howMany' machines with the lowest outgoing usage
+   */
+  def getTxMachines(howMany: Int, adjustBytes: Long): Array[String] = {
+    val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](masterActor,  
+      RequestBestTxMachines(howMany, adjustBytes))
+    bestTxMachines
+  }
+  
+  /**
+   * Receive the machine with the lowest outgoing usage
+   */
+  def getBestTxMachine(adjustBytes: Long): String = {
+    val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](masterActor,  
+      RequestBestTxMachines(1, adjustBytes))
+    bestTxMachines(0)
+  }
 }
