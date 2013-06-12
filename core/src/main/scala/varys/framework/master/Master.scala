@@ -41,6 +41,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val idToClient = new HashMap[String, ClientInfo]
   val actorToClient = new HashMap[ActorRef, ClientInfo]
   val addressToClient = new HashMap[Address, ClientInfo]
+  val hostToClient = new HashMap[String, ClientInfo]
   val completedClients = new ArrayBuffer[ClientInfo]
 
   val masterPublicAddress = {
@@ -73,7 +74,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       if (idToSlave.contains(id)) {
         sender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
-        addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress)
+        addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress, sender)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         sender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
       }
@@ -197,8 +198,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
         }
       }
 
-      if (canSchedule)
+      if (canSchedule) {
+        logInfo("Coflow " + coflowId + " ready to be scheduled")
         schedule()
+      }
     }
     
     case DeleteFlow(flowId, coflowId) => {
@@ -208,14 +211,14 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def addSlave(id: String, host: String, port: Int, webUiPort: Int, commPort: Int,
-    publicAddress: String): SlaveInfo = {
+    publicAddress: String, actor: ActorRef): SlaveInfo = {
     // There may be one or more refs to dead slaves on this same node (w/ diff. IDs), remove them.
     slaves.filter(w => (w.host == host) && (w.state == SlaveState.DEAD)).foreach(slaves -= _)
-    val slave = new SlaveInfo(id, host, port, sender, webUiPort, commPort, publicAddress)
+    val slave = new SlaveInfo(id, host, port, actor, webUiPort, commPort, publicAddress)
     slaves += slave
     idToSlave(slave.id) = slave
-    actorToSlave(sender) = slave
-    addressToSlave(sender.path.address) = slave
+    actorToSlave(actor) = slave
+    addressToSlave(actor.path.address) = slave
     hostToSlave(slave.host) = slave
     return slave
   }
@@ -229,14 +232,15 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     hostToSlave -= slave.host
   }
 
-  def addClient(clientName: String, host: String, commPort: Int, driver: ActorRef): ClientInfo = {
+  def addClient(clientName: String, host: String, commPort: Int, actor: ActorRef): ClientInfo = {
     val now = System.currentTimeMillis()
     val date = new Date(now)
-    val client = new ClientInfo(now, newClientId(date), host, commPort, date, driver)
+    val client = new ClientInfo(now, newClientId(date), host, commPort, date, actor)
     clients += client
     idToClient(client.id) = client
-    actorToClient(driver) = client
-    addressToClient(driver.path.address) = client
+    actorToClient(actor) = client
+    addressToClient(actor.path.address) = client
+    hostToClient(client.host) = client
     return client
   }
 
@@ -245,8 +249,9 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logInfo("Removing client " + client.id)
       clients -= client
       idToClient -= client.id
-      actorToClient -= client.driver
-      addressToClient -= client.driver.path.address
+      actorToClient -= client.actor
+      addressToClient -= client.actor.path.address
+      hostToClient -= client.host
       completedClients += client  // Remember it in our history
       client.markFinished()
       
@@ -254,15 +259,15 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
   }
 
-  def addCoflow(client:ClientInfo, desc: CoflowDescription, driver: ActorRef): CoflowInfo = {
+  def addCoflow(client:ClientInfo, desc: CoflowDescription, actor: ActorRef): CoflowInfo = {
     val now = System.currentTimeMillis()
     val date = new Date(now)
-    val coflow = new CoflowInfo(now, newCoflowId(date), desc, date, driver)
+    val coflow = new CoflowInfo(now, newCoflowId(date), desc, date, actor)
     
     coflows += coflow
     idToCoflow(coflow.id) = coflow
-    actorToCoflow(driver) = coflow
-    addressToCoflow(driver.path.address) = coflow
+    actorToCoflow(actor) = coflow
+    addressToCoflow(actor.path.address) = coflow
     
     client.addCoflow(coflow)  // Update its parent client
     
@@ -275,8 +280,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logInfo("Removing coflow " + coflow.id)
       coflows -= coflow
       idToCoflow -= coflow.id
-      actorToCoflow -= coflow.driver
-      addressToCoflow -= coflow.driver.path.address
+      actorToCoflow -= coflow.actor
+      addressToCoflow -= coflow.actor.path.address
       completedCoflows += coflow  // Remember it in our history
       coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
       schedule()
@@ -296,6 +301,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BPS)
     
     for (cf <- sortedCoflows) {
+      logInfo("Scheduling " + cf)
+      
       val sUsed = new HashMap[String, Double]().withDefaultValue(0.0)
       val rUsed = new HashMap[String, Double]().withDefaultValue(0.0)
 
@@ -331,24 +338,24 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     activeFlows.groupBy(_.destination).foreach { tuple => 
       val host = tuple._1
       val flows = tuple._2
-
-      val slave = hostToSlave(host)
+      
+      val clientActor = hostToClient(host).actor
       val rateMap = flows.map(t => (t.desc, t.currentBps)).toMap
       
-      slave.actor ! UpdatedRates(rateMap)
+      clientActor ! UpdatedRates(rateMap)
     }
   }
 
   /** Generate a new coflow ID given a coflow's submission date */
   def newCoflowId(submitDate: Date): String = {
     // "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber.getAndIncrement())
-    "coflow-%04d".format(nextCoflowNumber.getAndIncrement())
+    "COFLOW-%04d".format(nextCoflowNumber.getAndIncrement())
   }
 
   /** Generate a new client ID given a client's connection date */
   def newClientId(submitDate: Date): String = {
     // "client-%s-%04d".format(DATE_FORMAT.format(submitDate), nextClientNumber.getAndIncrement())
-    "client-%04d".format(nextClientNumber.getAndIncrement())
+    "CLIENT-%04d".format(nextClientNumber.getAndIncrement())
   }
 
   /** Check for, and remove, any timed-out slaves */
@@ -357,7 +364,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     val expirationTime = System.currentTimeMillis() - SLAVE_TIMEOUT
     val toRemove = slaves.filter(_.lastHeartbeat < expirationTime).toArray
     for (slave <- toRemove) {
-      logWarning("Removing %s because we got no heartbeat in %d seconds".format(
+      logWarning("Removing slave %s because we got no heartbeat in %d seconds".format(
         slave.id, SLAVE_TIMEOUT))
       removeSlave(slave)
     }

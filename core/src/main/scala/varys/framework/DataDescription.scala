@@ -21,7 +21,7 @@ private[varys] class FlowDescription(
   val dataId = DataIdentifier(id, coflowId)
   val user = System.getProperty("user.name", "<unknown>")
 
-  override def toString: String = "FlowDescription(" + id + ":" + coflowId + ")"
+  override def toString: String = "FlowDescription(" + id + ":" + coflowId + " # " + sizeInBytes + " Bytes)"
   
   def updateCommPort(commPort: Int) {
     originCommPort = commPort
@@ -41,7 +41,7 @@ private[varys] class FileDescription(
     val originCommPort_ : Int)
   extends FlowDescription(id_, cId_, dataType_, size_, maxR_, originHost_, originCommPort_) {
 
-  override def toString: String = "FileDescription(" + id + "["+ pathToFile + "]:" + coflowId + ")"
+  override def toString: String = "FileDescription(" + id + "["+ pathToFile + "]:" + coflowId + " # " + sizeInBytes + " Bytes)"
 }
 
 private[varys] class ObjectDescription(
@@ -55,5 +55,5 @@ private[varys] class ObjectDescription(
     val originCommPort_ : Int)
   extends FlowDescription(id_, cId_, dataType_, serializedSize, maxR_, originHost_, originCommPort_) {
 
-  override def toString: String = "ObjectDescription(" + id + "["+ className + "]:" + coflowId + ")"
+  override def toString: String = "ObjectDescription(" + id + "["+ className + "]:" + coflowId + " # " + sizeInBytes + " Bytes)"
 }

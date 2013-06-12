@@ -42,7 +42,8 @@ class Client(
   var clientId: String = null
   var clientActor: ActorRef = null
 
-  val flowToThrottledInputStream = new HashMap[DataIdentifier, ThrottledInputStream]
+  val flowToTIS = new HashMap[DataIdentifier, ThrottledInputStream]
+  val flowToBitPerSec = new HashMap[DataIdentifier, Double]
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
   val serverThreadName = "ServerThread for Client@" + Utils.localHostName()
@@ -105,12 +106,14 @@ class Client(
         context.stop(self)
         
       case UpdatedRates(newRates) => 
+        logInfo("Received updated shares")
         for ((flowDesc, newBitPerSec) <- newRates) {
-          if (flowToThrottledInputStream.contains(flowDesc.dataId)) {
-            flowToThrottledInputStream(flowDesc.dataId).setNewRate(newBitPerSec)
-          }
+          logInfo(flowDesc + " ==> " + newBitPerSec + " bps")
+          flowToBitPerSec(flowDesc.dataId) = newBitPerSec
+          if (flowToTIS.contains(flowDesc.dataId)) {
+            flowToTIS(flowDesc.dataId).setNewRate(newBitPerSec)
+          } 
         }
-        logInfo("Received updated shares from the master")
     }
 
     /**
@@ -184,7 +187,8 @@ class Client(
     AkkaUtils.tellActor(slaveActor, UnregisterCoflow(coflowId))
     
     // Free local resources
-    flowToThrottledInputStream.retain((dataId, _) => dataId.coflowId != coflowId)
+    flowToTIS.retain((dataId, _) => dataId.coflowId != coflowId)
+    flowToBitPerSec.retain((dataId, _) => dataId.coflowId != coflowId)
     flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)
   }
 
@@ -258,9 +262,11 @@ class Client(
       case Some(GotFlowDesc(x)) => flowDesc = x
       case None => { }
     }
+    logInfo("Received " + flowDesc + " for " + blockId + " of coflow " + coflowId)
     
     if (flowDesc == null) {
       // TODO: Handle failure. Retry may be?
+      logError("Failed to receive FlowDescription for " + blockId + " of coflow " + coflowId)
     }
     assert(flowDesc != null)
     
@@ -269,12 +275,14 @@ class Client(
     
     // Get it!
     val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)
-    val oos = new ObjectOutputStream(sock.getOutputStream)
+    val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
     oos.flush
-    val tis = new ThrottledInputStream(sock.getInputStream)
+
+    val tisRate = flowToBitPerSec.getOrElse(flowDesc.dataId, 0.0)
+    val tis = new ThrottledInputStream(sock.getInputStream, tisRate)
     val ois = new ObjectInputStream(tis)
     
-    flowToThrottledInputStream(flowDesc.dataId) = tis
+    flowToTIS(flowDesc.dataId) = tis
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush

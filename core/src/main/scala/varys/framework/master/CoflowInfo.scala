@@ -10,7 +10,7 @@ private[varys] class CoflowInfo(
     val id: String,
     val desc: CoflowDescription,
     val submitDate: Date,
-    val driver: ActorRef)
+    val actor: ActorRef)
 {
   var state = CoflowState.WAITING
   var endTime = -1L
@@ -43,7 +43,7 @@ private[varys] class CoflowInfo(
       val dst = flowInfo.destination
       
       sBytes(src) = sBytes(src) + flowInfo.desc.sizeInBytes
-      rBytes(dst) = sBytes(dst) + flowInfo.desc.sizeInBytes
+      rBytes(dst) = rBytes(dst) + flowInfo.desc.sizeInBytes
     }
     math.max(sBytes.values.max, rBytes.values.max)
   }
@@ -98,4 +98,6 @@ private[varys] class CoflowInfo(
       System.currentTimeMillis() - startTime
     }
   }
+  
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + getFlows.size + ")"
 }
