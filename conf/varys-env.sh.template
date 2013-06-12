@@ -2,7 +2,7 @@
 
 # This file contains environment variables required to run Varys. Copy it as
 # varys-env.sh and edit that to configure Varys for your site. At a minimum,
-# the following variable should be set:
+# the following variable should be set (also see KNOWN ISSUES below):
 # - SCALA_HOME, to point to your Scala installation
 #
 # You can set variables for using non-standard IP/ports:
@@ -17,3 +17,6 @@
 # - VARYS_MEM, to change the amount of memory used per node (this should
 #   be in the same format as the JVM's -Xmx option, e.g. 300m or 1g).
 # - VARYS_LIBRARY_PATH, to add extra search paths for native libraries.
+#
+# KNOWN ISSUE(S)
+# - VARYS_MASTER_IP must be set manually for now

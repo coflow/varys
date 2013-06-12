@@ -14,4 +14,5 @@ private[varys] class FlowInfo(val desc: FlowDescription) {
 
   def getFlowSize() = desc.sizeInBytes
 
+  override def toString:String = "FlowInfo(" + source + "-->" + destination + "[" + desc + "] @ " + currentBps + " bps)"
 }

@@ -33,17 +33,18 @@ import java.io.InputStream
  */
 private[varys] class ThrottledInputStream(
     val rawStream: InputStream,
-    var maxBytesPerSec: Long = 0)
+    val initBitPerSec: Double = 0.0)
   extends InputStream() {
 
   val startTime = System.currentTimeMillis()
 
+  var maxBytesPerSec = (initBitPerSec / 8).toLong
   var bytesRead = 0L
   var totalSleepTime = 0L
 
   val SLEEP_DURATION_MS = 50L
 
-  if (maxBytesPerSec <= 0) {
+  if (maxBytesPerSec < 0) {
     throw new IOException("Bandwidth " + maxBytesPerSec + " is invalid")
   }
   

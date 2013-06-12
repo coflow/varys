@@ -31,7 +31,7 @@ private[varys] object SenderClientFake {
     val client = new Client("SenderClientFake", url, listener)
     client.start()
 
-    val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 100)
+    val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1)
     val coflowId = client.registerCoflow(desc)
     
     val SLEEP_MS1 = 5000    

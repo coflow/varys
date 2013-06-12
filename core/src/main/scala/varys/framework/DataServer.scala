@@ -1,7 +1,7 @@
 package varys.framework
 
-import java.io.{RandomAccessFile, ObjectInputStream, ObjectOutputStream}
-import java.net.{Socket, ServerSocket}
+import java.io._
+import java.net._
 
 import scala.collection.mutable.HashMap
 
@@ -44,7 +44,8 @@ private[varys] class DataServer(
             try {
               threadPool.execute (new Thread {
                 override def run: Unit = {
-                  val oos = new ObjectOutputStream(clientSocket.getOutputStream)
+                  logInfo("Serving client " + clientSocket)
+                  val oos = new ObjectOutputStream(new BufferedOutputStream(clientSocket.getOutputStream))
                   oos.flush
                   val ois = new ObjectInputStream(clientSocket.getInputStream)
               
