@@ -1,7 +1,6 @@
 package varys.framework
 
 import varys.framework.master.{CoflowInfo, ClientInfo, SlaveInfo}
-import scala.collection.mutable.HashMap
 import akka.actor.ActorRef
 
 private[varys] sealed trait FrameworkMessage extends Serializable
@@ -51,7 +50,7 @@ private[varys] case class RegisteredCoflow(coflowId: String) extends FrameworkMe
 private[varys] case class UnregisteredCoflow(coflowId: String) extends FrameworkMessage
 private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
 private[varys] case class BestTxMachines(bestTxMachines: Array[String]) extends FrameworkMessage
-private[varys] case class UpdatedShares(newShares: HashMap[FlowDescription, Long]) extends FrameworkMessage
+private[varys] case class UpdatedRates(newRates: Map[FlowDescription, Double]) extends FrameworkMessage
 
 // Client/Slave to Slave/Master
 private[varys] case class AddFlow(flowDescription: FlowDescription) extends FrameworkMessage

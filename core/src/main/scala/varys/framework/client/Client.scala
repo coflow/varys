@@ -22,7 +22,7 @@ import varys.framework.slave.Slave
 import varys.util._
 import varys.Utils
 
-private[varys] class Client(
+class Client(
     clientName: String,
     masterUrl: String,
     listener: ClientListener = null)
@@ -104,12 +104,13 @@ private[varys] class Client(
         sender ! true
         context.stop(self)
         
-      case UpdatedShares(newShares) => 
-        for ((flowDesc, newBPS) <- newShares) {
+      case UpdatedRates(newRates) => 
+        for ((flowDesc, newBitPerSec) <- newRates) {
           if (flowToThrottledInputStream.contains(flowDesc.dataId)) {
-            flowToThrottledInputStream(flowDesc.dataId).updateRate(newBPS)
+            flowToThrottledInputStream(flowDesc.dataId).setNewRate(newBitPerSec)
           }
         }
+        logInfo("Received updated shares from the master")
     }
 
     /**
@@ -338,7 +339,7 @@ private[varys] class Client(
     handleGet(blockId, DataType.FAKE, coflowId)
   }
   
-  def delete(flowId: String, coflowId: String) {
+  def deleteFlow(flowId: String, coflowId: String) {
     AkkaUtils.tellActor(slaveActor, DeleteFlow(flowId, coflowId))
   }
 

@@ -1,12 +1,12 @@
 package varys.framework
 
-private[varys] object CoflowType extends Enumeration("DEFAULT", "SHUFFLE", "BROADCAST", "INCAST", "ANYCAST") {
+object CoflowType extends Enumeration("DEFAULT", "SHUFFLE", "BROADCAST", "INCAST", "ANYCAST") {
   type CoflowType = Value
 
   val DEFAULT, SHUFFLE, BROADCAST, INCAST, ANYCAST = Value
 }
 
-private[varys] class CoflowDescription(
+class CoflowDescription(
     val name: String,
     val coflowType: CoflowType.CoflowType,  // http://www.scala-lang.org/node/7661
     val maxFlows: Int)  // Upper-bound on the number of flows

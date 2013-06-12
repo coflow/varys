@@ -18,6 +18,7 @@ import varys.util.AkkaUtils
 private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
+  val NIC_BPS = 8.0 * 1024 * 1048576
 
   val slaves = new HashSet[SlaveInfo]
   val idToSlave = new HashMap[String, SlaveInfo]
@@ -33,7 +34,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val idToCoflow = new HashMap[String, CoflowInfo]
   val actorToCoflow = new HashMap[ActorRef, CoflowInfo]
   val addressToCoflow = new HashMap[Address, CoflowInfo]
-  val waitingCoflows = new ArrayBuffer[CoflowInfo]
   val completedCoflows = new ArrayBuffer[CoflowInfo]
 
   var nextClientNumber = new AtomicInteger()
@@ -100,10 +100,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logInfo("Registering coflow " + description.name)
       val coflow = addCoflow(client, description, sender)
       logInfo("Registered coflow " + description.name + " with ID " + coflow.id)
-      waitingCoflows += coflow
       context.watch(sender)  // This doesn't work with remote actors but helps for testing
       sender ! RegisteredCoflow(coflow.id)
-      schedule()
+
+      // No need to schedule here. Changes won't happen until the new flows are added.
     }
 
     case UnregisterCoflow(coflowId) => {
@@ -168,7 +168,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       coflow.addFlow(flowDesc)
       sender ! true
       
-      schedule()
+      // No need to schedule here because a flow will not start until a receiver asks for it
     }
     
     case GetFlow(flowId, coflowId, clientId, slaveId, _) => {
@@ -182,14 +182,14 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       assert(coflows.contains(coflow))
       assert(coflow.contains(flowId))
       
-      coflow.getFlowDescs(flowId) match {
-        case Some(flowDescs) => {
-          // TODO: Always returning the first source. Considering selecting based on traffic etc.
-          val flowDesc = flowDescs(0)
-          
-          coflow.addDestination(flowId, flowDesc, slave.host)
+      var canSchedule = false
+      coflow.getFlowInfo(flowId) match {
+        case Some(flowInfo) => {
+          canSchedule = coflow.addDestination(flowId, slave.host)
           logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
-          sender ! Some(GotFlowDesc(flowDesc))
+
+          // TODO: Always returning the default source. Considering selecting based on traffic etc.
+          sender ! Some(GotFlowDesc(flowInfo.desc))
         }
         case None => {
           logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)
@@ -197,14 +197,13 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
         }
       }
 
-      
-      schedule()
+      if (canSchedule)
+        schedule()
     }
     
     case DeleteFlow(flowId, coflowId) => {
       // TODO: Actually do something; e.g., remove destination?
-      
-      schedule()
+      // schedule()
     }
   }
 
@@ -279,24 +278,65 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       actorToCoflow -= coflow.driver
       addressToCoflow -= coflow.driver.path.address
       completedCoflows += coflow  // Remember it in our history
-      waitingCoflows -= coflow
       coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
       schedule()
     }
   }
 
   /**
-   * Schedule ongoing coflows and flows. This method is called every time a new flow or coflow joins 
-   * or leaves.
+   * Schedule ongoing coflows and flows. 
    */
   def schedule() {
-    // Right now this is a very simple FIFO scheduler.
-    // There is no preemption either.
+    // STEP 1: Sort READY or RUNNING coflows by remaining size
+    val sortedCoflows = coflows.toBuffer.filter(x => x.state == CoflowState.READY || x.state == CoflowState.RUNNING)
+    sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
     
-    // TODO: Actually schedule
+    // STEP 2: Perform WSS + Backfilling
+    val sBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BPS)
+    val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BPS)
     
-    // TODO: Communicate to clients
-    // coflows.foreach(cf => cf.flows.foreach(f => f.desc))
+    for (cf <- sortedCoflows) {
+      val sUsed = new HashMap[String, Double]().withDefaultValue(0.0)
+      val rUsed = new HashMap[String, Double]().withDefaultValue(0.0)
+
+      for (flowInfo <- cf.getFlows) {
+        val src = flowInfo.source
+        val dst = flowInfo.destination
+
+        val minFree = math.min(sBpsFree(src), rBpsFree(dst))
+        if (minFree > 0.0) {
+          flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.alpha)
+          
+          // Remember how much capacity was allocated
+          sUsed(src) = sUsed(src) + flowInfo.currentBps
+          rUsed(dst) = rUsed(dst) + flowInfo.currentBps
+          
+          // Set the coflow as running
+          cf.state = CoflowState.RUNNING
+        } else {
+          flowInfo.currentBps = 0.0
+        }
+      }
+      
+      // Remove capacity from ALL sources and destination for this coflow
+      for (sl <- slaves) {
+        val host = sl.host
+        sBpsFree(host) = sBpsFree(host) - sUsed(host)
+        rBpsFree(host) = rBpsFree(host) - rUsed(host)
+      }
+    }
+    
+    // STEP 3: Communicate updates to clients
+    val activeFlows = coflows.filter(_.state == CoflowState.RUNNING).flatMap(_.getFlows)
+    activeFlows.groupBy(_.destination).foreach { tuple => 
+      val host = tuple._1
+      val flows = tuple._2
+
+      val slave = hostToSlave(host)
+      val rateMap = flows.map(t => (t.desc, t.currentBps)).toMap
+      
+      slave.actor ! UpdatedRates(rateMap)
+    }
   }
 
   /** Generate a new coflow ID given a coflow's submission date */

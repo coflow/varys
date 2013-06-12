@@ -33,7 +33,7 @@ import java.io.InputStream
  */
 private[varys] class ThrottledInputStream(
     val rawStream: InputStream,
-    var maxBytesPerSec: Long = Long.MaxValue)
+    var maxBytesPerSec: Long = 0)
   extends InputStream() {
 
   val startTime = System.currentTimeMillis()
@@ -86,8 +86,8 @@ private[varys] class ThrottledInputStream(
     }
   }
 
-  def updateRate(newMaxBPS: Long) {
-    maxBytesPerSec = newMaxBPS
+  def setNewRate(newMaxBitPerSec: Double) {
+    maxBytesPerSec = (newMaxBitPerSec / 8).toLong
   }
 
   def getTotalBytesRead() = bytesRead
