@@ -8,3 +8,4 @@ bin=`cd "$bin"; pwd`
 . "$bin/varys-config.sh"
 
 "$bin"/varys-daemon.sh stop varys.framework.master.Master
+"$bin"/varys-daemon.sh stop varys.framework.slave.Slave
