@@ -333,6 +333,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       }
     }
     
+    logInfo("START_NEW_SCHEDULE")
     // STEP 3: Communicate updates to clients
     val activeFlows = coflows.filter(_.state == CoflowState.RUNNING).flatMap(_.getFlows)
     activeFlows.groupBy(_.destination).foreach { tuple => 
@@ -342,8 +343,14 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       val clientActor = hostToClient(host).actor
       val rateMap = flows.map(t => (t.desc, t.currentBps)).toMap
       
+      logInfo(host + " = " + rateMap.size + " flows")
+      for ((fDesc, nBPS) <- rateMap) {
+        logInfo(fDesc + " ==> " + nBPS + " bps")
+      }
+      
       clientActor ! UpdatedRates(rateMap)
     }
+    logInfo("END_NEW_SCHEDULE")
   }
 
   /** Generate a new coflow ID given a coflow's submission date */
