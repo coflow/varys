@@ -41,7 +41,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val idToClient = new HashMap[String, ClientInfo]
   val actorToClient = new HashMap[ActorRef, ClientInfo]
   val addressToClient = new HashMap[Address, ClientInfo]
-  val hostToClient = new HashMap[String, ClientInfo]
   val completedClients = new ArrayBuffer[ClientInfo]
 
   val masterPublicAddress = {
@@ -186,7 +185,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       var canSchedule = false
       coflow.getFlowInfo(flowId) match {
         case Some(flowInfo) => {
-          canSchedule = coflow.addDestination(flowId, slave.host)
+          canSchedule = coflow.addDestination(flowId, client)
           logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
 
           // TODO: Always returning the default source. Considering selecting based on traffic etc.
@@ -240,7 +239,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     idToClient(client.id) = client
     actorToClient(actor) = client
     addressToClient(actor.path.address) = client
-    hostToClient(client.host) = client
     return client
   }
 
@@ -251,7 +249,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       idToClient -= client.id
       actorToClient -= client.actor
       addressToClient -= client.actor.path.address
-      hostToClient -= client.host
       completedClients += client  // Remember it in our history
       client.markFinished()
       
@@ -308,7 +305,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
       for (flowInfo <- cf.getFlows) {
         val src = flowInfo.source
-        val dst = flowInfo.destination
+        val dst = flowInfo.destClient.host
 
         val minFree = math.min(sBpsFree(src), rBpsFree(dst))
         if (minFree > 0.0) {
@@ -336,19 +333,18 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     logInfo("START_NEW_SCHEDULE")
     // STEP 3: Communicate updates to clients
     val activeFlows = coflows.filter(_.state == CoflowState.RUNNING).flatMap(_.getFlows)
-    activeFlows.groupBy(_.destination).foreach { tuple => 
-      val host = tuple._1
+    activeFlows.groupBy(_.destClient).foreach { tuple => 
+      val client = tuple._1
       val flows = tuple._2
       
-      val clientActor = hostToClient(host).actor
       val rateMap = flows.map(t => (t.desc, t.currentBps)).toMap
       
-      logInfo(host + " = " + rateMap.size + " flows")
+      logInfo(client.host + " = " + rateMap.size + " flows")
       for ((fDesc, nBPS) <- rateMap) {
         logInfo(fDesc + " ==> " + nBPS + " bps")
       }
       
-      clientActor ! UpdatedRates(rateMap)
+      client.actor ! UpdatedRates(rateMap)
     }
     logInfo("END_NEW_SCHEDULE")
   }

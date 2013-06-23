@@ -22,7 +22,7 @@ private[varys] class CoflowInfo(
 
   def retryCount = _retryCount
 
-  def getFlows() = idToFlow.values.filter(_.destination != null)
+  def getFlows() = idToFlow.values.filter(_.destClient != null)
 
   def getFlowInfo(flowId: String): Option[FlowInfo] = {
     idToFlow.get(flowId)
@@ -40,7 +40,7 @@ private[varys] class CoflowInfo(
     getFlows.foreach { flowInfo =>
       // FIXME: Assuming a single source and destination for each flow
       val src = flowInfo.source
-      val dst = flowInfo.destination
+      val dst = flowInfo.destClient.host
       
       sBytes(src) = sBytes(src) + flowInfo.desc.sizeInBytes
       rBytes(dst) = rBytes(dst) + flowInfo.desc.sizeInBytes
@@ -57,8 +57,8 @@ private[varys] class CoflowInfo(
    * Adds destination for a given piece of data. 
    * Returns true if the coflow is ready to go
    */
-  def addDestination(flowId: String, destHost: String): Boolean = {
-    idToFlow(flowId).setDestination(destHost)
+  def addDestination(flowId: String, destClient: ClientInfo): Boolean = {
+    idToFlow(flowId).setDestination(destClient)
     
     // Mark this coflow as RUNNING only after all flows are alive
     if (idToFlow.size == desc.maxFlows) {

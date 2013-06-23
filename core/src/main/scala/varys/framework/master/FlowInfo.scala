@@ -5,14 +5,14 @@ import scala.collection.mutable.HashSet
 
 private[varys] class FlowInfo(val desc: FlowDescription) {
   var source = desc.originHost
-  var destination:String = null
+  var destClient:ClientInfo = null
   var currentBps = 0.0
 
-  def setDestination(dstHost: String) {
-    destination = dstHost
+  def setDestination(dClient: ClientInfo) {
+    destClient = dClient
   }
 
   def getFlowSize() = desc.sizeInBytes
 
-  override def toString:String = "FlowInfo(" + source + "-->" + destination + "[" + desc + "] @ " + currentBps + " bps)"
+  override def toString:String = "FlowInfo(" + source + "-->" + destClient.host + "[" + desc + "] @ " + currentBps + " bps)"
 }
