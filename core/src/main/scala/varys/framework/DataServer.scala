@@ -45,56 +45,61 @@ private[varys] class DataServer(
               threadPool.execute (new Thread {
                 override def run: Unit = {
                   logInfo("Serving client " + clientSocket)
-                  val oos = new ObjectOutputStream(new BufferedOutputStream(clientSocket.getOutputStream))
-                  oos.flush
                   val ois = new ObjectInputStream(clientSocket.getInputStream)
               
                   try {
                     val req = ois.readObject.asInstanceOf[GetRequest]
-                    val toSend: Option[Array[Byte]] = req.flowDesc.dataType match {
-
-                      case DataType.FAKE => {
-                        // Create Data
-                        val size = req.flowDesc.sizeInBytes.toInt
-                        Some(Array.tabulate[Byte](size)(_.toByte))
-                      }
-
-                      case DataType.ONDISK => {
-                        // Read the specified amount of data from file into memory and send it
-                        val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
-                        val randFile = new RandomAccessFile(fileDesc.pathToFile, "r")
-                        randFile.seek(fileDesc.offset)
-                        val bArr = new Array[Byte](fileDesc.sizeInBytes.toInt)
-                        randFile.read(bArr, 0, fileDesc.sizeInBytes.toInt)
-                        randFile.close()
-                        Some(bArr)
-                      }
+                    
+                    // Specially handle DataType.FAKE
+                    if (req.flowDesc.dataType == DataType.FAKE) {
+                        val out = clientSocket.getOutputStream
+                        val buf = new Array[Byte](65536)
+                        var bytesSent = 0L
+                        while (bytesSent < req.flowDesc.sizeInBytes) {
+                          val bytesToSend = math.min(req.flowDesc.sizeInBytes - bytesSent, buf.length)
+                          out.write(buf, 0, bytesToSend.toInt)
+                          bytesSent += bytesToSend
+                        }
+                    } else {
+                      val oos = new ObjectOutputStream(new BufferedOutputStream(clientSocket.getOutputStream))
+                      oos.flush
                       
-                      case DataType.INMEMORY => {
-                        // Send data if it exists
-                        if (flowToObject.contains(req.flowDesc.dataId))
-                          Some(flowToObject(req.flowDesc.dataId))
-                        else {
-                          logWarning("Requested object does not exist!" + flowToObject)
+                      val toSend: Option[Array[Byte]] = req.flowDesc.dataType match {
+
+                        case DataType.ONDISK => {
+                          // Read the specified amount of data from file into memory and send it
+                          val fileDesc = req.flowDesc.asInstanceOf[FileDescription]
+                          val randFile = new RandomAccessFile(fileDesc.pathToFile, "r")
+                          randFile.seek(fileDesc.offset)
+                          val bArr = new Array[Byte](fileDesc.sizeInBytes.toInt)
+                          randFile.read(bArr, 0, fileDesc.sizeInBytes.toInt)
+                          randFile.close()
+                          Some(bArr)
+                        }
+
+                        case DataType.INMEMORY => {
+                          // Send data if it exists
+                          if (flowToObject.contains(req.flowDesc.dataId))
+                            Some(flowToObject(req.flowDesc.dataId))
+                          else {
+                            logWarning("Requested object does not exist!" + flowToObject)
+                            None
+                          }
+                        }
+
+                        case _ => {
+                          logWarning("Invalid or Unexpected DataType!")
                           None
                         }
                       }
-
-                      case _ => {
-                        logWarning("Invalid or Unexpected DataType!")
-                        None
-                      }
+                      oos.writeObject(toSend)
+                      oos.flush
                     }
-                
-                    oos.writeObject(toSend)
-                    oos.flush
                   } catch {
                     case e: Exception => {
                       logWarning (serverThreadName + " had a " + e)
                     }
                   } finally {
-                    ois.close
-                    oos.close
                     clientSocket.close
                   }
                 }

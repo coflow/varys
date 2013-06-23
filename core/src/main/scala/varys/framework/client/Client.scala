@@ -280,46 +280,56 @@ class Client(
 
     val tisRate = flowToBitPerSec.getOrElse(flowDesc.dataId, 0.0)
     val tis = new ThrottledInputStream(sock.getInputStream, tisRate)
-    val ois = new ObjectInputStream(tis)
     
     flowToTIS(flowDesc.dataId) = tis
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush
     
-    val resp = ois.readObject.asInstanceOf[Option[Array[Byte]]]
     var retVal: Array[Byte] = null
-    resp match {
-      case Some(byteArr) => {
-        logInfo("Received response of " + byteArr.length + " bytes")
-        
-        dataType match {
-          case DataType.FAKE => {
-            // Throw away
-          }
-
-          case DataType.ONDISK => {
-            retVal = byteArr
-          }
-
-          case DataType.INMEMORY => {
-            retVal = byteArr
-          }
-
-          case _ => {
-            logError("Invalid DataType!")
-            throw new VarysException("Invalid DataType!")
-          }
+    
+    // Specially handle DataType.FAKE
+    if (dataType == DataType.FAKE) {
+      val buf = new Array[Byte](65536)
+      var bytesReceived = 0L
+      while (bytesReceived < flowDesc.sizeInBytes) {
+        val n = tis.read(buf)
+        // logInfo("Received " + n + " bytes of " + flowDesc.sizeInBytes)
+        if (n == -1) {
+          logError("EOF reached after " + bytesReceived + " bytes")
+          throw new VarysException("Too few bytes received")
+        } else {
+          bytesReceived += n
         }
       }
-      case None => {
-        logError("Nothing received!")
-        throw new VarysException("Invalid DataType!")
+    } else {
+      val ois = new ObjectInputStream(tis)
+      val resp = ois.readObject.asInstanceOf[Option[Array[Byte]]]
+      resp match {
+        case Some(byteArr) => {
+          logInfo("Received response of " + byteArr.length + " bytes")
+
+          dataType match {
+            case DataType.ONDISK => {
+              retVal = byteArr
+            }
+
+            case DataType.INMEMORY => {
+              retVal = byteArr
+            }
+
+            case _ => {
+              logError("Invalid DataType!")
+              throw new VarysException("Invalid DataType!")
+            }
+          }
+        }
+        case None => {
+          logError("Nothing received!")
+          throw new VarysException("Invalid DataType!")
+        }
       }
     }
-    
-    ois.close
-    oos.close
     sock.close
     
     return retVal

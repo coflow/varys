@@ -97,8 +97,6 @@ private[varys] object BroadcastSender extends Logging {
                       logWarning (serverThreadName + " had a " + e)
                     }
                   } finally {
-                    ois.close
-                    oos.close
                     clientSocket.close
                   }
                 }
@@ -228,10 +226,6 @@ private[varys] object BroadcastReceiver extends Logging {
   }
 
   def exitGracefully(exitCode: Int) {
-    if (ois != null)
-      ois.close
-    if (oos != null) 
-      oos.close
     if (sock != null)
       sock.close
     if (FILE != null)

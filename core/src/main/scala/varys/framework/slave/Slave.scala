@@ -151,7 +151,7 @@ private[varys] class SlaveActor(
     
     case AddFlow(flowDesc) => {
       // TODO: Do something!
-      logInfo("Handling " + flowDesc)
+      logInfo("Received AddFlow for " + flowDesc)
       
       // Update commPort if the end point will be a client
       if (flowDesc.dataType != DataType.INMEMORY) {
@@ -165,6 +165,7 @@ private[varys] class SlaveActor(
     
     case GetFlow(flowId, coflowId, clientId, _, flowDesc) => {
       // TODO: Do something!
+      logInfo("Received GetFlow for " + flowDesc)
       
       sender ! true
     }
@@ -230,7 +231,7 @@ private[varys] class SlaveActor(
 
     // FIXME: Sometimes Sigar stops responding, and printing something here brings it back!!!
     // This bug also causes Slave actors to stop responding, which causes the client failures.
-    // logInfo(rxBps + " " + txBps)
+    logInfo(rxBps + " " + txBps)
   }
 }
 
