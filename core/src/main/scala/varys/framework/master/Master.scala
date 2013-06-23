@@ -181,7 +181,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
       val coflow = idToCoflow(coflowId)
       assert(coflows.contains(coflow))
-      assert(coflow.contains(flowId))
+      // assert(coflow.contains(flowId))
       
       var canSchedule = false
       coflow.getFlowInfo(flowId) match {

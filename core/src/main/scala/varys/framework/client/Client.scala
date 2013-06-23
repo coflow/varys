@@ -250,6 +250,7 @@ class Client(
    * Notifies the master and the slave. But everything is done in the client
    * Blocking call.
    */
+  @throws(classOf[VarysException])
   private def handleGet(blockId: String, dataType: DataType.DataType, coflowId: String): Array[Byte] = {
     waitForRegistration
     
@@ -260,7 +261,12 @@ class Client(
       GetFlow(blockId, coflowId, clientId, slaveId))
     gotFlowDesc match {
       case Some(GotFlowDesc(x)) => flowDesc = x
-      case None => { }
+      case None => { 
+        val tmpM = "Couldn't find flow " + blockId + " of coflow " + coflowId
+        logWarning(tmpM)
+        // TODO: Define proper VarysExceptions
+        throw new VarysException(tmpM)
+      }
     }
     logInfo("Received " + flowDesc + " for " + blockId + " of coflow " + coflowId)
     
@@ -338,6 +344,7 @@ class Client(
   /**
    * Retrieves data from any of the feasible locations. 
    */
+  @throws(classOf[VarysException])
   def getObject[T](objectId: String, coflowId: String): T = {
     val resp = handleGet(objectId, DataType.INMEMORY, coflowId)
     Utils.deserialize[T](resp)
@@ -346,6 +353,7 @@ class Client(
   /**
    * Gets a file
    */
+  @throws(classOf[VarysException])
   def getFile(fileId: String, coflowId: String): Array[Byte] = {
     handleGet(fileId, DataType.ONDISK, coflowId)
   }
@@ -353,6 +361,7 @@ class Client(
   /**
    * Paired get() for putFake. Doesn't return anything, but emulates the retrieval process.
    */
+  @throws(classOf[VarysException])
   def getFake(blockId: String, coflowId: String) {
     handleGet(blockId, DataType.FAKE, coflowId)
   }
