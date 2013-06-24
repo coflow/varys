@@ -196,7 +196,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
           sender ! Some(GotFlowDesc(flowInfo.desc))
         }
         case None => {
-          logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)
+          // logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)
           sender ! None
         }
       }
@@ -298,9 +298,11 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     // If scheduled within last 100ms ignore this request
     val curTime = System.currentTimeMillis
     if (curTime - lastScheduled < SCHEDULE_FREQ) {
-      lastScheduled = curTime
       return false
     }
+
+    // Update when we last scheduled
+    lastScheduled = curTime
     
     // STEP 1: Sort READY or RUNNING coflows by remaining size
     val sortedCoflows = coflows.toBuffer.filter(x => x.state == CoflowState.READY || x.state == CoflowState.RUNNING)
