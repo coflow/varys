@@ -1,9 +1,13 @@
 package varys.framework.master
 
-import varys.framework.{FlowDescription, CoflowDescription}
-import java.util.Date
 import akka.actor.ActorRef
+
+import java.util.Date
+import java.util.concurrent.atomic.AtomicInteger
+
 import scala.collection.mutable.{ArrayBuffer, HashMap}
+
+import varys.framework.{FlowDescription, CoflowDescription}
 
 private[varys] class CoflowInfo(
     val startTime: Long,
@@ -22,6 +26,8 @@ private[varys] class CoflowInfo(
 
   def retryCount = _retryCount
 
+  private val numRegisteredFlows = new AtomicInteger(0)
+  def getNumRegisteredFlows = numRegisteredFlows.get
   def getFlows() = idToFlow.values.filter(_.destClient != null)
 
   def getFlowInfo(flowId: String): Option[FlowInfo] = {
@@ -58,10 +64,13 @@ private[varys] class CoflowInfo(
    * Returns true if the coflow is ready to go
    */
   def addDestination(flowId: String, destClient: ClientInfo): Boolean = {
+    if (!idToFlow.contains(flowId)) {
+      numRegisteredFlows.incrementAndGet
+    }
     idToFlow(flowId).setDestination(destClient)
     
     // Mark this coflow as RUNNING only after all flows are alive
-    if (idToFlow.size == desc.maxFlows) {
+    if (getNumRegisteredFlows == desc.maxFlows) {
       state = CoflowState.READY
       alpha = calcAlpha()
       true
@@ -99,5 +108,5 @@ private[varys] class CoflowInfo(
     }
   }
   
-  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + getFlows.size + ")"
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + getNumRegisteredFlows + ")"
 }

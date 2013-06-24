@@ -19,6 +19,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
   val NIC_BPS = 8.0 * 1024 * 1048576
+  val SCHEDULE_FREQ = System.getProperty("varys.master.schedulerIntervalMillis", "100").toLong
+
+  // Keeps track of when the scheduler last ran
+  var lastScheduled = System.currentTimeMillis
 
   val slaves = new HashSet[SlaveInfo]
   val idToSlave = new HashMap[String, SlaveInfo]
@@ -287,8 +291,17 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
   /**
    * Schedule ongoing coflows and flows. 
+   * Returns a Boolean indicating whether it ran or not
    */
-  def schedule() = synchronized {
+  def schedule(): Boolean = synchronized {
+    
+    // If scheduled within last 100ms ignore this request
+    val curTime = System.currentTimeMillis
+    if (curTime - lastScheduled < SCHEDULE_FREQ) {
+      lastScheduled = curTime
+      return false
+    }
+    
     // STEP 1: Sort READY or RUNNING coflows by remaining size
     val sortedCoflows = coflows.toBuffer.filter(x => x.state == CoflowState.READY || x.state == CoflowState.RUNNING)
     sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
@@ -347,6 +360,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       client.actor ! UpdatedRates(rateMap)
     }
     logInfo("END_NEW_SCHEDULE")
+    
+    true
   }
 
   /** Generate a new coflow ID given a coflow's submission date */
