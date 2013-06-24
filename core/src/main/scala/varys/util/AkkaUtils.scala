@@ -28,34 +28,40 @@ private[varys] object AkkaUtils {
    * Note: the `name` parameter is important, as even if a client sends a message to right
    * host + port, if the system name is incorrect, Akka will drop the message.
    */
-  def createActorSystem(name: String, host: String, port: Int): (ActorSystem, Int) = {
-    val akkaThreads = System.getProperty("varys.akka.threads", "4").toInt
-    val akkaBatchSize = System.getProperty("varys.akka.batchSize", "15").toInt
-    val akkaTimeout = System.getProperty("varys.akka.timeout", "20").toInt
-    val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt
-    val akkaConf = ConfigFactory.parseString("""
-      akka.daemonic = on
-      akka.event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
-      akka.stdout-loglevel = "ERROR"
-      akka.actor.provider = "akka.remote.RemoteActorRefProvider"
-      akka.remote.transport = "akka.remote.netty.NettyRemoteTransport"
-      akka.remote.log-remote-lifecycle-events = on
-      akka.remote.netty.hostname = "%s"
-      akka.remote.netty.port = %d
-      akka.remote.netty.connection-timeout = %ds
-      akka.remote.netty.message-frame-size = %d MiB
-      akka.remote.netty.execution-pool-size = %d
-      akka.actor.default-dispatcher.throughput = %d
-      """.format(host, port, akkaTimeout, akkaFrameSize, akkaThreads, akkaBatchSize))
+   def createActorSystem(name: String, host: String, port: Int): (ActorSystem, Int) = {
+     val akkaThreads = System.getProperty("varys.akka.threads", "4").toInt
+     val akkaBatchSize = System.getProperty("varys.akka.batchSize", "15").toInt
+     val akkaTimeout = System.getProperty("varys.akka.timeout", "60").toInt
+     val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt
+     val lifecycleEvents = if (System.getProperty("varys.akka.logLifecycleEvents", "false").toBoolean) "on" else "off"
+     // 10 seconds is the default akka timeout, but in a cluster, we need higher by default.
+     val akkaWriteTimeout = System.getProperty("varys.akka.writeTimeout", "30").toInt
 
-    val actorSystem = ActorSystem(name, akkaConf, getClass.getClassLoader)
+     val akkaConf = ConfigFactory.parseString("""
+       akka.daemonic = on
+       akka.event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+       akka.stdout-loglevel = "ERROR"
+       akka.actor.provider = "akka.remote.RemoteActorRefProvider"
+       akka.remote.transport = "akka.remote.netty.NettyRemoteTransport"
+       akka.remote.netty.hostname = "%s"
+       akka.remote.netty.port = %d
+       akka.remote.netty.connection-timeout = %ds
+       akka.remote.netty.message-frame-size = %d MiB
+       akka.remote.netty.execution-pool-size = %d
+       akka.actor.default-dispatcher.throughput = %d
+       akka.remote.log-remote-lifecycle-events = %s
+       akka.remote.netty.write-timeout = %ds
+       """.format(host, port, akkaTimeout, akkaFrameSize, akkaThreads, akkaBatchSize,
+         lifecycleEvents, akkaWriteTimeout))
 
-    // Figure out the port number we bound to, in case port was passed as 0. This is a bit of a
-    // hack because Akka doesn't let you figure out the port through the public API yet.
-    val provider = actorSystem.asInstanceOf[ActorSystemImpl].provider
-    val boundPort = provider.asInstanceOf[RemoteActorRefProvider].transport.address.port.get
-    return (actorSystem, boundPort)
-  }
+     val actorSystem = ActorSystem(name, akkaConf)
+
+     // Figure out the port number we bound to, in case port was passed as 0. This is a bit of a
+     // hack because Akka doesn't let you figure out the port through the public API yet.
+     val provider = actorSystem.asInstanceOf[ActorSystemImpl].provider
+     val boundPort = provider.asInstanceOf[RemoteActorRefProvider].transport.address.port.get
+     return (actorSystem, boundPort)
+   }
 
   /**
    * Creates a Spray HTTP server bound to a given IP and port with a given Spray Route object to

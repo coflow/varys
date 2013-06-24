@@ -288,7 +288,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   /**
    * Schedule ongoing coflows and flows. 
    */
-  def schedule() {
+  def schedule() = synchronized {
     // STEP 1: Sort READY or RUNNING coflows by remaining size
     val sortedCoflows = coflows.toBuffer.filter(x => x.state == CoflowState.READY || x.state == CoflowState.RUNNING)
     sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
@@ -352,13 +352,13 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   /** Generate a new coflow ID given a coflow's submission date */
   def newCoflowId(submitDate: Date): String = {
     // "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber.getAndIncrement())
-    "COFLOW-%04d".format(nextCoflowNumber.getAndIncrement())
+    "COFLOW-%06d".format(nextCoflowNumber.getAndIncrement())
   }
 
   /** Generate a new client ID given a client's connection date */
   def newClientId(submitDate: Date): String = {
     // "client-%s-%04d".format(DATE_FORMAT.format(submitDate), nextClientNumber.getAndIncrement())
-    "CLIENT-%04d".format(nextClientNumber.getAndIncrement())
+    "CLIENT-%06d".format(nextClientNumber.getAndIncrement())
   }
 
   /** Check for, and remove, any timed-out slaves */

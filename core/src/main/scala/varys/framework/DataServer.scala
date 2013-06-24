@@ -19,7 +19,7 @@ private[varys] class DataServer(
     flowToObject: HashMap[DataIdentifier, Array[Byte]] = null) 
   extends Logging {
   
-  var serverSocket: ServerSocket = new ServerSocket(commPort)
+  var serverSocket: ServerSocket = new ServerSocket(commPort, 256)
   
   var stopServer = false
   val serverThread = new Thread(serverThreadName) {
