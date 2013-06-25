@@ -7,6 +7,7 @@ private[varys] class FlowInfo(val desc: FlowDescription) {
   var source = desc.originHost
   var destClient:ClientInfo = null
   var currentBps = 0.0
+  var lastScheduled: Long = 0L
 
   def setDestination(dClient: ClientInfo) {
     destClient = dClient

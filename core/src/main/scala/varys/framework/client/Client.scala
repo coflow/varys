@@ -73,7 +73,19 @@ class Client(
       }
     }
 
+    @throws(classOf[VarysException])
+    def masterDisconnected() {
+      // TODO: It would be nice to try to reconnect to the master, but just shut down for now.
+      // (Note that if reconnecting we would also need to assign IDs differently.)
+      val connToMasterFailedMsg = "Connection to master failed; stopping client"
+      logWarning(connToMasterFailedMsg)
+      markDisconnected()
+      context.stop(self)
+      throw new VarysException(connToMasterFailedMsg)
+    }
+
     override def receive = {
+      
       case RegisteredClient(clientId_, slaveId_, slaveUrl_) =>
         clientId = clientId_
         slaveId = slaveId_
@@ -86,19 +98,13 @@ class Client(
         logInfo("Registered to master. Local slave url = " + slaveUrl)
 
       case Terminated(actor_) if actor_ == masterActor =>
-        logError("Connection to master failed; stopping client")
-        markDisconnected()
-        context.stop(self)
+        masterDisconnected()
 
       case RemoteClientDisconnected(_, address) if address == masterAddress =>
-        logError("Connection to master failed; stopping client")
-        markDisconnected()
-        context.stop(self)
+        masterDisconnected()
 
       case RemoteClientShutdown(_, address) if address == masterAddress =>
-        logError("Connection to master failed; stopping client")
-        markDisconnected()
-        context.stop(self)
+        masterDisconnected()
 
       case StopClient =>
         markDisconnected()

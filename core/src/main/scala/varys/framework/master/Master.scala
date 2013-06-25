@@ -87,7 +87,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logInfo("Registering client %s@%s:%d".format(clientName, host, commPort))
       if (hostToSlave.contains(host)) {
         val client = addClient(clientName, host, commPort, sender)
-        logInfo("Registered client " + clientName + " with ID " + client.id)
+        logDebug("Registered client " + clientName + " with ID " + client.id)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         val slave = hostToSlave(host)
         sender ! RegisteredClient(client.id, slave.id, "varys://" + slave.host + ":" + slave.port)
@@ -101,7 +101,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       val client = idToClient(clientId)
       assert(clients.contains(client))
       
-      logInfo("Registering coflow " + description.name)
+      logDebug("Registering coflow " + description.name)
       val coflow = addCoflow(client, description, sender)
       logInfo("Registered coflow " + description.name + " with ID " + coflow.id)
       context.watch(sender)  // This doesn't work with remote actors but helps for testing
@@ -168,7 +168,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       val coflow = idToCoflow(flowDesc.coflowId)
       assert(coflows.contains(coflow))
       
-      logInfo("Adding " + flowDesc)
+      logDebug("Adding " + flowDesc)
       coflow.addFlow(flowDesc)
       sender ! true
       
@@ -190,7 +190,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       coflow.getFlowInfo(flowId) match {
         case Some(flowInfo) => {
           canSchedule = coflow.addDestination(flowId, client)
-          logInfo("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId)
+          // logDebug("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId + ". " + (coflow.desc.maxFlows - coflow.getNumRegisteredFlows) + " flows remain.")
+          logInfo("Added destination to " + coflow + ". " + (coflow.desc.maxFlows - coflow.getNumRegisteredFlows) + " flows remain.")
 
           // TODO: Always returning the default source. Considering selecting based on traffic etc.
           sender ! Some(GotFlowDesc(flowInfo.desc))
@@ -227,7 +228,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def removeSlave(slave: SlaveInfo) {
-    logInfo("Removing slave " + slave.id + " on " + slave.host + ":" + slave.port)
+    logWarning("Removing slave " + slave.id + " on " + slave.host + ":" + slave.port)
     slave.setState(SlaveState.DEAD)
     idToSlave -= slave.id
     actorToSlave -= slave.actor
@@ -325,6 +326,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
         val minFree = math.min(sBpsFree(src), rBpsFree(dst))
         if (minFree > 0.0) {
           flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.alpha)
+          if (math.abs(flowInfo.currentBps) < 1e-6) 
+            flowInfo.currentBps = 0.0
+          flowInfo.lastScheduled = System.currentTimeMillis
+          
           
           // Remember how much capacity was allocated
           sUsed(src) = sUsed(src) + flowInfo.currentBps
@@ -354,9 +359,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       
       val rateMap = flows.map(t => (t.desc, t.currentBps)).toMap
       
-      logInfo(client.host + " = " + rateMap.size + " flows")
+      // Log current schedule
+      logDebug(client.host + " = " + rateMap.size + " flows")
       for ((fDesc, nBPS) <- rateMap) {
-        logInfo(fDesc + " ==> " + nBPS + " bps")
+        logDebug(fDesc + " ==> " + nBPS + " bps")
       }
       
       client.actor ! UpdatedRates(rateMap)

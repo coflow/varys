@@ -21,6 +21,7 @@ private[varys] class CoflowInfo(
   var state = CoflowState.WAITING
   var endTime = -1L
   var alpha = 0.0
+  var sizeInBytes = 0L
   
   private val idToFlow = new ConcurrentHashMap[String, FlowInfo]()
 
@@ -60,6 +61,7 @@ private[varys] class CoflowInfo(
   def addFlow(flowDesc: FlowDescription) {
     assert(!idToFlow.containsKey(flowDesc.id))
     idToFlow.put(flowDesc.id, new FlowInfo(flowDesc))
+    sizeInBytes += flowDesc.sizeInBytes
   }
 
   /**
@@ -101,7 +103,8 @@ private[varys] class CoflowInfo(
    * Returns an estimation of remaining bytes
    */
   def remainingSizeInBytes(): Double = {
-    1E6
+    // TODO: Returning the actual size for now
+    sizeInBytes
   }
 
   def duration: Long = {
@@ -112,5 +115,5 @@ private[varys] class CoflowInfo(
     }
   }
   
-  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + numRegisteredFlows.get + ")"
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + numRegisteredFlows.get + " registered flows)"
 }
