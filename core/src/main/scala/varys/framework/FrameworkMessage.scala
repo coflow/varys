@@ -83,6 +83,9 @@ case class PutRequest(flowDesc: FlowDescription) extends FrameworkMessage {
   override def toString: String = "PutRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
 } 
 
+// Internal message in Master
+private[varys] case object ScheduleRequest
+
 // MasterWebUI To Master
 private[varys] case object RequestMasterState
 

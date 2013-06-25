@@ -4,10 +4,12 @@ import akka.actor._
 import akka.actor.Terminated
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
 import akka.util.duration._
+import akka.dispatch._
 
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
@@ -18,7 +20,7 @@ import varys.util.AkkaUtils
 private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
-  val NIC_BPS = 8.0 * 1024 * 1048576
+  val NIC_BPS = 1024 * 1048576
   val SCHEDULE_FREQ = System.getProperty("varys.master.schedulerIntervalMillis", "100").toLong
 
   // Keeps track of when the scheduler last ran
@@ -36,17 +38,18 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   var nextCoflowNumber = new AtomicInteger()
   val coflows = new HashSet[CoflowInfo]
   val idToCoflow = new HashMap[String, CoflowInfo]
-  val actorToCoflow = new HashMap[ActorRef, CoflowInfo]
-  val addressToCoflow = new HashMap[Address, CoflowInfo]
   val completedCoflows = new ArrayBuffer[CoflowInfo]
 
   var nextClientNumber = new AtomicInteger()
   val clients = new HashSet[ClientInfo]
-  val idToClient = new HashMap[String, ClientInfo]
+  val idToClient = new ConcurrentHashMap[String, ClientInfo]()
   val actorToClient = new HashMap[ActorRef, ClientInfo]
   val addressToClient = new HashMap[Address, ClientInfo]
   val completedClients = new ArrayBuffer[ClientInfo]
 
+  // ExecutionContext for Futures
+  implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
+  
   val masterPublicAddress = {
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
     if (envVar != null) envVar else ip
@@ -77,7 +80,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       if (idToSlave.contains(id)) {
         sender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
-        addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress, sender)
+        val currentSender = sender
+        addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress, currentSender)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         sender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
       }
@@ -86,7 +90,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     case RegisterClient(clientName, host, commPort) => {
       logInfo("Registering client %s@%s:%d".format(clientName, host, commPort))
       if (hostToSlave.contains(host)) {
-        val client = addClient(clientName, host, commPort, sender)
+        val currentSender = sender
+        val client = addClient(clientName, host, commPort, currentSender)
         logDebug("Registered client " + clientName + " with ID " + client.id)
         context.watch(sender)  // This doesn't work with remote actors but helps for testing
         val slave = hostToSlave(host)
@@ -98,11 +103,12 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
     case RegisterCoflow(clientId, description) => {
       // clientId will always be in clients
-      val client = idToClient(clientId)
+      val client = idToClient.get(clientId)
       assert(clients.contains(client))
       
       logDebug("Registering coflow " + description.name)
-      val coflow = addCoflow(client, description, sender)
+      val currentSender = sender
+      val coflow = addCoflow(client, description, currentSender)
       logInfo("Registered coflow " + description.name + " with ID " + coflow.id)
       context.watch(sender)  // This doesn't work with remote actors but helps for testing
       sender ! RegisteredCoflow(coflow.id)
@@ -168,7 +174,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       val coflow = idToCoflow(flowDesc.coflowId)
       assert(coflows.contains(coflow))
       
-      logDebug("Adding " + flowDesc)
+      logDebug("Adding flow to " + coflow)
       coflow.addFlow(flowDesc)
       sender ! true
       
@@ -176,41 +182,49 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
     
     case GetFlow(flowId, coflowId, clientId, slaveId, _) => {
-      val slave = idToSlave(slaveId)
-      assert(slaves.contains(slave))
-      
-      val client = idToClient(clientId)
-      assert(clients.contains(client))
-
-      val coflow = idToCoflow(coflowId)
-      assert(coflows.contains(coflow))
-      // assert(coflow.contains(flowId))
-      
-      var canSchedule = false
-      coflow.getFlowInfo(flowId) match {
-        case Some(flowInfo) => {
-          canSchedule = coflow.addDestination(flowId, client)
-          // logDebug("Added destination " + slave.host + " to flow " + flowId + " of coflow " + coflowId + ". " + (coflow.desc.maxFlows - coflow.getNumRegisteredFlows) + " flows remain.")
-          logInfo("Added destination to " + coflow + ". " + (coflow.desc.maxFlows - coflow.getNumRegisteredFlows) + " flows remain.")
-
-          // TODO: Always returning the default source. Considering selecting based on traffic etc.
-          sender ! Some(GotFlowDesc(flowInfo.desc))
-        }
-        case None => {
-          // logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)
-          sender ! None
-        }
-      }
-
-      if (canSchedule) {
-        logInfo("Coflow " + coflowId + " ready to be scheduled")
-        schedule()
-      }
+      val currentSender = sender
+      Future { handleGetFlow(flowId, coflowId, clientId, slaveId, currentSender) }
     }
     
     case DeleteFlow(flowId, coflowId) => {
       // TODO: Actually do something; e.g., remove destination?
-      // schedule()
+      // self ! ScheduleRequest
+    }
+
+    case ScheduleRequest => {
+      schedule()
+    }
+  }
+
+  def handleGetFlow(flowId: String, coflowId: String, clientId: String, slaveId: String, actor: ActorRef) {
+    val slave = idToSlave(slaveId)
+    assert(slaves.contains(slave))
+    
+    val client = idToClient.get(clientId)
+    assert(clients.contains(client))
+
+    val coflow = idToCoflow(coflowId)
+    assert(coflows.contains(coflow))
+    // assert(coflow.contains(flowId))
+    
+    var canSchedule = false
+    coflow.getFlowInfo(flowId) match {
+      case Some(flowInfo) => {
+        canSchedule = coflow.addDestination(flowId, client)
+        logInfo("Added destination to " + coflow + ". " + (coflow.desc.maxFlows - coflow.getNumRegisteredFlows) + " flows remain.")
+
+        // TODO: Always returning the default source. Considering selecting based on traffic etc.
+        actor ! Some(GotFlowDesc(flowInfo.desc))
+      }
+      case None => {
+        // logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)
+        actor ! None
+      }
+    }
+
+    if (canSchedule) {
+      logInfo("Coflow " + coflowId + " ready to be scheduled")
+      self ! ScheduleRequest
     }
   }
 
@@ -241,7 +255,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     val date = new Date(now)
     val client = new ClientInfo(now, newClientId(date), host, commPort, date, actor)
     clients += client
-    idToClient(client.id) = client
+    idToClient.put(client.id, client)
     actorToClient(actor) = client
     addressToClient(actor.path.address) = client
     return client
@@ -251,7 +265,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     if (clients.contains(client)) {
       logInfo("Removing client " + client.id)
       clients -= client
-      idToClient -= client.id
+      idToClient.remove(client.id)
       actorToClient -= client.actor
       addressToClient -= client.actor.path.address
       completedClients += client  // Remember it in our history
@@ -268,8 +282,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     
     coflows += coflow
     idToCoflow(coflow.id) = coflow
-    actorToCoflow(actor) = coflow
-    addressToCoflow(actor.path.address) = coflow
     
     client.addCoflow(coflow)  // Update its parent client
     
@@ -282,11 +294,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logInfo("Removing coflow " + coflow.id)
       coflows -= coflow
       idToCoflow -= coflow.id
-      actorToCoflow -= coflow.actor
-      addressToCoflow -= coflow.actor.path.address
       completedCoflows += coflow  // Remember it in our history
       coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
-      schedule()
+      
+      self ! ScheduleRequest
     }
   }
 

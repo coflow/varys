@@ -34,4 +34,6 @@ private[varys] class SlaveInfo(
     rxBpsInfo.update(newRxBps)
     txBpsInfo.update(newTxBps)
   }
+  
+  override def toString: String = "SlaveInfo(" + id + "[" + host + ":" + port + "]:" + state + ")"
 }
