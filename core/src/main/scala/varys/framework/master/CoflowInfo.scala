@@ -4,7 +4,9 @@ import akka.actor.ActorRef
 
 import java.util.Date
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentHashMap
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import varys.framework.{FlowDescription, CoflowDescription}
@@ -20,7 +22,7 @@ private[varys] class CoflowInfo(
   var endTime = -1L
   var alpha = 0.0
   
-  private val idToFlow = new HashMap[String, FlowInfo]
+  private val idToFlow = new ConcurrentHashMap[String, FlowInfo]()
 
   private var _retryCount = 0
 
@@ -28,13 +30,14 @@ private[varys] class CoflowInfo(
 
   private val numRegisteredFlows = new AtomicInteger(0)
   def getNumRegisteredFlows = numRegisteredFlows.get
-  def getFlows() = idToFlow.values.filter(_.destClient != null)
+  def getFlows() = idToFlow.values.asScala.filter(_.destClient != null)
 
   def getFlowInfo(flowId: String): Option[FlowInfo] = {
-    idToFlow.get(flowId)
+    val ret = idToFlow.get(flowId)
+    if (ret == null) None else Some(ret)
   }
 
-  def contains(flowId: String) = idToFlow.contains(flowId)
+  def contains(flowId: String) = idToFlow.containsKey(flowId)
 
   /**
    * Calculating static alpha for the coflow
@@ -55,22 +58,23 @@ private[varys] class CoflowInfo(
   }
 
   def addFlow(flowDesc: FlowDescription) {
-    assert(!idToFlow.contains(flowDesc.id))
-    idToFlow(flowDesc.id) = new FlowInfo(flowDesc)
+    assert(!idToFlow.containsKey(flowDesc.id))
+    idToFlow.put(flowDesc.id, new FlowInfo(flowDesc))
   }
 
   /**
    * Adds destination for a given piece of data. 
+   * Assume flowId already exists in idToFlow
    * Returns true if the coflow is ready to go
    */
   def addDestination(flowId: String, destClient: ClientInfo): Boolean = {
-    if (!idToFlow.contains(flowId)) {
+    if (idToFlow.get(flowId).destClient == null) {
       numRegisteredFlows.incrementAndGet
     }
-    idToFlow(flowId).setDestination(destClient)
+    idToFlow.get(flowId).setDestination(destClient)
     
     // Mark this coflow as RUNNING only after all flows are alive
-    if (getNumRegisteredFlows == desc.maxFlows) {
+    if (numRegisteredFlows.get == desc.maxFlows) {
       state = CoflowState.READY
       alpha = calcAlpha()
       true
@@ -108,5 +112,5 @@ private[varys] class CoflowInfo(
     }
   }
   
-  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + getNumRegisteredFlows + ")"
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + numRegisteredFlows.get + ")"
 }

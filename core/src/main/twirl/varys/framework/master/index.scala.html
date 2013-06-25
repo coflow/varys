@@ -9,7 +9,7 @@
     <div class="span12">
       <ul class="unstyled">
         <li><strong>URL:</strong> @(state.uri)</li>
-        <li><strong>Slaves:</strong> @state.slaves.size </li>
+        <li><strong>Slaves:</strong> @state.slaves.size (@state.slaves.filter(_.state == SlaveState.ALIVE).size Alive) </li>
         <li><strong>Coflows:</strong> @state.activeCoflows.size Running, @state.completedCoflows.size Completed </li>
       </ul>
     </div>
