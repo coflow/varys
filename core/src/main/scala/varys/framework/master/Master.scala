@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
+import scala.collection.JavaConversions._
 
 import varys.framework._
 import varys.{Logging, VarysException, Utils}
@@ -26,8 +27,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   // Keeps track of when the scheduler last ran
   var lastScheduled = System.currentTimeMillis
 
-  val slaves = new HashSet[SlaveInfo]
-  val idToSlave = new HashMap[String, SlaveInfo]
+  val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new HashMap[ActorRef, SlaveInfo]
   val addressToSlave = new HashMap[Address, SlaveInfo]
   val hostToSlave = new HashMap[String, SlaveInfo]
@@ -36,12 +36,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val idToTxBps = new SlaveToBpsMap
 
   var nextCoflowNumber = new AtomicInteger()
-  val coflows = new HashSet[CoflowInfo]
-  val idToCoflow = new HashMap[String, CoflowInfo]
+  val idToCoflow = new ConcurrentHashMap[String, CoflowInfo]()
   val completedCoflows = new ArrayBuffer[CoflowInfo]
 
   var nextClientNumber = new AtomicInteger()
-  val clients = new HashSet[ClientInfo]
   val idToClient = new ConcurrentHashMap[String, ClientInfo]()
   val actorToClient = new HashMap[ActorRef, ClientInfo]
   val addressToClient = new HashMap[Address, ClientInfo]
@@ -77,7 +75,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   override def receive = {
     case RegisterSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress) => {
       logInfo("Registering slave %s:%d".format(host, slavePort))
-      if (idToSlave.contains(id)) {
+      if (idToSlave.containsKey(id)) {
         sender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
         val currentSender = sender
@@ -104,7 +102,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     case RegisterCoflow(clientId, description) => {
       // clientId will always be in clients
       val client = idToClient.get(clientId)
-      assert(clients.contains(client))
+      assert(client != null)
       
       logDebug("Registering coflow " + description.name)
       val currentSender = sender
@@ -117,21 +115,20 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
 
     case UnregisterCoflow(coflowId) => {
-      idToCoflow.get(coflowId).foreach(removeCoflow)
+      removeCoflow(idToCoflow.get(coflowId))
       sender ! true
     }
 
     case Heartbeat(slaveId, newRxBps, newTxBps) => {
-      idToSlave.get(slaveId) match {
-        case Some(slaveInfo) =>
-          slaveInfo.updateNetworkStats(newRxBps, newTxBps)
-          slaveInfo.lastHeartbeat = System.currentTimeMillis()
-          
-          idToRxBps.updateNetworkStats(slaveId, newRxBps)
-          idToTxBps.updateNetworkStats(slaveId, newTxBps)
-          
-        case None =>
-          logWarning("Got heartbeat from unregistered slave " + slaveId)
+      val slaveInfo = idToSlave.get(slaveId)
+      if (slaveInfo != null) {
+        slaveInfo.updateNetworkStats(newRxBps, newTxBps)
+        slaveInfo.lastHeartbeat = System.currentTimeMillis()
+        
+        idToRxBps.updateNetworkStats(slaveId, newRxBps)
+        idToTxBps.updateNetworkStats(slaveId, newTxBps)
+      } else {
+        logWarning("Got heartbeat from unregistered slave " + slaveId)
       }
     }
 
@@ -157,22 +154,22 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
 
     case RequestMasterState => {
-      sender ! MasterState(ip, port, slaves.toArray, coflows.toArray, completedCoflows.toArray, 
-        clients.toArray, completedClients.toArray)
+      sender ! MasterState(ip, port, idToSlave.values.toSeq.toArray, idToCoflow.values.toSeq.toArray, completedCoflows.toArray, 
+        idToClient.values.toSeq.toArray, completedClients.toArray)
     }
     
     case RequestBestRxMachines(howMany, bytes) => {
-      sender ! BestRxMachines(idToRxBps.getTopN(howMany, bytes).toArray.map(idToSlave(_).host))
+      sender ! BestRxMachines(idToRxBps.getTopN(howMany, bytes).toArray.map(x => idToSlave.get(x).host))
     }
     
     case RequestBestTxMachines(howMany, bytes) => {
-      sender ! BestTxMachines(idToTxBps.getTopN(howMany, bytes).toArray.map(idToSlave(_).host))
+      sender ! BestTxMachines(idToTxBps.getTopN(howMany, bytes).toArray.map(x => idToSlave.get(x).host))
     }
     
     case AddFlow(flowDesc) => {
       // coflowId will always be valid
-      val coflow = idToCoflow(flowDesc.coflowId)
-      assert(coflows.contains(coflow))
+      val coflow = idToCoflow.get(flowDesc.coflowId)
+      assert(coflow != null)
       
       logDebug("Adding flow to " + coflow)
       coflow.addFlow(flowDesc)
@@ -182,6 +179,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
     
     case GetFlow(flowId, coflowId, clientId, slaveId, _) => {
+      logDebug("Received GetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + sender + ")")
       val currentSender = sender
       Future { handleGetFlow(flowId, coflowId, clientId, slaveId, currentSender) }
     }
@@ -197,14 +195,16 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def handleGetFlow(flowId: String, coflowId: String, clientId: String, slaveId: String, actor: ActorRef) {
-    val slave = idToSlave(slaveId)
-    assert(slaves.contains(slave))
+    logDebug("handleGetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + sender + ")")
+    
+    // val slave = idToSlave(slaveId)
+    // assert(slave != null)
     
     val client = idToClient.get(clientId)
-    assert(clients.contains(client))
+    assert(client != null)
 
-    val coflow = idToCoflow(coflowId)
-    assert(coflows.contains(coflow))
+    val coflow = idToCoflow.get(coflowId)
+    assert(coflow != null)
     // assert(coflow.contains(flowId))
     
     var canSchedule = false
@@ -231,10 +231,9 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   def addSlave(id: String, host: String, port: Int, webUiPort: Int, commPort: Int,
     publicAddress: String, actor: ActorRef): SlaveInfo = {
     // There may be one or more refs to dead slaves on this same node (w/ diff. IDs), remove them.
-    slaves.filter(w => (w.host == host) && (w.state == SlaveState.DEAD)).foreach(slaves -= _)
+    idToSlave.values.filter(w => (w.host == host) && (w.state == SlaveState.DEAD)).foreach(idToSlave.values.remove(_))
     val slave = new SlaveInfo(id, host, port, actor, webUiPort, commPort, publicAddress)
-    slaves += slave
-    idToSlave(slave.id) = slave
+    idToSlave.put(slave.id, slave)
     actorToSlave(actor) = slave
     addressToSlave(actor.path.address) = slave
     hostToSlave(slave.host) = slave
@@ -244,7 +243,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   def removeSlave(slave: SlaveInfo) {
     logWarning("Removing slave " + slave.id + " on " + slave.host + ":" + slave.port)
     slave.setState(SlaveState.DEAD)
-    idToSlave -= slave.id
+    // Do not remove from idToSlave so that we remember DEAD slaves
     actorToSlave -= slave.actor
     addressToSlave -= slave.actor.path.address
     hostToSlave -= slave.host
@@ -254,7 +253,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     val now = System.currentTimeMillis()
     val date = new Date(now)
     val client = new ClientInfo(now, newClientId(date), host, commPort, date, actor)
-    clients += client
     idToClient.put(client.id, client)
     actorToClient(actor) = client
     addressToClient(actor.path.address) = client
@@ -262,9 +260,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def removeClient(client: ClientInfo) {
-    if (clients.contains(client)) {
+    if (idToClient.containsValue(client)) {
       logInfo("Removing client " + client.id)
-      clients -= client
       idToClient.remove(client.id)
       actorToClient -= client.actor
       addressToClient -= client.actor.path.address
@@ -280,8 +277,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     val date = new Date(now)
     val coflow = new CoflowInfo(now, newCoflowId(date), desc, date, actor)
     
-    coflows += coflow
-    idToCoflow(coflow.id) = coflow
+    idToCoflow.put(coflow.id, coflow)
     
     client.addCoflow(coflow)  // Update its parent client
     
@@ -290,10 +286,9 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
   // TODO: Let all involved clients know so that they can free up local resources
   def removeCoflow(coflow: CoflowInfo) {
-    if (coflows.contains(coflow)) {
+    if (idToCoflow.containsValue(coflow)) {
       logInfo("Removing coflow " + coflow.id)
-      coflows -= coflow
-      idToCoflow -= coflow.id
+      idToCoflow.remove(coflow.id)
       completedCoflows += coflow  // Remember it in our history
       coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
       
@@ -317,7 +312,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     lastScheduled = curTime
     
     // STEP 1: Sort READY or RUNNING coflows by remaining size
-    val sortedCoflows = coflows.toBuffer.filter(x => x.state == CoflowState.READY || x.state == CoflowState.RUNNING)
+    val sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.state == CoflowState.READY || x.state == CoflowState.RUNNING)
     sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
     
     // STEP 2: Perform WSS + Backfilling
@@ -354,7 +349,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       }
       
       // Remove capacity from ALL sources and destination for this coflow
-      for (sl <- slaves) {
+      for (sl <- idToSlave.values) {
         val host = sl.host
         sBpsFree(host) = sBpsFree(host) - sUsed(host)
         rBpsFree(host) = rBpsFree(host) - rUsed(host)
@@ -363,7 +358,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     
     logInfo("START_NEW_SCHEDULE")
     // STEP 3: Communicate updates to clients
-    val activeFlows = coflows.filter(_.state == CoflowState.RUNNING).flatMap(_.getFlows)
+    val activeFlows = sortedCoflows.filter(_.state == CoflowState.RUNNING).flatMap(_.getFlows)
     activeFlows.groupBy(_.destClient).foreach { tuple => 
       val client = tuple._1
       val flows = tuple._2
@@ -399,7 +394,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   def timeOutDeadSlaves() {
     // Copy the slaves into an array so we don't modify the hashset while iterating through it
     val expirationTime = System.currentTimeMillis() - SLAVE_TIMEOUT
-    val toRemove = slaves.filter(_.lastHeartbeat < expirationTime).toArray
+    val toRemove = idToSlave.values.filter(_.lastHeartbeat < expirationTime).toArray
     for (slave <- toRemove) {
       logWarning("Removing slave %s because we got no heartbeat in %d seconds".format(
         slave.id, SLAVE_TIMEOUT))
