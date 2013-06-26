@@ -2,8 +2,10 @@ package varys.framework.client
 
 import java.io._
 import java.net._
+import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.HashMap
+import scala.collection.JavaConversions._
 
 import akka.actor._
 import akka.pattern.ask
@@ -42,8 +44,8 @@ class Client(
   var clientId: String = null
   var clientActor: ActorRef = null
 
-  val flowToTIS = new HashMap[DataIdentifier, ThrottledInputStream]
-  val flowToBitPerSec = new HashMap[DataIdentifier, Double]
+  val flowToTIS = new ConcurrentHashMap[DataIdentifier, ThrottledInputStream]()
+  val flowToBitPerSec = new ConcurrentHashMap[DataIdentifier, Double]()
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
   val serverThreadName = "ServerThread for Client@" + Utils.localHostName()
@@ -115,10 +117,12 @@ class Client(
         logInfo("Received updated shares")
         for ((flowDesc, newBitPerSec) <- newRates) {
           logInfo(flowDesc + " ==> " + newBitPerSec + " bps")
-          flowToBitPerSec(flowDesc.dataId) = newBitPerSec
-          if (flowToTIS.contains(flowDesc.dataId)) {
-            flowToTIS(flowDesc.dataId).setNewRate(newBitPerSec)
-          } 
+          flowToBitPerSec.put((flowDesc.dataId), newBitPerSec)
+          if (flowToTIS.containsKey(flowDesc.dataId)) {
+            flowToTIS.get(flowDesc.dataId).setNewRate(newBitPerSec)
+          } else {
+            // Can happen if shares have been calculated and transferred before updating flowToTIS
+          }
         }
     }
 
@@ -165,7 +169,8 @@ class Client(
   private def waitForRegistration = {
     while (clientId == null) {
       clientRegisterLock.synchronized { 
-        clientRegisterLock.wait() 
+        clientRegisterLock.wait()
+        clientRegisterLock.notifyAll()
       }
     }
   }
@@ -290,10 +295,12 @@ class Client(
     val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
     oos.flush
 
-    val tisRate = flowToBitPerSec.getOrElse(flowDesc.dataId, 0.0)
-    val tis = new ThrottledInputStream(sock.getInputStream, tisRate)
+    val tis = new ThrottledInputStream(sock.getInputStream, clientName, 0.0)
+    val tisRate = if (flowToBitPerSec.containsKey(flowDesc.dataId)) flowToBitPerSec.get(flowDesc.dataId) else 0.0
+    tis.setNewRate(tisRate)
     
-    flowToTIS(flowDesc.dataId) = tis
+    flowToTIS.put(flowDesc.dataId, tis)
+    logDebug("Created " + tis + " for " + flowDesc)
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush

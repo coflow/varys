@@ -21,6 +21,8 @@ package varys.util
 import java.io.IOException
 import java.io.InputStream
 
+import varys.Logging
+
 /**
  * The ThrottleInputStream provides bandwidth throttling on a specified
  * InputStream. It is implemented as a wrapper on top of another InputStream
@@ -33,10 +35,13 @@ import java.io.InputStream
  */
 private[varys] class ThrottledInputStream(
     val rawStream: InputStream,
+    val ownerName: String,
     val initBitPerSec: Double = 0.0)
-  extends InputStream() {
+  extends InputStream() with Logging {
 
   val startTime = System.currentTimeMillis()
+
+  val mBPSLock = new Object
 
   var maxBytesPerSec = (initBitPerSec / 8).toLong
   var bytesRead = 0L
@@ -76,6 +81,13 @@ private[varys] class ThrottledInputStream(
   }
 
   private def throttle() {
+    while (maxBytesPerSec <= 0.0) {
+      mBPSLock.synchronized {
+        logDebug(this + " maxBytesPerSec <= 0.0. Sleeping.")
+        mBPSLock.wait()
+      }
+    }
+
     // NEVER exceed the specified rate
     while (getBytesPerSec > maxBytesPerSec) {
       try {
@@ -89,6 +101,10 @@ private[varys] class ThrottledInputStream(
 
   def setNewRate(newMaxBitPerSec: Double) {
     maxBytesPerSec = (newMaxBitPerSec / 8).toLong
+    mBPSLock.synchronized {
+      logDebug(this + " newMaxBitPerSec = " + newMaxBitPerSec)
+      mBPSLock.notifyAll()
+    }
   }
 
   def getTotalBytesRead() = bytesRead
@@ -106,7 +122,8 @@ private[varys] class ThrottledInputStream(
 
   override def toString(): String = {
     "ThrottledInputStream{" +
-      "bytesRead=" + bytesRead +
+      "ownerName=" + ownerName +
+      ", bytesRead=" + bytesRead +
       ", maxBytesPerSec=" + maxBytesPerSec +
       ", bytesPerSec=" + getBytesPerSec +
       ", totalSleepTime=" + totalSleepTime +

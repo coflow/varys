@@ -31,5 +31,5 @@ private[varys] class ClientInfo(
     coflows += coflow
   }
   
-  override def toString: String = "SlaveInfo(" + id + "[" + host + ":" + commPort + "])"
+  override def toString: String = "ClientInfo(" + id + "[" + host + ":" + commPort + "])"
 }

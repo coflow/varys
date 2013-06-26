@@ -74,42 +74,43 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
   override def receive = {
     case RegisterSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress) => {
+      val currentSender = sender
       logInfo("Registering slave %s:%d".format(host, slavePort))
       if (idToSlave.containsKey(id)) {
-        sender ! RegisterSlaveFailed("Duplicate slave ID")
+        currentSender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
-        val currentSender = sender
         addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress, currentSender)
-        context.watch(sender)  // This doesn't work with remote actors but helps for testing
-        sender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
+        context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
+        currentSender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
       }
     }
 
     case RegisterClient(clientName, host, commPort) => {
+      val currentSender = sender
       logInfo("Registering client %s@%s:%d".format(clientName, host, commPort))
       if (hostToSlave.contains(host)) {
-        val currentSender = sender
         val client = addClient(clientName, host, commPort, currentSender)
         logDebug("Registered client " + clientName + " with ID " + client.id)
-        context.watch(sender)  // This doesn't work with remote actors but helps for testing
+        context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
         val slave = hostToSlave(host)
-        sender ! RegisteredClient(client.id, slave.id, "varys://" + slave.host + ":" + slave.port)
+        currentSender ! RegisteredClient(client.id, slave.id, "varys://" + slave.host + ":" + slave.port)
       } else {
-        sender ! RegisterClientFailed("No Varys slave at " + host)
+        currentSender ! RegisterClientFailed("No Varys slave at " + host)
       }
     }
 
     case RegisterCoflow(clientId, description) => {
+      val currentSender = sender
+
       // clientId will always be in clients
       val client = idToClient.get(clientId)
       assert(client != null)
       
       logDebug("Registering coflow " + description.name)
-      val currentSender = sender
       val coflow = addCoflow(client, description, currentSender)
       logInfo("Registered coflow " + description.name + " with ID " + coflow.id)
-      context.watch(sender)  // This doesn't work with remote actors but helps for testing
-      sender ! RegisteredCoflow(coflow.id)
+      context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
+      currentSender ! RegisteredCoflow(coflow.id)
 
       // No need to schedule here. Changes won't happen until the new flows are added.
     }
@@ -179,7 +180,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     }
     
     case GetFlow(flowId, coflowId, clientId, slaveId, _) => {
-      logDebug("Received GetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + sender + ")")
+      // logDebug("Received GetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + sender + ")")
       val currentSender = sender
       Future { handleGetFlow(flowId, coflowId, clientId, slaveId, currentSender) }
     }
@@ -195,7 +196,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def handleGetFlow(flowId: String, coflowId: String, clientId: String, slaveId: String, actor: ActorRef) {
-    logDebug("handleGetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + sender + ")")
+    logDebug("handleGetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + actor + ")")
     
     // val slave = idToSlave(slaveId)
     // assert(slave != null)
@@ -241,8 +242,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def removeSlave(slave: SlaveInfo) {
-    logWarning("Removing slave " + slave.id + " on " + slave.host + ":" + slave.port)
     slave.setState(SlaveState.DEAD)
+    logWarning("Removing " + slave)
     // Do not remove from idToSlave so that we remember DEAD slaves
     actorToSlave -= slave.actor
     addressToSlave -= slave.actor.path.address
@@ -261,7 +262,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
 
   def removeClient(client: ClientInfo) {
     if (idToClient.containsValue(client)) {
-      logInfo("Removing client " + client.id)
+      logInfo("Removing " + client)
       idToClient.remove(client.id)
       actorToClient -= client.actor
       addressToClient -= client.actor.path.address
@@ -287,7 +288,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   // TODO: Let all involved clients know so that they can free up local resources
   def removeCoflow(coflow: CoflowInfo) {
     if (idToCoflow.containsValue(coflow)) {
-      logInfo("Removing coflow " + coflow.id)
+      logInfo("Removing " + coflow)
       idToCoflow.remove(coflow.id)
       completedCoflows += coflow  // Remember it in our history
       coflow.markFinished(CoflowState.FINISHED)  // TODO: Mark it as FAILED if it failed
@@ -335,7 +336,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
           if (math.abs(flowInfo.currentBps) < 1e-6) 
             flowInfo.currentBps = 0.0
           flowInfo.lastScheduled = System.currentTimeMillis
-          
           
           // Remember how much capacity was allocated
           sUsed(src) = sUsed(src) + flowInfo.currentBps
