@@ -31,6 +31,7 @@ class Client(
   extends Logging {
 
   val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.framework.ask.wait", "5000").toInt
+  val RATE_UPDATE_FREQ = System.getProperty("varys.client.rateUpdateIntervalMillis", "100").toLong
 
   var actorSystem: ActorSystem = null
   
@@ -45,6 +46,8 @@ class Client(
   var clientActor: ActorRef = null
 
   val flowToTIS = new ConcurrentHashMap[DataIdentifier, ThrottledInputStream]()
+  // TODO: Currently using flowToBitPerSec inside synchronized blocks. Might consider replacing with
+  // an appropriate data structure. E.g., Collections.synchronizedMap could be an option.
   val flowToBitPerSec = new ConcurrentHashMap[DataIdentifier, Double]()
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
@@ -98,6 +101,18 @@ class Client(
         }
         clientRegisterLock.synchronized { clientRegisterLock.notifyAll() }  // Ready to go!
         logInfo("Registered to master. Local slave url = " + slaveUrl)
+        
+        // Thread to periodically uodate the rates of all existing ThrottledInputStreams
+        context.system.scheduler.schedule(0 millis, RATE_UPDATE_FREQ millis) {
+          flowToBitPerSec.synchronized {
+            flowToBitPerSec.foreach { kv => {
+              // kv (key = FlowId, value = Rate)
+              if (flowToTIS.containsKey(kv._1)) 
+                flowToTIS.get(kv._1).setNewRate(kv._2)
+              }
+            }
+          }
+        }
 
       case Terminated(actor_) if actor_ == masterActor =>
         masterDisconnected()
@@ -115,13 +130,10 @@ class Client(
         
       case UpdatedRates(newRates) => 
         logInfo("Received updated shares")
-        for ((flowDesc, newBitPerSec) <- newRates) {
-          logInfo(flowDesc + " ==> " + newBitPerSec + " bps")
-          flowToBitPerSec.put((flowDesc.dataId), newBitPerSec)
-          if (flowToTIS.containsKey(flowDesc.dataId)) {
-            flowToTIS.get(flowDesc.dataId).setNewRate(newBitPerSec)
-          } else {
-            // Can happen if shares have been calculated and transferred before updating flowToTIS
+        flowToBitPerSec.synchronized {
+          for ((flowDesc, newBitPerSec) <- newRates) {
+            logInfo(flowDesc + " ==> " + newBitPerSec + " bps")
+            flowToBitPerSec.put(flowDesc.dataId, newBitPerSec)
           }
         }
     }
@@ -199,7 +211,7 @@ class Client(
     
     // Free local resources
     flowToTIS.retain((dataId, _) => dataId.coflowId != coflowId)
-    flowToBitPerSec.retain((dataId, _) => dataId.coflowId != coflowId)
+    flowToBitPerSec.synchronized { flowToBitPerSec.retain((dataId, _) => dataId.coflowId != coflowId) }
     flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)
   }
 
@@ -296,9 +308,6 @@ class Client(
     oos.flush
 
     val tis = new ThrottledInputStream(sock.getInputStream, clientName, 0.0)
-    val tisRate = if (flowToBitPerSec.containsKey(flowDesc.dataId)) flowToBitPerSec.get(flowDesc.dataId) else 0.0
-    tis.setNewRate(tisRate)
-    
     flowToTIS.put(flowDesc.dataId, tis)
     logDebug("Created " + tis + " for " + flowDesc)
     
