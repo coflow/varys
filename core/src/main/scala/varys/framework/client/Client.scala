@@ -358,7 +358,15 @@ class Client(
         }
       }
     }
+    
+    // Close everything
+    flowToTIS.remove(flowDesc.dataId)
+    tis.close
     sock.close
+    
+    // Notify flow completion
+    // FIXME: Fix bytesSinceLastUpdate argument
+    masterActor ! FlowProgress(flowDesc, flowDesc.sizeInBytes, true)
     
     return retVal
   }

@@ -61,10 +61,15 @@ private[varys] case class GetFlow(
     slaveId: String,
     flowDesc: FlowDescription = null) 
   extends FrameworkMessage
+private[varys] case class FlowProgress(
+    flowDesc: FlowDescription, 
+    bytesSinceLastUpdate: Long, 
+    isCompleted: Boolean)
+  extends FrameworkMessage
 private[varys] case class DeleteFlow(flowId: String, coflowId: String) extends FrameworkMessage
 
 // Slave/Master to Client/Slave
-private[varys] case class GotFlowDesc(flowDescription: FlowDescription) extends FrameworkMessage
+private[varys] case class GotFlowDesc(flowDesc: FlowDescription) extends FrameworkMessage
 
 // Internal message in Client/Slave
 private[varys] case object StopClient

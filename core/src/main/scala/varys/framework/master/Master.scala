@@ -185,6 +185,15 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       Future { handleGetFlow(flowId, coflowId, clientId, slaveId, currentSender) }
     }
     
+    case FlowProgress(flowDesc, bytesSinceLastUpdate, isCompleted) => {
+      // coflowId will always be valid
+      val coflow = idToCoflow.get(flowDesc.coflowId)
+      assert(coflow != null)
+      
+      logDebug("Received FlowProgress for " + flowDesc)
+      coflow.updateFlow(flowDesc, bytesSinceLastUpdate, isCompleted)
+    }
+    
     case DeleteFlow(flowId, coflowId) => {
       // TODO: Actually do something; e.g., remove destination?
       // self ! ScheduleRequest

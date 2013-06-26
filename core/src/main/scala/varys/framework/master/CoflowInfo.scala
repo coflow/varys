@@ -3,7 +3,7 @@ package varys.framework.master
 import akka.actor.ActorRef
 
 import java.util.Date
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic._
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.JavaConverters._
@@ -21,7 +21,9 @@ private[varys] class CoflowInfo(
   var state = CoflowState.WAITING
   var endTime = -1L
   var alpha = 0.0
-  var sizeInBytes = 0L
+  
+  var bytesLeft_ = new AtomicLong(0L)
+  def bytesLeft: Long = bytesLeft_.get()
   
   private val idToFlow = new ConcurrentHashMap[String, FlowInfo]()
 
@@ -61,7 +63,7 @@ private[varys] class CoflowInfo(
   def addFlow(flowDesc: FlowDescription) {
     assert(!idToFlow.containsKey(flowDesc.id))
     idToFlow.put(flowDesc.id, new FlowInfo(flowDesc))
-    sizeInBytes += flowDesc.sizeInBytes
+    bytesLeft_.getAndAdd(flowDesc.sizeInBytes)
   }
 
   /**
@@ -85,6 +87,21 @@ private[varys] class CoflowInfo(
     }
   }
 
+  /**
+   * Updates bytes remaining in the specified flow
+   * Returns true if the flow has completed; false otherwise
+   */
+  def updateFlow(flowDesc: FlowDescription, bytesSinceLastUpdate: Long, isCompleted: Boolean): Boolean = {
+    val flow = idToFlow.get(flowDesc.id)
+    flow.decreaseBytes(bytesSinceLastUpdate)
+    bytesLeft_.getAndAdd(-bytesSinceLastUpdate)
+    if (isCompleted) {
+      assert(flow.bytesLeft == 0)
+      true
+    }
+    false
+  }
+
   def removeFlow(flowId: String) {
     // TODO: 
   }
@@ -103,8 +120,7 @@ private[varys] class CoflowInfo(
    * Returns an estimation of remaining bytes
    */
   def remainingSizeInBytes(): Double = {
-    // TODO: Returning the actual size for now
-    sizeInBytes
+    bytesLeft.toDouble
   }
 
   def duration: Long = {
@@ -115,5 +131,5 @@ private[varys] class CoflowInfo(
     }
   }
   
-  override def toString: String = "CoflowInfo(" + id + "[" + desc + "]:" + state + ":" + numRegisteredFlows.get + " registered flows)"
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "], state=" + state + ", numRegisteredFlows=" + numRegisteredFlows.get + ", bytesLeft= " + bytesLeft + ")"
 }
