@@ -24,8 +24,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val NIC_BPS = 1024 * 1048576
   val SCHEDULE_FREQ = System.getProperty("varys.master.schedulerIntervalMillis", "100").toLong
 
-  // Keeps track of when the scheduler last ran
-  var lastScheduled = System.currentTimeMillis
+  // // Keeps track of when the scheduler last ran
+  // var lastScheduled = System.currentTimeMillis
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new HashMap[ActorRef, SlaveInfo]
@@ -312,14 +312,14 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
    */
   def schedule(): Boolean = synchronized {
     
-    // If scheduled within last 100ms ignore this request
-    val curTime = System.currentTimeMillis
-    if (curTime - lastScheduled < SCHEDULE_FREQ) {
-      return false
-    }
-
-    // Update when we last scheduled
-    lastScheduled = curTime
+    // // If scheduled within last 100ms ignore this request
+    // val curTime = System.currentTimeMillis
+    // if (curTime - lastScheduled < SCHEDULE_FREQ) {
+    //   return false
+    // }
+    //
+    // // Update when we last scheduled
+    // lastScheduled = curTime
     
     // STEP 1: Sort READY or RUNNING coflows by remaining size
     val sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.state == CoflowState.READY || x.state == CoflowState.RUNNING)
