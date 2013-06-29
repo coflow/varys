@@ -95,6 +95,7 @@ private[varys] class CoflowInfo(
     val flow = idToFlow.get(flowDesc.id)
     flow.decreaseBytes(bytesSinceLastUpdate)
     bytesLeft_.getAndAdd(-bytesSinceLastUpdate)
+    numRegisteredFlows.getAndDecrement
     if (isCompleted) {
       assert(flow.bytesLeft == 0)
       true
