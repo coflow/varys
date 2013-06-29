@@ -45,7 +45,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
   
-  def now() = System.currentTimeMillis
+  private def now() = System.currentTimeMillis
   
   val masterPublicAddress = {
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
@@ -90,7 +90,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logTrace("Registering client %s@%s:%d".format(clientName, host, commPort))
       if (hostToSlave.contains(host)) {
         val client = addClient(clientName, host, commPort, currentSender)
-        logTrace("Registered client " + clientName + " with ID " + client.id + " in " + (now - st) + " milliseconds")
+        logInfo("Registered client " + clientName + " with ID " + client.id + " in " + (now - st) + " milliseconds")
         context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
         val slave = hostToSlave(host)
         currentSender ! RegisteredClient(client.id, slave.id, "varys://" + slave.host + ":" + slave.port)
@@ -202,6 +202,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
     case DeleteFlow(flowId, coflowId) => {
       // TODO: Actually do something; e.g., remove destination?
       // self ! ScheduleRequest
+      // sender ! true
     }
 
     case ScheduleRequest => {
@@ -224,7 +225,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       case Some(flowInfo) => {
         val st = now
         canSchedule = coflow.addDestination(flowId, client)
-        logInfo("Added destination to " + coflow + ". " + (coflow.desc.maxFlows - coflow.getNumRegisteredFlows) + " flows remain; in " + (now - st) + " milliseconds")
+        logInfo("Added destination to " + coflow + ". " + coflow.numFlowsToRegister + " flows remain to register; in " + (now - st) + " milliseconds")
 
         // TODO: Always returning the default source. Considering selecting based on traffic etc.
         actor ! Some(GotFlowDesc(flowInfo.desc))
@@ -263,7 +264,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   }
 
   def addClient(clientName: String, host: String, commPort: Int, actor: ActorRef): ClientInfo = {
-    val now = System.currentTimeMillis()
     val date = new Date(now)
     val client = new ClientInfo(now, newClientId(date), host, commPort, date, actor)
     idToClient.put(client.id, client)

@@ -45,6 +45,8 @@ class Client(
   var clientId: String = null
   var clientActor: ActorRef = null
 
+  var regStartTime = 0L
+
   val flowToTIS = new ConcurrentHashMap[DataIdentifier, ThrottledInputStream]()
   // TODO: Currently using flowToBitPerSec inside synchronized blocks. Might consider replacing with
   // an appropriate data structure. E.g., Collections.synchronizedMap could be an option.
@@ -64,6 +66,7 @@ class Client(
 
     override def preStart() {
       logInfo("Connecting to master " + masterUrl)
+      regStartTime = now
       try {
         masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
         masterAddress = masterActor.path.address
@@ -100,7 +103,7 @@ class Client(
           listener.connected(clientId)
         }
         clientRegisterLock.synchronized { clientRegisterLock.notifyAll() }  // Ready to go!
-        logInfo("Registered to master. Local slave url = " + slaveUrl)
+        logInfo("Registered to master in " +  (now - regStartTime) + " milliseconds. Local slave url = " + slaveUrl)
         
         // Thread to periodically uodate the rates of all existing ThrottledInputStreams
         context.system.scheduler.schedule(0 millis, RATE_UPDATE_FREQ millis) {
@@ -151,6 +154,8 @@ class Client(
     }
     
   }
+
+  private def now() = System.currentTimeMillis
 
   def start() {
     // Just launch an actor; it will call back into the listener.
@@ -222,8 +227,12 @@ class Client(
   private def handlePut(flowDesc: FlowDescription, serialObj: Array[Byte] = null) {
     waitForRegistration
     
+    val st = now
+    
     // Notify the slave, which will notify the master
     AkkaUtils.tellActor(slaveActor, AddFlow(flowDesc))
+    
+    logInfo("Registered " + flowDesc + " in " + (now - st) + " milliseconds")
     
     // Keep a reference to the object to be served when asked for.
     if (flowDesc.dataType == DataType.INMEMORY) {
@@ -277,6 +286,8 @@ class Client(
   private def handleGet(blockId: String, dataType: DataType.DataType, coflowId: String): Array[Byte] = {
     waitForRegistration
     
+    var st = now
+    
     // Notify master and retrieve the FlowDescription in response
     var flowDesc: FlowDescription = null
 
@@ -285,31 +296,26 @@ class Client(
     gotFlowDesc match {
       case Some(GotFlowDesc(x)) => flowDesc = x
       case None => { 
-        val tmpM = "Couldn't find flow " + blockId + " of coflow " + coflowId
+        val tmpM = "Failed to receive FlowDescription for " + blockId + " of coflow " + coflowId
         logWarning(tmpM)
         // TODO: Define proper VarysExceptions
         throw new VarysException(tmpM)
       }
     }
-    logInfo("Received " + flowDesc + " for " + blockId + " of coflow " + coflowId)
-    
-    if (flowDesc == null) {
-      // TODO: Handle failure. Retry may be?
-      logError("Failed to receive FlowDescription for " + blockId + " of coflow " + coflowId)
-    }
-    assert(flowDesc != null)
+    logInfo("Received " + flowDesc + " for " + blockId + " of coflow " + coflowId + " in " + (now - st) + " milliseconds")
     
     // Notify local slave
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
     
     // Get it!
+    st = now
     val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)
     val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
     oos.flush
 
     val tis = new ThrottledInputStream(sock.getInputStream, clientName, 0.0)
     flowToTIS.put(flowDesc.dataId, tis)
-    logDebug("Created " + tis + " for " + flowDesc)
+    logDebug("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + " milliseconds")
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush
@@ -397,7 +403,8 @@ class Client(
   }
   
   def deleteFlow(flowId: String, coflowId: String) {
-    AkkaUtils.tellActor(slaveActor, DeleteFlow(flowId, coflowId))
+    // TODO: Do something!
+    // AkkaUtils.tellActor(slaveActor, DeleteFlow(flowId, coflowId))
   }
 
   /**

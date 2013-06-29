@@ -32,8 +32,12 @@ private[varys] class CoflowInfo(
   def retryCount = _retryCount
 
   private val numRegisteredFlows = new AtomicInteger(0)
-  def getNumRegisteredFlows = numRegisteredFlows.get
-  def getFlows() = idToFlow.values.asScala.filter(_.destClient != null)
+  private val numCompletedFlows = new AtomicInteger(0)
+
+  def numFlowsToRegister = desc.maxFlows - numRegisteredFlows.get
+  def numFlowsToComplete = desc.maxFlows - numCompletedFlows.get
+  
+  def getFlows() = idToFlow.values.asScala.filter(_.isLive)
 
   def getFlowInfo(flowId: String): Option[FlowInfo] = {
     val ret = idToFlow.get(flowId)
@@ -73,7 +77,7 @@ private[varys] class CoflowInfo(
    */
   def addDestination(flowId: String, destClient: ClientInfo): Boolean = {
     if (idToFlow.get(flowId).destClient == null) {
-      numRegisteredFlows.incrementAndGet
+      numRegisteredFlows.getAndIncrement
     }
     idToFlow.get(flowId).setDestination(destClient)
     
@@ -95,9 +99,9 @@ private[varys] class CoflowInfo(
     val flow = idToFlow.get(flowDesc.id)
     flow.decreaseBytes(bytesSinceLastUpdate)
     bytesLeft_.getAndAdd(-bytesSinceLastUpdate)
-    numRegisteredFlows.getAndDecrement
     if (isCompleted) {
       assert(flow.bytesLeft == 0)
+      numCompletedFlows.getAndIncrement
       true
     }
     false
@@ -132,5 +136,5 @@ private[varys] class CoflowInfo(
     }
   }
   
-  override def toString: String = "CoflowInfo(" + id + "[" + desc + "], state=" + state + ", numRegisteredFlows=" + numRegisteredFlows.get + ", bytesLeft= " + bytesLeft + ")"
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "], state=" + state + ", numRegisteredFlows=" + numRegisteredFlows.get + ", numCompletedFlows=" + numCompletedFlows.get + ", bytesLeft= " + bytesLeft + ")"
 }

@@ -18,6 +18,8 @@ private[varys] class FlowInfo(val desc: FlowDescription) {
     destClient = dClient
   }
 
+  def isLive = (destClient != null && bytesLeft > 0)
+  
   def getFlowSize() = desc.sizeInBytes
   def decreaseBytes(byteToDecrease: Long) { bytesLeft_.getAndAdd(-byteToDecrease) }
 
