@@ -372,7 +372,7 @@ class Client(
     
     // Notify flow completion
     // FIXME: Fix bytesSinceLastUpdate argument
-    masterActor ! FlowProgress(flowDesc, flowDesc.sizeInBytes, true)
+    masterActor ! FlowProgress(blockId, coflowId, flowDesc.sizeInBytes, true)
     
     return retVal
   }

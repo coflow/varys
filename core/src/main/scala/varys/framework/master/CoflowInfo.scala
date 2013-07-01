@@ -95,8 +95,8 @@ private[varys] class CoflowInfo(
    * Updates bytes remaining in the specified flow
    * Returns true if the flow has completed; false otherwise
    */
-  def updateFlow(flowDesc: FlowDescription, bytesSinceLastUpdate: Long, isCompleted: Boolean): Boolean = {
-    val flow = idToFlow.get(flowDesc.id)
+  def updateFlow(flowId: String, bytesSinceLastUpdate: Long, isCompleted: Boolean): Boolean = {
+    val flow = idToFlow.get(flowId)
     flow.decreaseBytes(bytesSinceLastUpdate)
     bytesLeft_.getAndAdd(-bytesSinceLastUpdate)
     if (isCompleted) {

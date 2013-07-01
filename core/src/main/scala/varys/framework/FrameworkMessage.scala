@@ -62,7 +62,8 @@ private[varys] case class GetFlow(
     flowDesc: FlowDescription = null) 
   extends FrameworkMessage
 private[varys] case class FlowProgress(
-    flowDesc: FlowDescription, 
+    flowId: String, 
+    coflowId: String, 
     bytesSinceLastUpdate: Long, 
     isCompleted: Boolean)
   extends FrameworkMessage
@@ -79,13 +80,7 @@ case class GetRequest(
     targetHost: String = null,
     targetCommPort: Int = 0) 
   extends FrameworkMessage {
-  
-  override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
-} 
-private[varys]
-case class PutRequest(flowDesc: FlowDescription) extends FrameworkMessage {
-  
-  override def toString: String = "PutRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
+  // override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
 } 
 
 // Internal message in Master

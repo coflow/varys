@@ -22,7 +22,6 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
   val NIC_BPS = 1024 * 1048576
-  val SCHEDULE_FREQ = System.getProperty("varys.master.schedulerIntervalMillis", "100").toLong
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new HashMap[ActorRef, SlaveInfo]
@@ -189,14 +188,14 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       Future { handleGetFlow(flowId, coflowId, clientId, slaveId, currentSender) }
     }
     
-    case FlowProgress(flowDesc, bytesSinceLastUpdate, isCompleted) => {
+    case FlowProgress(flowId, coflowId, bytesSinceLastUpdate, isCompleted) => {
       // coflowId will always be valid
-      val coflow = idToCoflow.get(flowDesc.coflowId)
+      val coflow = idToCoflow.get(coflowId)
       assert(coflow != null)
 
       val st = now
-      coflow.updateFlow(flowDesc, bytesSinceLastUpdate, isCompleted)
-      logTrace("Received FlowProgress for " + flowDesc + " in " + (now - st) + " milliseconds")
+      coflow.updateFlow(flowId, bytesSinceLastUpdate, isCompleted)
+      logTrace("Received FlowProgress for flow " + flowId + " of " + coflow + " in " + (now - st) + " milliseconds")
     }
     
     case DeleteFlow(flowId, coflowId) => {
