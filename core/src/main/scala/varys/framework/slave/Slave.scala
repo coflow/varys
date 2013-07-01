@@ -111,10 +111,14 @@ private[varys] class SlaveActor(
       masterWebUiUrl = url
       logInfo("Successfully registered with master")
 
-      // Thread to periodically update last{Rx|Tx}Bytes
-      context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC * 1000 millis) {
-        updateNetStats()
-        master ! Heartbeat(slaveId, curRxBps, curTxBps)
+      // Do not send stats by default
+      val sendStats = System.getProperty("varys.slave.sendStats", "false").toBoolean
+      if (sendStats) {
+        // Thread to periodically update last{Rx|Tx}Bytes
+        context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC * 1000 millis) {
+          updateNetStats()
+          master ! Heartbeat(slaveId, curRxBps, curTxBps)
+        }
       }
     }
 
