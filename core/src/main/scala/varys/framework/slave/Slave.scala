@@ -111,7 +111,7 @@ private[varys] class SlaveActor(
       masterWebUiUrl = url
       logInfo("Successfully registered with master")
 
-      // Thread to periodically uodate last{Rx|Tx}Bytes
+      // Thread to periodically update last{Rx|Tx}Bytes
       context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC * 1000 millis) {
         updateNetStats()
         master ! Heartbeat(slaveId, curRxBps, curTxBps)

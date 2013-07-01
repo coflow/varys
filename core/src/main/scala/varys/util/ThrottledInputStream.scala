@@ -83,7 +83,7 @@ private[varys] class ThrottledInputStream(
   private def throttle() {
     while (maxBytesPerSec <= 0.0) {
       mBPSLock.synchronized {
-        logDebug(this + " maxBytesPerSec <= 0.0. Sleeping.")
+        logTrace(this + " maxBytesPerSec <= 0.0. Sleeping.")
         mBPSLock.wait()
       }
     }
@@ -102,7 +102,7 @@ private[varys] class ThrottledInputStream(
   def setNewRate(newMaxBitPerSec: Double) {
     maxBytesPerSec = (newMaxBitPerSec / 8).toLong
     mBPSLock.synchronized {
-      logDebug(this + " newMaxBitPerSec = " + newMaxBitPerSec)
+      logTrace(this + " newMaxBitPerSec = " + newMaxBitPerSec)
       mBPSLock.notifyAll()
     }
   }
