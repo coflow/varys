@@ -33,6 +33,7 @@ private[varys] object AkkaUtils {
      val akkaBatchSize = System.getProperty("varys.akka.batchSize", "15").toInt
      val akkaTimeout = System.getProperty("varys.akka.timeout", "60").toInt
      val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt
+     val logLevel = System.getProperty("varys.akka.logLevel", "ERROR")
      val lifecycleEvents = if (System.getProperty("varys.akka.logLifecycleEvents", "false").toBoolean) "on" else "off"
      val logRemoteEvents = if (System.getProperty("varys.akka.logRemoteEvents", "false").toBoolean) "on" else "off"
      // 10 seconds is the default akka timeout, but in a cluster, we need higher by default.
@@ -41,8 +42,8 @@ private[varys] object AkkaUtils {
      val akkaConf = ConfigFactory.parseString("""
        akka.daemonic = on
        akka.event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
-       akka.loglevel = "ERROR"
-       akka.stdout-loglevel = "ERROR"
+       akka.loglevel = "%s"
+       akka.stdout-loglevel = "%s"
        akka.actor.provider = "akka.remote.RemoteActorRefProvider"
        akka.remote.transport = "akka.remote.netty.NettyRemoteTransport"
        akka.remote.netty.hostname = "%s"
@@ -55,7 +56,7 @@ private[varys] object AkkaUtils {
        akka.remote.log-sent-messages = %s
        akka.remote.log-received-messages = %s
        akka.remote.netty.write-timeout = %ds
-       """.format(host, port, akkaTimeout, akkaFrameSize, akkaThreads, akkaBatchSize,
+       """.format(logLevel, logLevel, host, port, akkaTimeout, akkaFrameSize, akkaThreads, akkaBatchSize,
          lifecycleEvents, logRemoteEvents, logRemoteEvents, akkaWriteTimeout))
 
      val actorSystem = ActorSystem(name, akkaConf)
