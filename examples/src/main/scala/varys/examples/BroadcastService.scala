@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ArrayBuffer
   
 import varys.util.AkkaUtils
-import varys.{Logging, Utils, VarysCommon}
+import varys.{Logging, Utils}
 import varys.framework.client._
 import varys.framework._
 
@@ -47,6 +47,7 @@ private[varys] object BroadcastSender extends Logging {
       val serverThreadName: String = "BroadcastMaster") 
     extends Thread (serverThreadName) with Logging {
     
+    val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
     var serverSocket: ServerSocket = new ServerSocket(BroadcastUtils.BROADCAST_MASTER_PORT)
     
     var connectedSlaves = new AtomicInteger()
@@ -62,7 +63,7 @@ private[varys] object BroadcastSender extends Logging {
         while (!stopServer && !finished) {
           var clientSocket: Socket = null
           try {
-            serverSocket.setSoTimeout(VarysCommon.HEARTBEAT_SEC * 1000)
+            serverSocket.setSoTimeout(HEARTBEAT_SEC * 1000)
             clientSocket = serverSocket.accept
           } catch {
             case e: Exception => { 

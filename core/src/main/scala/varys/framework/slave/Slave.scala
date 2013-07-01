@@ -12,7 +12,7 @@ import akka.util.duration._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
 
 import varys.framework.master.Master
-import varys.{VarysCommon, Logging, Utils, VarysException}
+import varys.{Logging, Utils, VarysException}
 import varys.util.AkkaUtils
 import varys.framework._
 
@@ -29,6 +29,8 @@ private[varys] class SlaveActor(
     workDirPath: String = null)
   extends Actor with Logging {
   
+  val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
+
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
   var dataServer = new DataServer(commPort, serverThreadName)
   dataServer.start()
@@ -115,7 +117,7 @@ private[varys] class SlaveActor(
       val sendStats = System.getProperty("varys.slave.sendStats", "false").toBoolean
       if (sendStats) {
         // Thread to periodically update last{Rx|Tx}Bytes
-        context.system.scheduler.schedule(0 millis, VarysCommon.HEARTBEAT_SEC * 1000 millis) {
+        context.system.scheduler.schedule(0 millis, HEARTBEAT_SEC * 1000 millis) {
           updateNetStats()
           master ! Heartbeat(slaveId, curRxBps, curTxBps)
         }
@@ -223,8 +225,8 @@ private[varys] class SlaveActor(
     var rxBps = 0.0
     var txBps = 0.0
     if (lastRxBytes >= 0.0 && lastTxBytes >= 0.0) {
-      rxBps = (curRxBytes - lastRxBytes) / VarysCommon.HEARTBEAT_SEC;
-      txBps = (curTxBytes - lastTxBytes) / VarysCommon.HEARTBEAT_SEC;
+      rxBps = (curRxBytes - lastRxBytes) / HEARTBEAT_SEC;
+      txBps = (curTxBytes - lastTxBytes) / HEARTBEAT_SEC;
     } 
     
     lastRxBytes = curRxBytes

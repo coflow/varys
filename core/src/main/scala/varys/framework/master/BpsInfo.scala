@@ -1,11 +1,10 @@
 package varys.framework.master
 
-import varys.VarysCommon
-
 private[varys] class BpsInfo {
 
   // TODO: Might need a lock before updates and reads
   
+  val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   val OLD_FACTOR = System.getProperty("varys.network.oldFactor", "0.2").toDouble
 
   var bps = 0.0
@@ -35,7 +34,7 @@ private[varys] class BpsInfo {
     
     // Calculate the expected time till the next update
     val secElapsed = (System.currentTimeMillis - lastUpdateTime) / 1000.0
-    val timeTillUpdate = 1.0 * VarysCommon.HEARTBEAT_SEC - secElapsed
+    val timeTillUpdate = 1.0 * HEARTBEAT_SEC - secElapsed
 
     // Bound incVal by blockSize
     if (timeTillUpdate > 0.0) {

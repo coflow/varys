@@ -17,7 +17,7 @@ import akka.remote.RemoteClientDisconnected
 import akka.actor.Terminated
 import akka.dispatch.Await
 
-import varys.{VarysCommon, VarysException, Logging}
+import varys.{VarysException, Logging}
 import varys.framework._
 import varys.framework.master.{Master, CoflowInfo}
 import varys.framework.slave.Slave

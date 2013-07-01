@@ -5,7 +5,7 @@ import java.net._
 
 import scala.collection.mutable.HashMap
 
-import varys.{VarysCommon, Logging, Utils}
+import varys.{Logging, Utils}
 
 /**
  * A common server to serve requested pieces of data. 
@@ -19,6 +19,7 @@ private[varys] class DataServer(
     flowToObject: HashMap[DataIdentifier, Array[Byte]] = null) 
   extends Logging {
   
+  val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   var serverSocket: ServerSocket = new ServerSocket(commPort, 256)
   
   var stopServer = false
@@ -30,7 +31,7 @@ private[varys] class DataServer(
         while (!stopServer) {
           var clientSocket: Socket = null
           try {
-            serverSocket.setSoTimeout(VarysCommon.HEARTBEAT_SEC * 1000)
+            serverSocket.setSoTimeout(HEARTBEAT_SEC * 1000)
             clientSocket = serverSocket.accept
           } catch {
             case e: Exception => { 
