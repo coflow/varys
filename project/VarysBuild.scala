@@ -59,7 +59,10 @@ object VarysBuild extends Build {
       "cc.spray" % "spray-server" % "1.0-M2.1",
       "cc.spray" %%  "spray-json" % "1.1.1",
       "org.apache.thrift" % "libthrift" % "0.8.0",
-      "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native"
+      "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native",
+      "com.esotericsoftware.kryo" % "kryo" % "2.19",
+      // akka-kryo-serialization has been added in an hackish way. We've compiled locally, then uploaded the jar to my website.
+      "akka-kryo-serialization" % "akka-kryo-serialization" % "0.2-SNAPSHOT" from "http://mosharaf.com/akka-kryo-serialization-0.2-SNAPSHOT.jar"
     ),
     
     // Collect jar files to be extracted from managed jar dependencies

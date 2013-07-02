@@ -366,12 +366,12 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       val client = tuple._1
       val flows = tuple._2
       
-      val rateMap = flows.map(t => (t.desc, t.currentBps)).toMap
+      val rateMap = flows.map(t => (t.desc.dataId, t.currentBps)).toMap
       
       // Log current schedule
       var sumBPS = 0.0
-      for ((fDesc, nBPS) <- rateMap) {
-        logTrace(fDesc + " ==> " + nBPS + " bps")
+      for ((dataId, nBPS) <- rateMap) {
+        logTrace(dataId + " ==> " + nBPS + " bps")
         sumBPS += nBPS
       }
       logInfo(client.host + " = " + rateMap.size + " flows. " + (sumBPS / 1048576.0) + " Mbps")

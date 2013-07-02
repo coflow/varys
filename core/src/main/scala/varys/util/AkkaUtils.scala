@@ -40,11 +40,78 @@ private[varys] object AkkaUtils {
      val akkaWriteTimeout = System.getProperty("varys.akka.writeTimeout", "30").toInt
 
      val akkaConf = ConfigFactory.parseString("""
-       akka.daemonic = on
-       akka.event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+       akka {
+         daemonic = on
+         event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+         extensions = ["com.romix.akka.serialization.kryo.KryoSerializationExtension$"]
+         
+         actor {
+           provider = "akka.remote.RemoteActorRefProvider"
+
+           serializers {  
+               java = "akka.serialization.JavaSerializer"
+               kryo = "com.romix.akka.serialization.kryo.KryoSerializer"
+           }
+
+           serialization-bindings {
+             "varys.framework.FrameworkMessage" = kryo
+             "java.io.Serializable" = java
+           }
+
+           # Details of configuration params is at https://github.com/romix/akka-kryo-serialization
+           kryo {
+             type = "graph"  
+             idstrategy = "incremental"  
+
+             # Define a default size for serializer pool
+             # Try to define the size to be at least as big as the max possible number
+             # of threads that may be used for serialization, i.e. max number
+             # of threads allowed for the scheduler
+             serializer-pool-size = 16
+
+             # Define a default size for byte buffers used during serialization   
+             buffer-size = 4096  
+
+             use-manifests = false
+             implicit-registration-logging = false 
+             kryo-trace = false 
+
+             classes = [  
+               "varys.framework.RegisterSlave",  
+               "varys.framework.Heartbeat",
+               "varys.framework.RegisteredSlave",
+               "varys.framework.RegisterSlaveFailed",
+               "varys.framework.RegisterClient",
+               "varys.framework.RegisterCoflow",
+               "varys.framework.UnregisterCoflow",
+               "varys.framework.RequestBestRxMachines",
+               "varys.framework.RequestBestTxMachines",
+               "varys.framework.RegisteredClient",
+               "varys.framework.CoflowKilled",
+               "varys.framework.RegisterClientFailed",
+               "varys.framework.RegisteredCoflow",
+               "varys.framework.UnregisteredCoflow",
+               "varys.framework.BestRxMachines",
+               "varys.framework.BestTxMachines",
+               "varys.framework.UpdatedRates",
+               "varys.framework.AddFlow",
+               "varys.framework.GetFlow",
+               "varys.framework.FlowProgress",
+               "varys.framework.DeleteFlow",
+               "varys.framework.GotFlowDesc",
+               "varys.framework.CoflowDescription",
+               "varys.framework.CoflowType$",
+               "varys.framework.FlowDescription",
+               "varys.framework.DataIdentifier",
+               "varys.framework.DataType$",
+               "scala.collection.immutable.Map$Map1"
+             ]  
+           }
+         }
+       }
+       
        akka.loglevel = "%s"
        akka.stdout-loglevel = "%s"
-       akka.actor.provider = "akka.remote.RemoteActorRefProvider"
        akka.remote.transport = "akka.remote.netty.NettyRemoteTransport"
        akka.remote.netty.hostname = "%s"
        akka.remote.netty.port = %d
