@@ -313,11 +313,13 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
    * Returns a Boolean indicating whether it ran or not
    */
   def schedule(): Boolean = synchronized {
-    val st = now
+    var st = now
     
     // STEP 1: Sort READY or RUNNING coflows by remaining size
     var sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.remainingSizeInBytes > 0 && (x.state == CoflowState.READY || x.state == CoflowState.RUNNING))
     sortedCoflows = sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
+    val step1Dur = now - st
+    st = now
     
     // STEP 2: Perform WSS + Backfilling
     val sBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BPS)
@@ -358,10 +360,12 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
         rBpsFree(host) = rBpsFree(host) - rUsed(host)
       }
     }
+    val step2Dur = now - st
+    st = now
     
-    logInfo("START_NEW_SCHEDULE")
     // STEP 3: Communicate updates to clients
     val activeFlows = sortedCoflows.filter(_.state == CoflowState.RUNNING).flatMap(_.getFlows)
+    logInfo("START_NEW_SCHEDULE: " + activeFlows.size + " flows in " + sortedCoflows.size + " coflows")
     activeFlows.groupBy(_.destClient).foreach { tuple => 
       val client = tuple._1
       val flows = tuple._2
@@ -378,7 +382,8 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       
       client.actor ! UpdatedRates(rateMap)
     }
-    logInfo("END_NEW_SCHEDULE in " + (now - st) + " milliseconds")
+    val step3Dur = now - st
+    logInfo("END_NEW_SCHEDULE in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + step2Dur + "+" + step3Dur + ") milliseconds")
     
     true
   }
