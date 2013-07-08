@@ -259,7 +259,7 @@ class Client(
     val st = now
   
     // Notify the slave, which will notify the master
-    AkkaUtils.tellActor(slaveActor, AddFlows(flowDescs, coflowId))
+    AkkaUtils.tellActor(slaveActor, AddFlows(flowDescs, coflowId, dataType))
   
     logInfo("Registered Array[FlowDescription] in " + (now - st) + " milliseconds")
   }

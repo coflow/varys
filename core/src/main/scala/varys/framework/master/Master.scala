@@ -167,7 +167,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       sender ! BestTxMachines(idToTxBps.getTopN(howMany, bytes).toArray.map(x => idToSlave.get(x).host))
     }
     
-    case AddFlows(flowDescs, coflowId) => {
+    case AddFlows(flowDescs, coflowId, dataType) => {
       val currentSender = sender
       
       // coflowId will always be valid

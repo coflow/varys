@@ -169,6 +169,20 @@ private[varys] class SlaveActor(
       sender ! true
     }
     
+    case AddFlows(flowDescs, coflowId, dataType) => {
+      // TODO: Do something!
+      logInfo("Received AddFlows for coflow " + coflowId)
+      
+      // Update commPort if the end point will be a client
+      if (dataType != DataType.INMEMORY) {
+        flowDescs.foreach(_.updateCommPort(commPort))
+      }
+      
+      // Now let the master know and notify the client
+      AkkaUtils.tellActor(master, AddFlows(flowDescs, coflowId, dataType))
+      sender ! true
+    }
+
     case GetFlow(flowId, coflowId, clientId, _, flowDesc) => {
       // TODO: Do something!
       logInfo("Received GetFlow for " + flowDesc)
