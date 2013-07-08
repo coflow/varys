@@ -54,6 +54,7 @@ private[varys] case class UpdatedRates(newRates: Map[FlowDescription, Double]) e
 
 // Client/Slave to Slave/Master
 private[varys] case class AddFlow(flowDescription: FlowDescription) extends FrameworkMessage
+private[varys] case class AddFlows(flowDescriptions: Array[FlowDescription], coflowId: String) extends FrameworkMessage
 private[varys] case class GetFlow(
     flowId: String, 
     coflowId: String, 

@@ -242,6 +242,29 @@ class Client(
   }
 
   /**
+   * Makes multiple pieces of data available for retrieval, and notifies local slave, which will 
+   * register it with the master. 
+   * Non-blocking call.
+   * FIXME: Handles only DataType.FAKE right now.
+   */
+  private def handlePutMultiple(flowDescs: Array[FlowDescription], coflowId: String, dataType: DataType.DataType) {
+    if (dataType != DataType.FAKE) {
+      val tmpM = "handlePutMultiple currently supports only DataType.FAKE"
+      logWarning(tmpM)
+      throw new VarysException(tmpM)
+    }
+    
+    waitForRegistration
+  
+    val st = now
+  
+    // Notify the slave, which will notify the master
+    AkkaUtils.tellActor(slaveActor, AddFlows(flowDescs, coflowId))
+  
+    logInfo("Registered Array[FlowDescription] in " + (now - st) + " milliseconds")
+  }
+
+  /**
    * Puts any data structure
    */
   def putObject[T: Manifest](objId: String, obj: T, coflowId: String, size: Long, numReceivers: Int) {
@@ -276,6 +299,16 @@ class Client(
     val desc = new FlowDescription(blockId, coflowId, DataType.FAKE, size, numReceivers, 
       clientHost, clientCommPort)
     handlePut(desc)
+  }
+  
+  /**
+   * Puts multiple blocks at the same time of same size and same number of receivers
+   * blocks => (blockId, blockSize, numReceivers)
+   */ 
+  def putFakeMultiple(blocks: Array[(String, Long, Int)], coflowId: String) {
+    val descs = blocks.map(blk => new FlowDescription(blk._1, coflowId, DataType.FAKE, blk._2, blk._3, 
+      clientHost, clientCommPort))
+    handlePutMultiple(descs, coflowId, DataType.FAKE)
   }
   
   /**

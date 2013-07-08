@@ -167,6 +167,21 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       sender ! BestTxMachines(idToTxBps.getTopN(howMany, bytes).toArray.map(x => idToSlave.get(x).host))
     }
     
+    case AddFlows(flowDescs, coflowId) => {
+      val currentSender = sender
+      
+      // coflowId will always be valid
+      val coflow = idToCoflow.get(coflowId)
+      assert(coflow != null)
+      
+      val st = now
+      flowDescs.foreach { coflow.addFlow }
+      logDebug("Added " + flowDescs.size + " flows to " + coflow + " in " + (now - st) + " milliseconds")
+      currentSender ! true
+      
+      // No need to schedule here because a flow will not start until a receiver asks for it
+    }
+    
     case AddFlow(flowDesc) => {
       val currentSender = sender
       
