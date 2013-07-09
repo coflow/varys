@@ -89,10 +89,10 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logTrace("Registering client %s@%s:%d".format(clientName, host, commPort))
       if (hostToSlave.contains(host)) {
         val client = addClient(clientName, host, commPort, currentSender)
-        logInfo("Registered client " + clientName + " with ID " + client.id + " in " + (now - st) + " milliseconds")
         // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
         val slave = hostToSlave(host)
         currentSender ! RegisteredClient(client.id, slave.id, "varys://" + slave.host + ":" + slave.port)
+        logInfo("Registered client " + clientName + " with ID " + client.id + " in " + (now - st) + " milliseconds")
       } else {
         currentSender ! RegisterClientFailed("No Varys slave at " + host)
       }
@@ -108,9 +108,9 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       val st = now
       logTrace("Registering coflow " + description.name)
       val coflow = addCoflow(client, description, currentSender)
-      logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + (now - st) + " milliseconds")
       // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
       currentSender ! RegisteredCoflow(coflow.id)
+      logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + (now - st) + " milliseconds")
 
       // No need to schedule here. Changes won't happen until the new flows are added.
     }
@@ -374,6 +374,21 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
         val host = sl.host
         sBpsFree(host) = sBpsFree(host) - sUsed(host)
         rBpsFree(host) = rBpsFree(host) - rUsed(host)
+      }
+    }
+
+    // STEP2A: Work conservation
+    for (cf <- sortedCoflows) {
+      for (flowInfo <- cf.getFlows) {
+        val src = flowInfo.source
+        val dst = flowInfo.destClient.host
+
+        val minFree = math.min(sBpsFree(src), rBpsFree(dst))
+        if (minFree > 0.0) {
+          flowInfo.currentBps += minFree
+          sBpsFree(src) = sBpsFree(src) - minFree
+          rBpsFree(dst) = rBpsFree(dst) - minFree
+        }
       }
     }
     val step2Dur = now - st
