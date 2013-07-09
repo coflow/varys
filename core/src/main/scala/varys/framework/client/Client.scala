@@ -386,7 +386,6 @@ class Client(
     (flowDesc, retVal)
   }
   
-  
   /**
    * Notifies the master and the slave. But everything is done in the client
    * Blocking call.
@@ -417,16 +416,9 @@ class Client(
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
     
     // Get it!
-    var retVal: Array[Byte] = null
-    val gotFuture = Future(getOne(flowDesc))
-    gotFuture.onComplete {
-      case Right((origFlowDesc, res)) => {
-        // Notify flow completion
-        masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
-        retVal = res
-      }
-      case Left(vex) => throw vex
-    }
+    val (origFlowDesc, retVal) = getOne(flowDesc)
+    // Notify flow completion
+    masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
     retVal
   }
   
@@ -467,16 +459,40 @@ class Client(
     AkkaUtils.tellActor(slaveActor, GetFlows(blockIds, coflowId, clientId, slaveId, flowDescs))
     
     // Get 'em!
-    val futureList = Future.traverse(flowDescs.toList)(fd => Future(getOne(fd)))
-    futureList.onComplete {
-      case Right(arrayOfFlowDesc_Res) => {
-        arrayOfFlowDesc_Res.foreach { x =>
-          val (origFlowDesc, res) = x
+    val recvLock = new Object()
+    var recvFinished = 0
+
+    for (flowDesc <- flowDescs) {
+      new Thread("Receive thread for " + flowDesc) {
+        override def run() {
+          val (origFlowDesc, retVal) = getOne(flowDesc)
+          // Notify flow completion
           masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+          
+          recvLock.synchronized {
+            recvFinished += 1
+            recvLock.notifyAll()
+          }
         }
-      }
-      case Left(vex) => throw vex
+      }.start()
     }
+
+    recvLock.synchronized {
+      while (recvFinished < flowDescs.size) {
+        recvLock.wait()
+      }
+    }
+
+    // val futureList = Future.traverse(flowDescs.toList)(fd => Future(getOne(fd)))
+    // futureList.onComplete {
+    //   case Right(arrayOfFlowDesc_Res) => {
+    //     arrayOfFlowDesc_Res.foreach { x =>
+    //       val (origFlowDesc, res) = x
+    //       masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+    //     }
+    //   }
+    //   case Left(vex) => throw vex
+    // }
   }
 
   /**

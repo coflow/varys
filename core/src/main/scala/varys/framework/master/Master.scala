@@ -249,7 +249,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
         // TODO: Always returning the default source. Considering selecting based on traffic etc.
         actor ! Some(GotFlowDescs(flowInfos.map(_.desc)))
 
-        logInfo("Added " + flowIds.size + "destinations to " + coflow + ". " + coflow.numFlowsToRegister + " flows remain to register; in " + (now - st) + " milliseconds")
+        logInfo("Added " + flowIds.size + " destinations to " + coflow + ". " + coflow.numFlowsToRegister + " flows remain to register; in " + (now - st) + " milliseconds")
       }
       case None => {
         // logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)
