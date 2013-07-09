@@ -190,6 +190,13 @@ private[varys] class SlaveActor(
       sender ! true
     }
     
+    case GetFlows(flowIds, coflowId, clientId, _, flowDescs) => {
+      // TODO: Do something!
+      logInfo("Received GetFlows for " + flowIds.size + " flows of coflow " + coflowId)
+      
+      sender ! true
+    }
+
     case DeleteFlow(flowId, coflowId) => {
       // TODO: Actually remove
       sender ! true

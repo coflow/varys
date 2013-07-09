@@ -62,6 +62,13 @@ private[varys] case class GetFlow(
     slaveId: String,
     flowDesc: FlowDescription = null) 
   extends FrameworkMessage
+private[varys] case class GetFlows(
+    flowIds: Array[String], 
+    coflowId: String, 
+    clientId: String,
+    slaveId: String,
+    flowDescs: Array[FlowDescription] = null) 
+  extends FrameworkMessage
 private[varys] case class FlowProgress(
     flowId: String, 
     coflowId: String, 
@@ -72,6 +79,7 @@ private[varys] case class DeleteFlow(flowId: String, coflowId: String) extends F
 
 // Slave/Master to Client/Slave
 private[varys] case class GotFlowDesc(flowDesc: FlowDescription) extends FrameworkMessage
+private[varys] case class GotFlowDescs(flowDescs: Array[FlowDescription]) extends FrameworkMessage
 
 // Internal message in Client/Slave
 private[varys] case object StopClient

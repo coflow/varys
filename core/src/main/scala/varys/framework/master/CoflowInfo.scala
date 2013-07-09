@@ -39,6 +39,15 @@ private[varys] class CoflowInfo(
   
   def getFlows() = idToFlow.values.asScala.filter(_.isLive)
 
+  def getFlowInfos(flowIds: Array[String]): Option[Array[FlowInfo]] = {
+    val ret = flowIds.map(idToFlow.get(_))
+    ret.foreach(v => {
+      if (v == null)
+        return None
+    })
+    Some(ret)
+  }
+
   def getFlowInfo(flowId: String): Option[FlowInfo] = {
     val ret = idToFlow.get(flowId)
     if (ret == null) None else Some(ret)
@@ -80,8 +89,14 @@ private[varys] class CoflowInfo(
       numRegisteredFlows.getAndIncrement
     }
     idToFlow.get(flowId).setDestination(destClient)
-    
-    // Mark this coflow as RUNNING only after all flows are alive
+    postProcessIfReady
+  }
+
+  /**
+   * Mark this coflow as RUNNING only after all flows are alive
+   * Returns true if the coflow is ready to go
+   */
+  private def postProcessIfReady(): Boolean = {
     if (numRegisteredFlows.get == desc.maxFlows) {
       state = CoflowState.READY
       alpha = calcAlpha()
@@ -89,6 +104,21 @@ private[varys] class CoflowInfo(
     } else {
       false
     }
+  }
+
+  /**
+   * Adds destinations for a multiple pieces of data. 
+   * Assume flowId already exists in idToFlow
+   * Returns true if the coflow is ready to go
+   */
+  def addDestinations(flowIds: Array[String], destClient: ClientInfo): Boolean = {
+    flowIds.foreach { flowId => 
+      if (idToFlow.get(flowId).destClient == null) {
+        numRegisteredFlows.getAndIncrement
+      }
+      idToFlow.get(flowId).setDestination(destClient)
+    }
+    postProcessIfReady
   }
 
   /**
