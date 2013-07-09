@@ -159,7 +159,7 @@ private[varys] object BroadcastSender extends Logging {
     val client = new Client("BroadcastSender", url, listener)
     client.start()
     
-    val desc = new CoflowDescription("Broadcast-" + fileName, CoflowType.BROADCAST, numSlaves)
+    val desc = new CoflowDescription("Broadcast-" + fileName, CoflowType.BROADCAST, numSlaves, LEN_BYTES * numSlaves)
     val coflowId = client.registerCoflow(desc)
     logInfo("Registered coflow " + coflowId)
     
