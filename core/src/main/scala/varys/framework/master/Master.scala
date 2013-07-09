@@ -78,7 +78,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
         currentSender ! RegisterSlaveFailed("Duplicate slave ID")
       } else {
         addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress, currentSender)
-        context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
+        // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
         currentSender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
       }
     }
@@ -90,7 +90,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       if (hostToSlave.contains(host)) {
         val client = addClient(clientName, host, commPort, currentSender)
         logInfo("Registered client " + clientName + " with ID " + client.id + " in " + (now - st) + " milliseconds")
-        context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
+        // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
         val slave = hostToSlave(host)
         currentSender ! RegisteredClient(client.id, slave.id, "varys://" + slave.host + ":" + slave.port)
       } else {
@@ -109,7 +109,7 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       logTrace("Registering coflow " + description.name)
       val coflow = addCoflow(client, description, currentSender)
       logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + (now - st) + " milliseconds")
-      context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
+      // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
       currentSender ! RegisteredCoflow(coflow.id)
 
       // No need to schedule here. Changes won't happen until the new flows are added.
@@ -239,10 +239,11 @@ private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends 
       case Some(flowInfo) => {
         val st = now
         canSchedule = coflow.addDestination(flowId, client)
-        logInfo("Added destination to " + coflow + ". " + coflow.numFlowsToRegister + " flows remain to register; in " + (now - st) + " milliseconds")
 
         // TODO: Always returning the default source. Considering selecting based on traffic etc.
         actor ! Some(GotFlowDesc(flowInfo.desc))
+
+        logInfo("Added destination to " + coflow + ". " + coflow.numFlowsToRegister + " flows remain to register; in " + (now - st) + " milliseconds")
       }
       case None => {
         // logWarning("Couldn't find flow " + flowId + " of coflow " + coflowId)

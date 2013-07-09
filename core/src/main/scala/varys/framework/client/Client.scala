@@ -72,7 +72,7 @@ class Client(
         masterAddress = masterActor.path.address
         masterActor ! RegisterClient(clientName, clientHost, clientCommPort)
         context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-        context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
+        // context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
       } catch {
         case e: Exception =>
           logError("Failed to connect to master", e)
@@ -348,7 +348,7 @@ class Client(
 
     val tis = new ThrottledInputStream(sock.getInputStream, clientName, 0.0)
     flowToTIS.put(flowDesc.dataId, tis)
-    logDebug("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + " milliseconds")
+    logTrace("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + " milliseconds")
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush

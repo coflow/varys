@@ -89,7 +89,7 @@ private[varys] class SlaveActor(
       masterAddress = master.path.address
       master ! RegisterSlave(slaveId, ip, port, webUiPort, commPort, publicAddress)
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-      context.watch(master) // Doesn't work with remote actors, but useful for testing
+      // context.watch(master) // Doesn't work with remote actors, but useful for testing
     } catch {
       case e: Exception =>
         logError("Failed to connect to master", e)
