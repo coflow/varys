@@ -135,7 +135,7 @@ class Client(
         logInfo("Received updated shares")
         flowToBitPerSec.synchronized {
           for ((flowDesc, newBitPerSec) <- newRates) {
-            logInfo(flowDesc + " ==> " + newBitPerSec + " bps")
+            logTrace(flowDesc + " ==> " + newBitPerSec + " bps")
             flowToBitPerSec.put(flowDesc.dataId, newBitPerSec)
           }
         }
@@ -355,6 +355,7 @@ class Client(
     
     var retVal: Array[Byte] = null
     
+    st = now
     // Specially handle DataType.FAKE
     if (dataType == DataType.FAKE) {
       val buf = new Array[Byte](65536)
@@ -397,6 +398,7 @@ class Client(
         }
       }
     }
+    logTrace("Received " + flowDesc.sizeInBytes + " bytes for " + flowDesc + " in " + (now - st) + " milliseconds")
     
     // Close everything
     flowToTIS.remove(flowDesc.dataId)
