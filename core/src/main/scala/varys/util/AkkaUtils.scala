@@ -33,10 +33,9 @@ private[varys] object AkkaUtils {
      val akkaBatchSize = System.getProperty("varys.akka.batchSize", "15").toInt
      val akkaTimeout = System.getProperty("varys.akka.timeout", "60").toInt
      val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt
-     val logLevel = System.getProperty("varys.akka.logLevel", "ERROR")
+     val logLevel = System.getProperty("varys.akka.logLevel", "DEBUG")
      val lifecycleEvents = if (System.getProperty("varys.akka.logLifecycleEvents", "false").toBoolean) "on" else "off"
-     val logRemoteEvents = if (System.getProperty("varys.akka.logRemoteEvents", "false").toBoolean) "on" else "off"
-     // 10 seconds is the default akka timeout, but in a cluster, we need higher by default.
+     val logRemoteEvents = if (System.getProperty("varys.akka.logRemoteEvents", "true").toBoolean) "on" else "off"
      val akkaWriteTimeout = System.getProperty("varys.akka.writeTimeout", "30").toInt
 
      val akkaConf = ConfigFactory.parseString("""
@@ -67,14 +66,14 @@ private[varys] object AkkaUtils {
              # Try to define the size to be at least as big as the max possible number
              # of threads that may be used for serialization, i.e. max number
              # of threads allowed for the scheduler
-             serializer-pool-size = 16
+             serializer-pool-size = 32
 
-             # Define a default size for byte buffers used during serialization   
-             buffer-size = 4096  
+             # Define a default size for byte buffers used during serialization
+             buffer-size = 65536  
 
              use-manifests = false
-             implicit-registration-logging = false 
-             kryo-trace = false 
+             implicit-registration-logging = true 
+             kryo-trace = true
 
              classes = [  
                "varys.framework.RegisterSlave",  
@@ -95,10 +94,13 @@ private[varys] object AkkaUtils {
                "varys.framework.BestTxMachines",
                "varys.framework.UpdatedRates",
                "varys.framework.AddFlow",
+               "varys.framework.AddFlows",
                "varys.framework.GetFlow",
+               "varys.framework.GetFlows",
                "varys.framework.FlowProgress",
                "varys.framework.DeleteFlow",
                "varys.framework.GotFlowDesc",
+               "varys.framework.GotFlowDescs",
                "varys.framework.CoflowDescription",
                "varys.framework.CoflowType$",
                "varys.framework.FlowDescription",

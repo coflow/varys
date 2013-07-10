@@ -4,18 +4,17 @@ import java.io._
 import java.net._
 import java.util.concurrent.ConcurrentHashMap
 
+import scala.concurrent._
 import scala.collection.mutable.HashMap
 import scala.collection.JavaConversions._
 
 import akka.actor._
-import akka.pattern.ask
-import akka.util.duration._
-import akka.pattern.AskTimeoutException
-import akka.remote.RemoteClientLifeCycleEvent
-import akka.remote.RemoteClientShutdown
-import akka.remote.RemoteClientDisconnected
 import akka.actor.Terminated
-import akka.dispatch.Await
+import akka.util.duration._
+import akka.pattern.ask
+import akka.pattern.AskTimeoutException
+import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
+import akka.dispatch._
 
 import varys.{VarysException, Logging}
 import varys.framework._
@@ -45,6 +44,9 @@ class Client(
   var clientId: String = null
   var clientActor: ActorRef = null
 
+  // ExecutionContext for Futures
+  implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
+
   var regStartTime = 0L
 
   val flowToTIS = new ConcurrentHashMap[DataIdentifier, ThrottledInputStream]()
@@ -72,7 +74,7 @@ class Client(
         masterAddress = masterActor.path.address
         masterActor ! RegisterClient(clientName, clientHost, clientCommPort)
         context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-        context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
+        // context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
       } catch {
         case e: Exception =>
           logError("Failed to connect to master", e)
@@ -135,7 +137,7 @@ class Client(
         logInfo("Received updated shares")
         flowToBitPerSec.synchronized {
           for ((dataId, newBitPerSec) <- newRates) {
-            logDebug(dataId + " ==> " + newBitPerSec + " bps")
+            logTrace(dataId + " ==> " + newBitPerSec + " bps")
             flowToBitPerSec.put(dataId, newBitPerSec)
           }
         }
@@ -242,6 +244,29 @@ class Client(
   }
 
   /**
+   * Makes multiple pieces of data available for retrieval, and notifies local slave, which will 
+   * register it with the master. 
+   * Non-blocking call.
+   * FIXME: Handles only DataType.FAKE right now.
+   */
+  private def handlePutMultiple(flowDescs: Array[FlowDescription], coflowId: String, dataType: DataType.DataType) {
+    if (dataType != DataType.FAKE) {
+      val tmpM = "handlePutMultiple currently supports only DataType.FAKE"
+      logWarning(tmpM)
+      throw new VarysException(tmpM)
+    }
+    
+    waitForRegistration
+  
+    val st = now
+  
+    // Notify the slave, which will notify the master
+    AkkaUtils.tellActor(slaveActor, AddFlows(flowDescs, coflowId, dataType))
+  
+    logInfo("Registered Array[FlowDescription] in " + (now - st) + " milliseconds")
+  }
+
+  /**
    * Puts any data structure
    */
   def putObject[T: Manifest](objId: String, obj: T, coflowId: String, size: Long, numReceivers: Int) {
@@ -279,6 +304,89 @@ class Client(
   }
   
   /**
+   * Puts multiple blocks at the same time of same size and same number of receivers
+   * blocks => (blockId, blockSize, numReceivers)
+   */ 
+  def putFakeMultiple(blocks: Array[(String, Long, Int)], coflowId: String) {
+    val descs = blocks.map(blk => new FlowDescription(blk._1, coflowId, DataType.FAKE, blk._2, blk._3, 
+      clientHost, clientCommPort))
+    handlePutMultiple(descs, coflowId, DataType.FAKE)
+  }
+  
+  /**
+   * Performs exactly one get operation
+   * 
+   */
+  @throws(classOf[VarysException])
+  private def getOne(flowDesc: FlowDescription): (FlowDescription, Array[Byte]) = {
+    var st = now
+    val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)
+    val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
+    oos.flush
+
+    val tis = new ThrottledInputStream(sock.getInputStream, clientName, 0.0)
+    flowToTIS.put(flowDesc.dataId, tis)
+    // logTrace("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + " milliseconds")
+    
+    oos.writeObject(GetRequest(flowDesc))
+    oos.flush
+    
+    var retVal: Array[Byte] = null
+    
+    st = now
+    // Specially handle DataType.FAKE
+    if (flowDesc.dataType == DataType.FAKE) {
+      val buf = new Array[Byte](65536)
+      var bytesReceived = 0L
+      while (bytesReceived < flowDesc.sizeInBytes) {
+        val n = tis.read(buf)
+        // logInfo("Received " + n + " bytes of " + flowDesc.sizeInBytes)
+        if (n == -1) {
+          logError("EOF reached after " + bytesReceived + " bytes")
+          throw new VarysException("Too few bytes received")
+        } else {
+          bytesReceived += n
+        }
+      }
+    } else {
+      val ois = new ObjectInputStream(tis)
+      val resp = ois.readObject.asInstanceOf[Option[Array[Byte]]]
+      resp match {
+        case Some(byteArr) => {
+          logInfo("Received response of " + byteArr.length + " bytes")
+
+          flowDesc.dataType match {
+            case DataType.ONDISK => {
+              retVal = byteArr
+            }
+
+            case DataType.INMEMORY => {
+              retVal = byteArr
+            }
+
+            case _ => {
+              logError("Invalid DataType!")
+              throw new VarysException("Invalid DataType!")
+            }
+          }
+        }
+        case None => {
+          logError("Nothing received!")
+          throw new VarysException("Invalid DataType!")
+        }
+      }
+    }
+    logTrace("Received " + flowDesc.sizeInBytes + " bytes for " + flowDesc + " in " + (now - st) + " milliseconds")
+    
+    // Close everything
+    flowToTIS.remove(flowDesc.dataId)
+    tis.close
+    sock.close
+    
+    (flowDesc, retVal)
+  }
+  
+  /**
    * Notifies the master and the slave. But everything is done in the client
    * Blocking call.
    */
@@ -308,75 +416,85 @@ class Client(
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
     
     // Get it!
-    st = now
-    val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)
-    val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
-    oos.flush
-
-    val tis = new ThrottledInputStream(sock.getInputStream, clientName, 0.0)
-    flowToTIS.put(flowDesc.dataId, tis)
-    logDebug("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + " milliseconds")
-    
-    oos.writeObject(GetRequest(flowDesc))
-    oos.flush
-    
-    var retVal: Array[Byte] = null
-    
-    // Specially handle DataType.FAKE
-    if (dataType == DataType.FAKE) {
-      val buf = new Array[Byte](65536)
-      var bytesReceived = 0L
-      while (bytesReceived < flowDesc.sizeInBytes) {
-        val n = tis.read(buf)
-        // logInfo("Received " + n + " bytes of " + flowDesc.sizeInBytes)
-        if (n == -1) {
-          logError("EOF reached after " + bytesReceived + " bytes")
-          throw new VarysException("Too few bytes received")
-        } else {
-          bytesReceived += n
-        }
-      }
-    } else {
-      val ois = new ObjectInputStream(tis)
-      val resp = ois.readObject.asInstanceOf[Option[Array[Byte]]]
-      resp match {
-        case Some(byteArr) => {
-          logInfo("Received response of " + byteArr.length + " bytes")
-
-          dataType match {
-            case DataType.ONDISK => {
-              retVal = byteArr
-            }
-
-            case DataType.INMEMORY => {
-              retVal = byteArr
-            }
-
-            case _ => {
-              logError("Invalid DataType!")
-              throw new VarysException("Invalid DataType!")
-            }
-          }
-        }
-        case None => {
-          logError("Nothing received!")
-          throw new VarysException("Invalid DataType!")
-        }
-      }
-    }
-    
-    // Close everything
-    flowToTIS.remove(flowDesc.dataId)
-    tis.close
-    sock.close
-    
+    val (origFlowDesc, retVal) = getOne(flowDesc)
     // Notify flow completion
-    // FIXME: Fix bytesSinceLastUpdate argument
-    masterActor ! FlowProgress(blockId, coflowId, flowDesc.sizeInBytes, true)
-    
-    return retVal
+    masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+    retVal
   }
   
+  /**
+   * Notifies the master and the slave. But everything is done in the client
+   * Blocking call.
+   * FIXME: Handles only DataType.FAKE right now.
+   */
+  @throws(classOf[VarysException])
+  private def handleGetMultiple(blockIds: Array[String], dataType: DataType.DataType, coflowId: String) {
+    if (dataType != DataType.FAKE) {
+      val tmpM = "handleGetMultiple currently supports only DataType.FAKE"
+      logWarning(tmpM)
+      throw new VarysException(tmpM)
+    }
+
+    waitForRegistration
+    
+    var st = now
+    
+    // Notify master and retrieve the FlowDescription in response
+    var flowDescs: Array[FlowDescription] = null
+
+    val gotFlowDescs = AkkaUtils.askActorWithReply[Option[GotFlowDescs]](masterActor, 
+      GetFlows(blockIds, coflowId, clientId, slaveId))
+    gotFlowDescs match {
+      case Some(GotFlowDescs(x)) => flowDescs = x
+      case None => { 
+        val tmpM = "Failed to receive FlowDescriptions for " + blockIds.size + " flows of coflow " + coflowId
+        logWarning(tmpM)
+        // TODO: Define proper VarysExceptions
+        throw new VarysException(tmpM)
+      }
+    }
+    logInfo("Received " + flowDescs.size + " flowDescs " + " of coflow " + coflowId + " in " + (now - st) + " milliseconds")
+    
+    // Notify local slave
+    AkkaUtils.tellActor(slaveActor, GetFlows(blockIds, coflowId, clientId, slaveId, flowDescs))
+    
+    // Get 'em!
+    val recvLock = new Object()
+    var recvFinished = 0
+
+    for (flowDesc <- flowDescs) {
+      new Thread("Receive thread for " + flowDesc) {
+        override def run() {
+          val (origFlowDesc, retVal) = getOne(flowDesc)
+          // Notify flow completion
+          masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+          
+          recvLock.synchronized {
+            recvFinished += 1
+            recvLock.notifyAll()
+          }
+        }
+      }.start()
+    }
+
+    recvLock.synchronized {
+      while (recvFinished < flowDescs.size) {
+        recvLock.wait()
+      }
+    }
+
+    // val futureList = Future.traverse(flowDescs.toList)(fd => Future(getOne(fd)))
+    // futureList.onComplete {
+    //   case Right(arrayOfFlowDesc_Res) => {
+    //     arrayOfFlowDesc_Res.foreach { x =>
+    //       val (origFlowDesc, res) = x
+    //       masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+    //     }
+    //   }
+    //   case Left(vex) => throw vex
+    // }
+  }
+
   /**
    * Retrieves data from any of the feasible locations. 
    */
@@ -402,6 +520,14 @@ class Client(
     handleGet(blockId, DataType.FAKE, coflowId)
   }
   
+  /**
+   * Paired get() for putFakeMultiple. Doesn't return anything, but emulates the retrieval process.
+   */
+  @throws(classOf[VarysException])
+  def getFakeMultiple(blockIds: Array[String], coflowId: String) {
+    handleGetMultiple(blockIds, DataType.FAKE, coflowId)
+  }
+
   def deleteFlow(flowId: String, coflowId: String) {
     // TODO: Do something!
     // AkkaUtils.tellActor(slaveActor, DeleteFlow(flowId, coflowId))

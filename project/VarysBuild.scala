@@ -37,6 +37,8 @@ object VarysBuild extends Build {
   val slf4jVersion = "1.6.1"
   val sigarVersion = "1.6.4"
 
+  val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
+
   def coreSettings = sharedSettings ++ Seq(
     name := "varys-core",
     resolvers ++= Seq(
@@ -52,13 +54,15 @@ object VarysBuild extends Build {
       "log4j" % "log4j" % "1.2.16",
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "org.slf4j" % "slf4j-log4j12" % slf4jVersion,
-      "com.typesafe.akka" % "akka-actor" % "2.0.3",
-      "com.typesafe.akka" % "akka-remote" % "2.0.3",
-      "com.typesafe.akka" % "akka-slf4j" % "2.0.3",
+      "com.google.protobuf" % "protobuf-java" % "2.4.1",
+      "com.typesafe.akka" % "akka-actor" % "2.0.3" excludeAll(excludeNetty),
+      "com.typesafe.akka" % "akka-remote" % "2.0.3" excludeAll(excludeNetty),
+      "com.typesafe.akka" % "akka-slf4j" % "2.0.3" excludeAll(excludeNetty),
       "cc.spray" % "spray-can" % "1.0-M2.1",
       "cc.spray" % "spray-server" % "1.0-M2.1",
       "cc.spray" %%  "spray-json" % "1.1.1",
       "org.apache.thrift" % "libthrift" % "0.8.0",
+      "io.netty" % "netty-all" % "4.0.0.Beta2",
       "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native",
       "com.esotericsoftware.kryo" % "kryo" % "2.19",
       // akka-kryo-serialization has been added in an hackish way. We've compiled locally, then uploaded the jar to my website.

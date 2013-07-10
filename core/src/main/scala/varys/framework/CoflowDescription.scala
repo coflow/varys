@@ -9,7 +9,8 @@ object CoflowType extends Enumeration("DEFAULT", "SHUFFLE", "BROADCAST", "INCAST
 class CoflowDescription(
     val name: String,
     val coflowType: CoflowType.CoflowType,  // http://www.scala-lang.org/node/7661
-    val maxFlows: Int)  // Upper-bound on the number of flows
+    val maxFlows: Int,  // Upper-bound on the number of flows
+    val maxSizeInBytes: Long)  // Upper-bound on coflow size
   extends Serializable {
 
   val user = System.getProperty("user.name", "<unknown>")

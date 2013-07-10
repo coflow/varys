@@ -43,12 +43,14 @@ private[varys] object SenderClientFile {
 
     val url = args(0)
     val FILE_NAME = if (args.length > 1) args(1) else "INFILE"
+
+    val LEN_BYTES = 1212121
     
     val listener = new TestListener
     val client = new Client("SenderClientFile", url, listener)
     client.start()
 
-    val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 100)
+    val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, LEN_BYTES)
     val coflowId = client.registerCoflow(desc)
     
     val SLEEP_MS1 = 5000    
@@ -58,7 +60,6 @@ private[varys] object SenderClientFile {
     val dir = "/tmp"
     val pathToFile = dir + "/" + FILE_NAME
 
-    val LEN_BYTES = 1212121
     val byteArr = Array.tabulate[Byte](LEN_BYTES)(_.toByte)
     SenderClientFile.write(byteArr, pathToFile)
     
