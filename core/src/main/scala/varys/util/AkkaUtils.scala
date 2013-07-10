@@ -45,6 +45,14 @@ private[varys] object AkkaUtils {
          extensions = ["com.romix.akka.serialization.kryo.KryoSerializationExtension$"]
          
          actor {
+           debug {
+             # receive = on
+             # autoreceive = on
+             # lifecycle = on
+             # fsm = on
+             # event-stream = on
+           }
+           
            provider = "akka.remote.RemoteActorRefProvider"
 
            serializers {  
