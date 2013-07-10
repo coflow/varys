@@ -6,7 +6,7 @@ package varys.framework.client
  *
  * Users of this API should *not* block inside the callback methods.
  */
-private[varys] trait ClientListener {
+trait ClientListener {
   // NOT SAFE to use the Client UNTIL this method is called
   def connected(clientId: String): Unit
 
