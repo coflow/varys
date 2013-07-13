@@ -120,6 +120,8 @@ private[varys] class CoflowInfo(
     allocationOverTime += ((System.currentTimeMillis, newTotalBps))
   }
 
+  def currentAllocation(): (Long, Double) = allocationOverTime.last
+
   /**
    * Adds destinations for a multiple pieces of data. 
    * Assume flowId already exists in idToFlow
