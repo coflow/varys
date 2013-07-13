@@ -136,9 +136,9 @@ class Client(
       case UpdatedRates(newRates) => 
         logInfo("Received updated shares")
         flowToBitPerSec.synchronized {
-          for ((flowDesc, newBitPerSec) <- newRates) {
-            logTrace(flowDesc + " ==> " + newBitPerSec + " bps")
-            flowToBitPerSec.put(flowDesc.dataId, newBitPerSec)
+          for ((dataId, newBitPerSec) <- newRates) {
+            logTrace(dataId + " ==> " + newBitPerSec + " bps")
+            flowToBitPerSec.put(dataId, newBitPerSec)
           }
         }
     }

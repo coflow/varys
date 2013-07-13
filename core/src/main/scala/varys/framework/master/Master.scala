@@ -446,6 +446,7 @@ private[varys] class Master(
 
       // STEP2A: Work conservation
       for (cf <- sortedCoflows) {
+        var totalBps = 0.0
         for (flowInfo <- cf.getFlows) {
           val src = flowInfo.source
           val dst = flowInfo.destClient.host
@@ -456,7 +457,12 @@ private[varys] class Master(
             sBpsFree(src) = sBpsFree(src) - minFree
             rBpsFree(dst) = rBpsFree(dst) - minFree
           }
+          
+          totalBps += flowInfo.currentBps
         }
+        
+        // Update current allocation of the coflow
+        cf.setCurrentAllocation(totalBps)
       }
       val step2Dur = now - st
       st = now
@@ -468,12 +474,12 @@ private[varys] class Master(
         val client = tuple._1
         val flows = tuple._2
 
-        val rateMap = flows.map(t => (t.desc, t.currentBps)).toMap
+        val rateMap = flows.map(t => (t.desc.dataId, t.currentBps)).toMap
 
         // Log current schedule
         var sumBPS = 0.0
-        for ((fDesc, nBPS) <- rateMap) {
-          logTrace(fDesc + " ==> " + nBPS + " bps")
+        for ((dataId, nBPS) <- rateMap) {
+          logTrace(dataId + " ==> " + nBPS + " bps")
           sumBPS += nBPS
         }
         logInfo(client.host + " = " + rateMap.size + " flows. " + (sumBPS / 1048576.0) + " Mbps")

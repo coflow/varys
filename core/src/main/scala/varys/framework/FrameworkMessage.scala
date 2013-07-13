@@ -50,7 +50,7 @@ private[varys] case class RegisteredCoflow(coflowId: String) extends FrameworkMe
 private[varys] case class UnregisteredCoflow(coflowId: String) extends FrameworkMessage
 private[varys] case class BestRxMachines(bestRxMachines: Array[String]) extends FrameworkMessage
 private[varys] case class BestTxMachines(bestTxMachines: Array[String]) extends FrameworkMessage
-private[varys] case class UpdatedRates(newRates: Map[FlowDescription, Double]) extends FrameworkMessage
+private[varys] case class UpdatedRates(newRates: Map[DataIdentifier, Double]) extends FrameworkMessage
 
 // Client/Slave to Slave/Master
 private[varys] case class AddFlow(flowDescription: FlowDescription) extends FrameworkMessage
@@ -87,8 +87,8 @@ private[varys]
 case class GetRequest(
     flowDesc: FlowDescription, 
     targetHost: String = null,
-    targetCommPort: Int = 0) 
-  extends FrameworkMessage {
+    targetCommPort: Int = 0) {
+  // Not extending FrameworkMessage because it is NOT going through akka serialization
   // override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
 } 
 

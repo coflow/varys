@@ -19,11 +19,17 @@ private[varys] class CoflowInfo(
     val actor: ActorRef)
 {
   var state = CoflowState.WAITING
-  var endTime = -1L
   var alpha = 0.0
   
   var bytesLeft_ = new AtomicLong(0L)
   def bytesLeft: Long = bytesLeft_.get()
+  
+  var readyTime = -1L
+  var endTime = -1L
+
+  // Data structure to keep track of total allocation of this coflow over time. Initialized with 0.0
+  var allocationOverTime = new ArrayBuffer[(Long, Double)]()
+  allocationOverTime += ((startTime, 0.0))
   
   private val idToFlow = new ConcurrentHashMap[String, FlowInfo]()
 
@@ -99,11 +105,19 @@ private[varys] class CoflowInfo(
   private def postProcessIfReady(): Boolean = {
     if (numRegisteredFlows.get == desc.maxFlows) {
       state = CoflowState.READY
+      readyTime = System.currentTimeMillis
       alpha = calcAlpha()
       true
     } else {
       false
     }
+  }
+
+  /**
+   * Keep track of allocation over time
+   */
+  def setCurrentAllocation(newTotalBps: Double) = {
+    allocationOverTime += ((System.currentTimeMillis, newTotalBps))
   }
 
   /**
