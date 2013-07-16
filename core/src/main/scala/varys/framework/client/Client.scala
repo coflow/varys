@@ -31,6 +31,8 @@ class Client(
 
   val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.framework.ask.wait", "5000").toInt
   val RATE_UPDATE_FREQ = System.getProperty("varys.client.rateUpdateIntervalMillis", "100").toLong
+  val SHORT_FLOW_BYTES = System.getProperty("varys.client.shortFlowMB", "0").toLong * 1048576
+  val NIC_BPS = 1024 * 1048576
 
   var actorSystem: ActorSystem = null
   
@@ -324,7 +326,10 @@ class Client(
     val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
     oos.flush
 
-    val tis = new ThrottledInputStream(sock.getInputStream, clientName, 0.0)
+    // Don't wait for scheduling for 'SHORT' flows
+    val tisRate = if (flowDesc.sizeInBytes > SHORT_FLOW_BYTES) 0.0 else NIC_BPS
+
+    val tis = new ThrottledInputStream(sock.getInputStream, clientName, tisRate)
     flowToTIS.put(flowDesc.dataId, tis)
     // logTrace("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + " milliseconds")
     
