@@ -36,7 +36,6 @@ private[varys] object AkkaUtils {
      val logLevel = System.getProperty("varys.akka.logLevel", "ERROR")
      val lifecycleEvents = if (System.getProperty("varys.akka.logLifecycleEvents", "false").toBoolean) "on" else "off"
      val logRemoteEvents = if (System.getProperty("varys.akka.logRemoteEvents", "false").toBoolean) "on" else "off"
-     // 10 seconds is the default akka timeout, but in a cluster, we need higher by default.
      val akkaWriteTimeout = System.getProperty("varys.akka.writeTimeout", "30").toInt
 
      val akkaConf = ConfigFactory.parseString("""
