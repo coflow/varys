@@ -5,7 +5,8 @@ import java.net._
 
 import scala.collection.mutable.HashMap
 
-import varys.{Logging, Utils}
+import varys.Logging
+import varys.util.Utils
 
 /**
  * A common server to serve requested pieces of data. 

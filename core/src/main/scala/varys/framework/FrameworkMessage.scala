@@ -95,12 +95,18 @@ case class GetRequest(
 // Internal message in Master
 private[varys] case object ScheduleRequest
 
+private[varys] case object CheckForSlaveTimeOut
+
+private[varys] case object RequestWebUIPort
+
+private[varys] case class WebUIPortResponse(webUIBoundPort: Int)
+
 // MasterWebUI To Master
 private[varys] case object RequestMasterState
 
 // Master to MasterWebUI
 private[varys] 
-case class MasterState(
+case class MasterStateResponse(
     host: String, 
     port: Int, 
     slaves: Array[SlaveInfo],
@@ -116,7 +122,7 @@ case class MasterState(
 private[varys] case object RequestSlaveState
 
 // Slave to SlaveWebUI
-case class SlaveState(
+case class SlaveStateResponse(
     host: String, 
     port: Int, 
     slaveId: String, 

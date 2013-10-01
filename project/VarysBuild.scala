@@ -3,7 +3,6 @@ import sbt.Classpaths.publishTask
 import Keys._
 import sbtassembly.Plugin._
 import AssemblyKeys._
-import twirl.sbt.TwirlPlugin._
 import com.github.bigtoast.sbtthrift.ThriftPlugin
 import Classpaths.managedJars
 
@@ -23,15 +22,18 @@ object VarysBuild extends Build {
   def sharedSettings = Defaults.defaultSettings ++ Seq(
     organization := "org.varys-project",
     version := "0.0.1",
-    scalaVersion := "2.9.2",
+    scalaVersion := "2.9.3",
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
     unmanagedJars in Compile <<= baseDirectory map { base => (base / "lib" ** "*.jar").classpath },
     retrieveManaged := true,
     retrievePattern := "[type]s/[artifact](-[revision])(-[classifier]).[ext]",
     transitiveClassifiers in Scope.GlobalScope := Seq("sources"),
 
-    parallelExecution := false
+    parallelExecution := false,
     
+    libraryDependencies ++= Seq(
+      "org.eclipse.jetty" % "jetty-server" % "7.6.8.v20121106"
+    )
   )
 
   val slf4jVersion = "1.6.1"
@@ -44,7 +46,6 @@ object VarysBuild extends Build {
     resolvers ++= Seq(
       "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
       "JBoss Repository" at "http://repository.jboss.org/nexus/content/repositories/releases/",
-      "Spray Repository" at "http://repo.spray.cc/",
       "Cloudera Repository" at "https://repository.cloudera.com/artifactory/cloudera-repos/",
       "Twitter4J Repository" at "http://twitter4j.org/maven2/"
     ),
@@ -58,9 +59,7 @@ object VarysBuild extends Build {
       "com.typesafe.akka" % "akka-actor" % "2.0.3" excludeAll(excludeNetty),
       "com.typesafe.akka" % "akka-remote" % "2.0.3" excludeAll(excludeNetty),
       "com.typesafe.akka" % "akka-slf4j" % "2.0.3" excludeAll(excludeNetty),
-      "cc.spray" % "spray-can" % "1.0-M2.1",
-      "cc.spray" % "spray-server" % "1.0-M2.1",
-      "cc.spray" %%  "spray-json" % "1.1.1",
+      "net.liftweb" % "lift-json_2.9.2" % "2.5",
       "org.apache.thrift" % "libthrift" % "0.8.0",
       "io.netty" % "netty-all" % "4.0.0.Beta2",
       "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native",
@@ -87,7 +86,7 @@ object VarysBuild extends Build {
     
     // Make extractJars run before compile
     (compile in Compile) <<= (compile in Compile) dependsOn(extractJars)
-  ) ++ assemblySettings ++ Twirl.settings ++ ThriftPlugin.thriftSettings
+  ) ++ assemblySettings ++ ThriftPlugin.thriftSettings
 
   def rootSettings = sharedSettings ++ Seq(
     publish := {}

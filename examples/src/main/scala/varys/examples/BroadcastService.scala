@@ -7,9 +7,11 @@ import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.mutable.ArrayBuffer
   
 import varys.util.AkkaUtils
-import varys.{Logging, Utils}
+import varys.Logging
 import varys.framework.client._
 import varys.framework._
+import varys.util.Utils
+
 
 private[varys] object BroadcastUtils {
   

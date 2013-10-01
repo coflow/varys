@@ -1,7 +1,6 @@
 package varys.framework.master
 
-import varys.util.IntParam
-import varys.Utils
+import varys.util._
 
 /**
  * Command-line parser for the master.

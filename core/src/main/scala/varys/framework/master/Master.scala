@@ -1,7 +1,6 @@
 package varys.framework.master
 
 import akka.actor._
-import akka.actor.Terminated
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
 import akka.util.duration._
 import akka.dispatch._
@@ -16,8 +15,9 @@ import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
 
 import varys.framework._
-import varys.{Logging, VarysException, Utils}
-import varys.util.AkkaUtils
+import varys.{Logging, VarysException}
+import varys.util._
+import varys.framework.master.ui.MasterWebUI
 
 private[varys] class Master(
     systemName:String, 
@@ -50,8 +50,6 @@ private[varys] class Master(
   val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
   val completedClients = new ArrayBuffer[ClientInfo]
 
-  val webUiStarted = new AtomicBoolean(false)
-
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
 
@@ -66,7 +64,9 @@ private[varys] class Master(
   }
   
   private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
-
+    
+    val webUi = new MasterWebUI(self, webUiPort)
+    
     val masterPublicAddress = {
       val envVar = System.getenv("VARYS_PUBLIC_DNS")
       if (envVar != null) envVar else ip
@@ -76,20 +76,12 @@ private[varys] class Master(
       logInfo("Starting Varys master at varys://" + ip + ":" + port)
       // Listen for remote client disconnection events, since they don't go through Akka's watch()
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-      if (!webUiStarted.getAndSet(true))
-        startWebUi()
-      // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis)(timeOutDeadSlaves())
+      webUi.start()
+      context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
     }
 
-    def startWebUi() {
-      try {
-        val webUi = new MasterWebUI(context.system, self)
-        AkkaUtils.startSprayServer(context.system, "0.0.0.0", webUiPort, webUi.handler)
-      } catch {
-        case e: Exception =>
-          logError("Failed to create web UI", e)
-          System.exit(1)
-      }
+    override def postStop() {
+      webUi.stop()
     }
 
     override def receive = {
@@ -101,7 +93,7 @@ private[varys] class Master(
         } else {
           addSlave(id, host, slavePort, slave_webUiPort, slave_commPort, publicAddress, currentSender)
           // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
-          currentSender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUiPort)
+          currentSender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUi.boundPort.get)
         }
       }
 
@@ -183,8 +175,16 @@ private[varys] class Master(
       }
 
       case RequestMasterState => {
-        sender ! MasterState(ip, port, idToSlave.values.toSeq.toArray, idToCoflow.values.toSeq.toArray, completedCoflows.toArray, 
+        sender ! MasterStateResponse(ip, port, idToSlave.values.toSeq.toArray, idToCoflow.values.toSeq.toArray, completedCoflows.toArray, 
           idToClient.values.toSeq.toArray, completedClients.toArray)
+      }
+
+      case CheckForSlaveTimeOut => {
+        timeOutDeadSlaves()
+      }
+
+      case RequestWebUIPort => {
+        sender ! WebUIPortResponse(webUi.boundPort.getOrElse(-1))
       }
 
       case RequestBestRxMachines(howMany, bytes) => {

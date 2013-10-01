@@ -1,4 +1,4 @@
-package varys
+package varys.util
 
 import java.io._
 import java.net._
@@ -16,10 +16,12 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder
 
 import sun.nio.ch.DirectBuffer
 
+import varys.{Logging, VarysException}
+
 /**
  * Various utility methods used by Varys.
  */
-private object Utils extends Logging {
+private[varys] object Utils extends Logging {
   /** Serialize an object using Java serialization */
   def serialize[T](o: T): Array[Byte] = {
     val bos = new ByteArrayOutputStream()
@@ -218,6 +220,78 @@ private object Utils extends Logging {
   }
 
   /**
+   * Convert a Java memory parameter passed to -Xmx (such as 300m or 1g) to a number of megabytes.
+   * This is used to figure out how much memory to claim from Mesos based on the VARYS_MEM
+   * environment variable.
+   */
+  def memoryStringToMb(str: String): Int = {
+    val lower = str.toLowerCase
+    if (lower.endsWith("k")) {
+      (lower.substring(0, lower.length-1).toLong / 1024).toInt
+    } else if (lower.endsWith("m")) {
+      lower.substring(0, lower.length-1).toInt
+    } else if (lower.endsWith("g")) {
+      lower.substring(0, lower.length-1).toInt * 1024
+    } else if (lower.endsWith("t")) {
+      lower.substring(0, lower.length-1).toInt * 1024 * 1024
+    } else {// no suffix, so it's just a number in bytes
+      (lower.toLong / 1024 / 1024).toInt
+    }
+  }
+
+  /**
+   * Convert a quantity in bytes to a human-readable string such as "4.0 MB".
+   */
+  def bytesToString(size: Long): String = {
+    val TB = 1L << 40
+    val GB = 1L << 30
+    val MB = 1L << 20
+    val KB = 1L << 10
+
+    val (value, unit) = {
+      if (size >= 2*TB) {
+        (size.asInstanceOf[Double] / TB, "TB")
+      } else if (size >= 2*GB) {
+        (size.asInstanceOf[Double] / GB, "GB")
+      } else if (size >= 2*MB) {
+        (size.asInstanceOf[Double] / MB, "MB")
+      } else if (size >= 2*KB) {
+        (size.asInstanceOf[Double] / KB, "KB")
+      } else {
+        (size.asInstanceOf[Double], "B")
+      }
+    }
+    "%.1f %s".formatLocal(Locale.US, value, unit)
+  }
+
+  /**
+   * Returns a human-readable string representing a duration such as "35ms"
+   */
+  def msDurationToString(ms: Long): String = {
+    val second = 1000
+    val minute = 60 * second
+    val hour = 60 * minute
+
+    ms match {
+      case t if t < second =>
+        "%d ms".format(t)
+      case t if t < minute =>
+        "%.1f s".format(t.toFloat / second)
+      case t if t < hour =>
+        "%.1f m".format(t.toFloat / minute)
+      case t =>
+        "%.2f h".format(t.toFloat / hour)
+    }
+  }
+
+  /**
+   * Convert a quantity in megabytes to a human-readable string such as "4.0 MB".
+   */
+  def megabytesToString(megabytes: Long): String = {
+    bytesToString(megabytes * 1024L * 1024L)
+  }
+
+  /**
    * Execute a command in the given working directory, throwing an exception if it completes
    * with an exit code other than 0.
    */
@@ -274,6 +348,21 @@ private object Utils extends Logging {
         buffer.asInstanceOf[DirectBuffer].cleaner().clean()
       }
     }
+  }
+  
+  /** Return a string containing part of a file from byte 'start' to 'end'. */
+  def offsetBytes(path: String, start: Long, end: Long): String = {
+    val file = new File(path)
+    val length = file.length()
+    val effectiveEnd = math.min(length, end)
+    val effectiveStart = math.max(0, start)
+    val buff = new Array[Byte]((effectiveEnd-effectiveStart).toInt)
+    val stream = new FileInputStream(file)
+
+    stream.skip(effectiveStart)
+    stream.read(buff)
+    stream.close()
+    Source.fromBytes(buff).mkString
   }
   
 }

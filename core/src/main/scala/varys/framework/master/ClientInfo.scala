@@ -31,5 +31,7 @@ private[varys] class ClientInfo(
     coflows += coflow
   }
   
+  val user = System.getProperty("user.name", "<unknown>")
+  
   override def toString: String = "ClientInfo(" + id + "[" + host + ":" + commPort + "])"
 }

@@ -1,7 +1,6 @@
 package varys.framework.slave
 
-import varys.util.IntParam
-import varys.Utils
+import varys.util._
 import java.lang.management.ManagementFactory
 
 /**

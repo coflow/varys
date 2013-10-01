@@ -12,8 +12,9 @@ import akka.util.duration._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
 
 import varys.framework.master.Master
-import varys.{Logging, Utils, VarysException}
-import varys.util.AkkaUtils
+import varys.framework.slave.ui.SlaveWebUI
+import varys.{Logging, VarysException}
+import varys.util._
 import varys.framework._
 
 import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
@@ -51,6 +52,7 @@ private[varys] class SlaveActor(
     val envVar = System.getenv("VARYS_PUBLIC_DNS")
     if (envVar != null) envVar else ip
   }
+  var webUi: SlaveWebUI = null
 
   var sigar = new Sigar()
   var lastRxBytes = -1.0
@@ -78,8 +80,14 @@ private[varys] class SlaveActor(
     varysHome = new File(Option(System.getenv("VARYS_HOME")).getOrElse("."))
     logInfo("Varys home: " + varysHome)
     createWorkDir()
+    webUi = new SlaveWebUI(this, workDir, Some(webUiPort))
+
+    webUi.start()
     connectToMaster()
-    startWebUi()
+  }
+
+  override def postStop() {
+    webUi.stop()
   }
 
   def connectToMaster() {
@@ -87,23 +95,12 @@ private[varys] class SlaveActor(
     try {
       master = context.actorFor(Master.toAkkaUrl(masterUrl))
       masterAddress = master.path.address
-      master ! RegisterSlave(slaveId, ip, port, webUiPort, commPort, publicAddress)
+      master ! RegisterSlave(slaveId, ip, port, webUi.boundPort.get, commPort, publicAddress)
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-      // context.watch(master) // Doesn't work with remote actors, but useful for testing
+      context.watch(master) // Doesn't work with remote actors, but useful for testing
     } catch {
       case e: Exception =>
         logError("Failed to connect to master", e)
-        System.exit(1)
-    }
-  }
-
-  def startWebUi() {
-    val webUi = new SlaveWebUI(context.system, self)
-    try {
-      AkkaUtils.startSprayServer(context.system, "0.0.0.0", webUiPort, webUi.handler)
-    } catch {
-      case e: Exception =>
-        logError("Failed to create web UI", e)
         System.exit(1)
     }
   }
@@ -142,7 +139,7 @@ private[varys] class SlaveActor(
     }
 
     case RequestSlaveState => {
-      sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
+      sender ! SlaveStateResponse(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
     
     case RegisteredCoflow(coflowId) => {

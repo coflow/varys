@@ -6,7 +6,7 @@ import java.util.Date
 /**
  * Utilities used throughout the web UI.
  */
-private[varys] object WebUI {
+private[varys] object FrameworkWebUI {
   val DATE_FORMAT = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
 
   def formatDate(date: Date): String = DATE_FORMAT.format(date)
