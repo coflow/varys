@@ -17,8 +17,11 @@ import varys.framework.JsonProtocol._
 /**
  * Web UI server for the standalone master.
  */
-private[varys]
-class MasterWebUI(val actorSystem: ActorSystem, master: ActorRef) extends Directives {
+private[varys] class MasterWebUI(
+    val actorSystem: ActorSystem, 
+    master: ActorRef) 
+  extends Directives {
+    
   val RESOURCE_DIR = "varys/framework/master/webui"
   val STATIC_RESOURCE_DIR = "varys/framework/static"
   

@@ -5,9 +5,11 @@ import varys.Utils
 import java.lang.management.ManagementFactory
 
 /**
- * Command-line parser for the master.
+ * Command-line parser for the slave.
  */
-private[varys] class SlaveArguments(args: Array[String]) {
+private[varys] class SlaveArguments(
+    args: Array[String]) {
+  
   var ip = Utils.localHostName()
   var port = 0
   var webUiPort = 16017

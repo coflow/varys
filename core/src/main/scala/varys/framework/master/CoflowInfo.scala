@@ -16,8 +16,8 @@ private[varys] class CoflowInfo(
     val id: String,
     val desc: CoflowDescription,
     val submitDate: Date,
-    val actor: ActorRef)
-{
+    val actor: ActorRef) {
+  
   var state = CoflowState.WAITING
   var alpha = 0.0
   

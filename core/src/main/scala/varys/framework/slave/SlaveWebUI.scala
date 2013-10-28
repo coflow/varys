@@ -16,8 +16,11 @@ import varys.framework.JsonProtocol._
 /**
  * Web UI server for the standalone slave.
  */
-private[varys]
-class SlaveWebUI(val actorSystem: ActorSystem, slave: ActorRef) extends Directives {
+private[varys] class SlaveWebUI(
+    val actorSystem: ActorSystem, 
+    slave: ActorRef) 
+  extends Directives {
+    
   val RESOURCE_DIR = "varys/framework/slave/webui"
   val STATIC_RESOURCE_DIR = "varys/framework/static"
   

@@ -7,17 +7,24 @@ package varys.util
  *
  * @constructor Initialize the StatCounter with the given values.
  */
-class StatCounter(values: TraversableOnce[Double]) extends Serializable {
+class StatCounter(
+    values: TraversableOnce[Double]) 
+  extends Serializable {
+
   private var n: Long = 0     // Running count of our values
   private var mu: Double = 0  // Running mean of our values
   private var m2: Double = 0  // Running variance numerator (sum of (x - mean)^2)
 
   merge(values)
 
-  /** Initialize the StatCounter with no values. */
+  /** 
+   *Initialize the StatCounter with no values. 
+   */
   def this() = this(Nil)
 
-  /** Add a value into this StatCounter, updating the internal statistics. */
+  /** 
+   * Add a value into this StatCounter, updating the internal statistics. 
+   */
   def merge(value: Double): StatCounter = {
     val delta = value - mu
     n += 1
@@ -26,13 +33,17 @@ class StatCounter(values: TraversableOnce[Double]) extends Serializable {
     this
   }
 
-  /** Add multiple values into this StatCounter, updating the internal statistics. */
+  /** 
+   * Add multiple values into this StatCounter, updating the internal statistics. 
+   */
   def merge(values: TraversableOnce[Double]): StatCounter = {
     values.foreach(v => merge(v))
     this
   }
 
-  /** Merge another StatCounter into this one, adding up the internal statistics. */
+  /** 
+   * Merge another StatCounter into this one, adding up the internal statistics. 
+   */
   def merge(other: StatCounter): StatCounter = {
     if (other == this) {
       merge(other.copy())  // Avoid overwriting fields in a weird order
@@ -51,7 +62,9 @@ class StatCounter(values: TraversableOnce[Double]) extends Serializable {
     }
   }
 
-  /** Clone this StatCounter */
+  /** 
+   * Clone this StatCounter 
+   */
   def copy(): StatCounter = {
     val other = new StatCounter
     other.n = n
@@ -66,7 +79,9 @@ class StatCounter(values: TraversableOnce[Double]) extends Serializable {
 
   def sum: Double = n * mu
 
-  /** Return the variance of the values. */
+  /** 
+   * Return the variance of the values. 
+   */
   def variance: Double = {
     if (n == 0)
       Double.NaN
@@ -85,7 +100,9 @@ class StatCounter(values: TraversableOnce[Double]) extends Serializable {
       m2 / (n - 1)
   }
 
-  /** Return the standard deviation of the values. */
+  /** 
+   * Return the standard deviation of the values. 
+   */
   def stdev: Double = math.sqrt(variance)
 
   /**
@@ -100,9 +117,13 @@ class StatCounter(values: TraversableOnce[Double]) extends Serializable {
 }
 
 object StatCounter {
-  /** Build a StatCounter from a list of values. */
+  /** 
+   * Build a StatCounter from a list of values. 
+   */
   def apply(values: TraversableOnce[Double]) = new StatCounter(values)
 
-  /** Build a StatCounter from a list of values passed as variable-length arguments. */
+  /** 
+   * Build a StatCounter from a list of values passed as variable-length arguments. 
+   */
   def apply(values: Double*) = new StatCounter(values)
 }

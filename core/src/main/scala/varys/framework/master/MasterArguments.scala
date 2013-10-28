@@ -6,7 +6,9 @@ import varys.Utils
 /**
  * Command-line parser for the master.
  */
-private[varys] class MasterArguments(args: Array[String]) {
+private[varys] class MasterArguments(
+  args: Array[String]) {
+  
   var ip = Utils.localHostName()
   var port = 1606
   var webUiPort = 16016
