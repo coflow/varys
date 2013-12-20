@@ -165,8 +165,7 @@ private[varys] case class MasterState(
     slaves: Array[SlaveInfo],
     activeCoflows: Array[CoflowInfo], 
     completedCoflows: Array[CoflowInfo],
-    activeClients: Array[ClientInfo],
-    completedClients: Array[ClientInfo]) {
+    activeClients: Array[ClientInfo]) {
 
   def uri = "varys://" + host + ":" + port
 }

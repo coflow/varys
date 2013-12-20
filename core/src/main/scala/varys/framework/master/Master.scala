@@ -48,7 +48,6 @@ private[varys] class Master(
   val idToClient = new ConcurrentHashMap[String, ClientInfo]()
   val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]
   val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
-  val completedClients = new ArrayBuffer[ClientInfo]
 
   val webUiStarted = new AtomicBoolean(false)
 
@@ -188,7 +187,7 @@ private[varys] class Master(
 
       case RequestMasterState => {
         sender ! MasterState(ip, port, idToSlave.values.toSeq.toArray, idToCoflow.values.toSeq.toArray, completedCoflows.toArray, 
-          idToClient.values.toSeq.toArray, completedClients.toArray)
+          idToClient.values.toSeq.toArray)
       }
 
       case RequestBestRxMachines(howMany, bytes) => {
@@ -364,7 +363,6 @@ private[varys] class Master(
         idToClient.remove(client.id)
         actorToClient -= client.actor
         addressToClient -= client.actor.path.address
-        completedClients += client  // Remember it in our history
         client.markFinished()
 
         client.coflows.foreach(removeCoflow)  // Remove child coflows as well

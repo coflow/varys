@@ -45,8 +45,7 @@ private[varys] object JsonProtocol extends DefaultJsonProtocol {
       "slaves" -> JsArray(obj.slaves.toList.map(_.toJson)),
       "activecoflows" -> JsArray(obj.activeCoflows.toList.map(_.toJson)),
       "completedcoflows" -> JsArray(obj.completedCoflows.toList.map(_.toJson)),
-      "activeclients" -> JsArray(obj.activeClients.toList.map(_.toJson)),
-      "completedclients" -> JsArray(obj.completedClients.toList.map(_.toJson))
+      "activeclients" -> JsArray(obj.activeClients.toList.map(_.toJson))
     )
   }
 
