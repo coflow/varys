@@ -402,7 +402,8 @@ private[varys] class Master(
 
       // STEP 1: Sort READY or RUNNING coflows by remaining size
       var sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.remainingSizeInBytes > 0 && (x.state == CoflowState.READY || x.state == CoflowState.RUNNING))
-      sortedCoflows = sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
+      // sortedCoflows = sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
+      sortedCoflows = sortedCoflows.sortWith(_.calcAlpha < _.calcAlpha)
       val step1Dur = now - st
       st = now
 
@@ -422,7 +423,7 @@ private[varys] class Master(
 
           val minFree = math.min(sBpsFree(src), rBpsFree(dst))
           if (minFree > 0.0) {
-            flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.alpha)
+            flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.origAlpha)
             if (math.abs(flowInfo.currentBps) < 1e-6) 
               flowInfo.currentBps = 0.0
             flowInfo.lastScheduled = System.currentTimeMillis

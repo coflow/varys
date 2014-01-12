@@ -19,7 +19,7 @@ private[varys] class CoflowInfo(
     val actor: ActorRef) {
   
   var state = CoflowState.WAITING
-  var alpha = 0.0
+  var origAlpha = 0.0
   
   var bytesLeft_ = new AtomicLong(0L)
   def bytesLeft: Long = bytesLeft_.get()
@@ -62,9 +62,9 @@ private[varys] class CoflowInfo(
   def contains(flowId: String) = idToFlow.containsKey(flowId)
 
   /**
-   * Calculating static alpha for the coflow
+   * Calculating alpha for the coflow based on remaining flow size
    */
-  private def calcAlpha(): Double = {
+  def calcAlpha(): Double = {
     val sBytes = new HashMap[String, Double]().withDefaultValue(0.0)
     val rBytes = new HashMap[String, Double]().withDefaultValue(0.0)
 
@@ -73,8 +73,8 @@ private[varys] class CoflowInfo(
       val src = flowInfo.source
       val dst = flowInfo.destClient.host
       
-      sBytes(src) = sBytes(src) + flowInfo.desc.sizeInBytes
-      rBytes(dst) = rBytes(dst) + flowInfo.desc.sizeInBytes
+      sBytes(src) = sBytes(src) + flowInfo.bytesLeft
+      rBytes(dst) = rBytes(dst) + flowInfo.bytesLeft
     }
     math.max(sBytes.values.max, rBytes.values.max)
   }
@@ -104,9 +104,9 @@ private[varys] class CoflowInfo(
    */
   private def postProcessIfReady(): Boolean = {
     if (numRegisteredFlows.get == desc.maxFlows) {
+      origAlpha = calcAlpha()
       state = CoflowState.READY
       readyTime = System.currentTimeMillis
-      alpha = calcAlpha()
       true
     } else {
       false
