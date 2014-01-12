@@ -317,7 +317,6 @@ class Client(
   
   /**
    * Performs exactly one get operation
-   * 
    */
   @throws(classOf[VarysException])
   private def getOne(flowDesc: FlowDescription): (FlowDescription, Array[Byte]) = {

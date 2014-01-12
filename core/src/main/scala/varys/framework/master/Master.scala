@@ -48,7 +48,6 @@ private[varys] class Master(
   val idToClient = new ConcurrentHashMap[String, ClientInfo]()
   val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]
   val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
-  val completedClients = new ArrayBuffer[ClientInfo]
 
   val webUiStarted = new AtomicBoolean(false)
 
@@ -65,7 +64,11 @@ private[varys] class Master(
     (actorSystem, boundPort)
   }
   
-  private[varys] class MasterActor(ip: String, port: Int, webUiPort: Int) extends Actor with Logging {
+  private[varys] class MasterActor(
+      ip: String, 
+      port: Int, 
+      webUiPort: Int) 
+    extends Actor with Logging {
 
     val masterPublicAddress = {
       val envVar = System.getenv("VARYS_PUBLIC_DNS")
@@ -184,7 +187,7 @@ private[varys] class Master(
 
       case RequestMasterState => {
         sender ! MasterState(ip, port, idToSlave.values.toSeq.toArray, idToCoflow.values.toSeq.toArray, completedCoflows.toArray, 
-          idToClient.values.toSeq.toArray, completedClients.toArray)
+          idToClient.values.toSeq.toArray)
       }
 
       case RequestBestRxMachines(howMany, bytes) => {
@@ -360,7 +363,6 @@ private[varys] class Master(
         idToClient.remove(client.id)
         actorToClient -= client.actor
         addressToClient -= client.actor.path.address
-        completedClients += client  // Remember it in our history
         client.markFinished()
 
         client.coflows.foreach(removeCoflow)  // Remove child coflows as well
@@ -400,7 +402,8 @@ private[varys] class Master(
 
       // STEP 1: Sort READY or RUNNING coflows by remaining size
       var sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.remainingSizeInBytes > 0 && (x.state == CoflowState.READY || x.state == CoflowState.RUNNING))
-      sortedCoflows = sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
+      // sortedCoflows = sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
+      sortedCoflows = sortedCoflows.sortWith(_.calcAlpha < _.calcAlpha)
       val step1Dur = now - st
       st = now
 
@@ -420,7 +423,7 @@ private[varys] class Master(
 
           val minFree = math.min(sBpsFree(src), rBpsFree(dst))
           if (minFree > 0.0) {
-            flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.alpha)
+            flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.origAlpha)
             if (math.abs(flowInfo.currentBps) < 1e-6) 
               flowInfo.currentBps = 0.0
             flowInfo.lastScheduled = System.currentTimeMillis
@@ -497,19 +500,25 @@ private[varys] class Master(
       true
     }
 
-    /** Generate a new coflow ID given a coflow's submission date */
+    /** 
+     * Generate a new coflow ID given a coflow's submission date 
+     */
     def newCoflowId(submitDate: Date): String = {
       // "coflow-%s-%04d".format(DATE_FORMAT.format(submitDate), nextCoflowNumber.getAndIncrement())
       "COFLOW-%06d".format(nextCoflowNumber.getAndIncrement())
     }
 
-    /** Generate a new client ID given a client's connection date */
+    /** 
+     * Generate a new client ID given a client's connection date 
+     */
     def newClientId(submitDate: Date): String = {
       // "client-%s-%04d".format(DATE_FORMAT.format(submitDate), nextClientNumber.getAndIncrement())
       "CLIENT-%06d".format(nextClientNumber.getAndIncrement())
     }
 
-    /** Check for, and remove, any timed-out slaves */
+    /** 
+     * Check for, and remove, any timed-out slaves 
+     */
     def timeOutDeadSlaves() {
       // Copy the slaves into an array so we don't modify the hashset while iterating through it
       val expirationTime = System.currentTimeMillis() - SLAVE_TIMEOUT
@@ -535,7 +544,9 @@ private[varys] object Master {
     actorSystem.awaitTermination()
   }
 
-  /** Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. */
+  /** 
+   * Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
+   */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>

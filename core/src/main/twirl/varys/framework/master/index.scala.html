@@ -56,15 +56,4 @@
       @client_table(state.activeClients.sortBy(_.startTime).reverse)
     </div>
   </div>
-
-  <hr/>
-
-  <!-- Client Summary (Completed) -->
-  <div class="row">
-    <div class="span12">
-      <h3> Completed Clients </h3>
-      <br/>
-      @client_table(state.completedClients.sortBy(_.endTime).reverse)
-    </div>
-  </div>
 }

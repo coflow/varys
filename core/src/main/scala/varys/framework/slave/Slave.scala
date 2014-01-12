@@ -274,7 +274,9 @@ private[varys] object Slave {
     actorSystem.awaitTermination()
   }
 
-  /** Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. */
+  /** 
+   * Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
+   */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>

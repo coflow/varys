@@ -6,7 +6,9 @@ private[varys] object DataType extends Enumeration("FAKE", "INMEMORY", "ONDISK")
   val FAKE, INMEMORY, ONDISK = Value
 }
 
-private[varys] case class DataIdentifier(dataId: String, coflowId: String)
+private[varys] case class DataIdentifier(
+    dataId: String, 
+    coflowId: String)
 
 private[varys] class FlowDescription(
     val id: String,  // Expected to be unique within the coflow

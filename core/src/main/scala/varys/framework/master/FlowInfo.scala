@@ -5,7 +5,9 @@ import scala.collection.mutable.HashSet
 
 import java.util.concurrent.atomic.AtomicLong
 
-private[varys] class FlowInfo(val desc: FlowDescription) {
+private[varys] class FlowInfo(
+    val desc: FlowDescription) {
+  
   var source = desc.originHost
   var destClient:ClientInfo = null
   var currentBps = 0.0

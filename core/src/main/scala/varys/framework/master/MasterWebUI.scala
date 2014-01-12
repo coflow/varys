@@ -17,8 +17,11 @@ import varys.framework.JsonProtocol._
 /**
  * Web UI server for the standalone master.
  */
-private[varys]
-class MasterWebUI(val actorSystem: ActorSystem, master: ActorRef) extends Directives {
+private[varys] class MasterWebUI(
+    val actorSystem: ActorSystem, 
+    master: ActorRef) 
+  extends Directives {
+    
   val RESOURCE_DIR = "varys/framework/master/webui"
   val STATIC_RESOURCE_DIR = "varys/framework/static"
   
@@ -70,9 +73,7 @@ class MasterWebUI(val actorSystem: ActorSystem, master: ActorRef) extends Direct
           case (clientId, Some(js)) if (js.equalsIgnoreCase("json")) =>
             val future = master ? RequestMasterState
             val clientInfo = for (masterState <- future.mapTo[MasterState]) yield {
-              masterState.activeClients.find(_.id == clientId).getOrElse({
-                masterState.completedClients.find(_.id == clientId).getOrElse(null)
-              })
+              masterState.activeClients.find(_.id == clientId).getOrElse(null)
             }
             respondWithMediaType(MediaTypes.`application/json`) { ctx =>
               ctx.complete(clientInfo.mapTo[ClientInfo])
@@ -82,9 +83,7 @@ class MasterWebUI(val actorSystem: ActorSystem, master: ActorRef) extends Direct
               val future = master ? RequestMasterState
               future.map { state =>
                 val masterState = state.asInstanceOf[MasterState]
-                val client = masterState.activeClients.find(_.id == clientId).getOrElse({
-                  masterState.completedClients.find(_.id == clientId).getOrElse(null)
-                })
+                val client = masterState.activeClients.find(_.id == clientId).getOrElse(null)
                 varys.framework.master.html.client_details.render(client)
               }
             }

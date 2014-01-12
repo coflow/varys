@@ -20,7 +20,10 @@ import sun.nio.ch.DirectBuffer
  * Various utility methods used by Varys.
  */
 private object Utils extends Logging {
-  /** Serialize an object using Java serialization */
+  
+  /** 
+   * Serialize an object using Java serialization 
+   */
   def serialize[T](o: T): Array[Byte] = {
     val bos = new ByteArrayOutputStream()
     val oos = new ObjectOutputStream(bos)
@@ -29,14 +32,18 @@ private object Utils extends Logging {
     return bos.toByteArray
   }
 
-  /** Deserialize an object using Java serialization */
+  /** 
+   * Deserialize an object using Java serialization 
+   */
   def deserialize[T](bytes: Array[Byte]): T = {
     val bis = new ByteArrayInputStream(bytes)
     val ois = new ObjectInputStream(bis)
     return ois.readObject.asInstanceOf[T]
   }
 
-  /** Deserialize an object using Java serialization and the given ClassLoader */
+  /** 
+   * Deserialize an object using Java serialization and the given ClassLoader 
+   */
   def deserialize[T](bytes: Array[Byte], loader: ClassLoader): T = {
     val bis = new ByteArrayInputStream(bytes)
     val ois = new ObjectInputStream(bis) {
@@ -50,7 +57,9 @@ private object Utils extends Logging {
     (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')
   }
 
-  /** Split a string into words at non-alphabetic characters */
+  /** 
+   * Split a string into words at non-alphabetic characters 
+   */
   def splitWords(s: String): Seq[String] = {
     val buf = new ArrayBuffer[String]
     var i = 0
@@ -70,7 +79,9 @@ private object Utils extends Logging {
     return buf
   }
 
-  /** Create a temporary directory inside the given parent directory */
+  /** 
+   * Create a temporary directory inside the given parent directory 
+   */
   def createTempDir(root: String = System.getProperty("java.io.tmpdir")): File = {
     var attempts = 0
     val maxAttempts = 10
