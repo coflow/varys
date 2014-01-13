@@ -31,6 +31,7 @@ private[varys] class Master(
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
   val NIC_BPS = 1024 * 1048576
+  val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
@@ -125,19 +126,23 @@ private[varys] class Master(
 
       case RegisterCoflow(clientId, description) => {
         val currentSender = sender
-
-        // clientId will always be in clients
-        val client = idToClient.get(clientId)
-        assert(client != null)
-
         val st = now
         logTrace("Registering coflow " + description.name)
-        val coflow = addCoflow(client, description, currentSender)
-        // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
-        currentSender ! RegisteredCoflow(coflow.id)
-        logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + (now - st) + " milliseconds")
 
-        // No need to schedule here. Changes won't happen until the new flows are added.
+        if (CONSIDER_DEADLINE && description.deadlineMillis == 0) {
+          currentSender ! RegisterCoflowFailed("Must specify a valid deadline")
+        } else {
+          val client = idToClient.get(clientId)
+          if (client == null) {
+            currentSender ! RegisterCoflowFailed("Invalid clientId " + clientId)
+          } else {
+            val coflow = addCoflow(client, description, currentSender)
+            // context.watch(currentSender)  // This doesn't work with remote actors but helps for testing
+            currentSender ! RegisteredCoflow(coflow.id)
+            logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + (now - st) + " milliseconds")
+            // No need to schedule here. Changes won't happen until the new flows are added.
+          }
+        }
       }
 
       case UnregisterCoflow(coflowId) => {
@@ -400,9 +405,8 @@ private[varys] class Master(
     def schedule(): Boolean = synchronized {
       var st = now
 
-      // STEP 1: Sort READY or RUNNING coflows by remaining size
+      // STEP 1: Sort READY or RUNNING coflows by remaining bottleneck size
       var sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.remainingSizeInBytes > 0 && (x.state == CoflowState.READY || x.state == CoflowState.RUNNING))
-      // sortedCoflows = sortedCoflows.sortWith(_.remainingSizeInBytes < _.remainingSizeInBytes)
       sortedCoflows = sortedCoflows.sortWith(_.calcAlpha < _.calcAlpha)
       val step1Dur = now - st
       st = now

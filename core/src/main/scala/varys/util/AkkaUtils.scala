@@ -90,6 +90,7 @@ private[varys] object AkkaUtils {
                "varys.framework.RegisterSlaveFailed",
                "varys.framework.RegisterClient",
                "varys.framework.RegisterCoflow",
+               "varys.framework.RegisterCoflowFailed",
                "varys.framework.UnregisterCoflow",
                "varys.framework.RequestBestRxMachines",
                "varys.framework.RequestBestTxMachines",

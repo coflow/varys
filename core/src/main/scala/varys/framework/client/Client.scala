@@ -29,7 +29,7 @@ class Client(
     listener: ClientListener = null)
   extends Logging {
 
-  val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.framework.ask.wait", "5000").toInt
+  val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.client.internalAskTimeoutMillis", "5000").toInt
   val RATE_UPDATE_FREQ = System.getProperty("varys.client.rateUpdateIntervalMillis", "100").toLong
   val SHORT_FLOW_BYTES = System.getProperty("varys.client.shortFlowMB", "0").toLong * 1048576
   val NIC_BPS = 1024 * 1048576

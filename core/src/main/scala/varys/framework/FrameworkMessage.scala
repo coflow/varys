@@ -42,6 +42,10 @@ private[varys] case class RegisterCoflow(
     coflowDescription: CoflowDescription) 
   extends FrameworkMessage
 
+private[varys] case class RegisterCoflowFailed(
+    message: String) 
+  extends FrameworkMessage
+
 private[varys] case class UnregisterCoflow(
     coflowId: String) 
   extends FrameworkMessage
