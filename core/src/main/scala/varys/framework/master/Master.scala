@@ -33,7 +33,7 @@ private[varys] class Master(
   val NIC_BitPS = 1024 * 1048576
   
   val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
-  val DEADLINE_PADDING = System.getProperty("varys.master.deadlinePadding", "10").toDouble
+  val DEADLINE_PADDING = System.getProperty("varys.master.deadlinePadding", "0.1").toDouble
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
@@ -430,7 +430,8 @@ private[varys] class Master(
       for (cf <- sortedCoflows) {
         logInfo("Scheduling " + cf)
 
-        val minMillis = cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PADDING)
+        // FIXME: Using 200 milliseconds, i.e., 25MB size, as threshold
+        val minMillis = math.max(cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PADDING), 200)
 
         if (CONSIDER_DEADLINE 
             && cf.curState == CoflowState.READY
@@ -490,6 +491,9 @@ private[varys] class Master(
         }
       }
 
+      // Keep only the RUNNING coflows
+      sortedCoflows = sortedCoflows.filter(_.curState == CoflowState.RUNNING)
+
       // STEP2A: Work conservation
       for (cf <- sortedCoflows) {
         var totalBps = 0.0
@@ -514,7 +518,7 @@ private[varys] class Master(
       st = now
 
       // STEP 3: Communicate updates to clients
-      val activeFlows = sortedCoflows.filter(_.curState == CoflowState.RUNNING).flatMap(_.getFlows)
+      val activeFlows = sortedCoflows.flatMap(_.getFlows)
       logInfo("START_NEW_SCHEDULE: " + activeFlows.size + " flows in " + sortedCoflows.size + " coflows")
       
       for (cf <- sortedCoflows) {
