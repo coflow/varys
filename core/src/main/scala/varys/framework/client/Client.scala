@@ -143,6 +143,9 @@ class Client(
             flowToBitPerSec.put(dataId, newBitPerSec)
           }
         }
+
+      case RejectedCoflow(coflowId, _) =>
+        
     }
 
     /**

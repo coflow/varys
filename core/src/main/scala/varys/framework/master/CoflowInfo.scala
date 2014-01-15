@@ -7,7 +7,7 @@ import java.util.concurrent.atomic._
 import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.JavaConverters._
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, Map}
 
 import varys.framework.{FlowDescription, CoflowDescription}
 
@@ -18,7 +18,17 @@ private[varys] class CoflowInfo(
     val submitDate: Date,
     val actor: ActorRef) {
   
-  var state = CoflowState.WAITING
+  private var _prevState = CoflowState.WAITING
+  def prevState = _prevState
+  
+  private var _curState = CoflowState.WAITING
+  def curState = _curState
+  
+  def changeState(nextState: CoflowState.Value) {
+    _prevState = _curState
+    _curState = nextState
+  }
+
   var origAlpha = 0.0
   
   var bytesLeft_ = new AtomicLong(0L)
@@ -34,7 +44,6 @@ private[varys] class CoflowInfo(
   private val idToFlow = new ConcurrentHashMap[String, FlowInfo]()
 
   private var _retryCount = 0
-
   def retryCount = _retryCount
 
   private val numRegisteredFlows = new AtomicInteger(0)
@@ -60,6 +69,33 @@ private[varys] class CoflowInfo(
   }
 
   def contains(flowId: String) = idToFlow.containsKey(flowId)
+
+  /**
+   * Calculate remaining time based on remaining flow size
+   */ 
+  def calcRemainingMillis(sBpsFree: Map[String, Double], rBpsFree: Map[String, Double]): Double = {
+    val sBytes = new HashMap[String, Double]().withDefaultValue(0.0)
+    val rBytes = new HashMap[String, Double]().withDefaultValue(0.0)
+
+    getFlows.foreach { flowInfo =>
+      // FIXME: Assuming a single source and destination for each flow
+      val src = flowInfo.source
+      val dst = flowInfo.destClient.host
+      
+      sBytes(src) = sBytes(src) + flowInfo.bytesLeft
+      rBytes(dst) = rBytes(dst) + flowInfo.bytesLeft
+    }
+
+    // Scale by available capacities
+    for ((src, v) <- sBytes) {
+      sBytes(src) = v * 8.0 / sBpsFree(src)
+    }
+    for ((dst, v) <- rBytes) {
+      rBytes(dst) = v * 8.0 / rBpsFree(dst)
+    }
+
+    math.max(sBytes.values.max, rBytes.values.max) * 1000
+  }
 
   /**
    * Calculating alpha for the coflow based on remaining flow size
@@ -105,7 +141,7 @@ private[varys] class CoflowInfo(
   private def postProcessIfReady(): Boolean = {
     if (numRegisteredFlows.get == desc.maxFlows) {
       origAlpha = calcAlpha()
-      state = CoflowState.READY
+      changeState(CoflowState.READY)
       readyTime = System.currentTimeMillis
       true
     } else {
@@ -163,7 +199,7 @@ private[varys] class CoflowInfo(
   }
 
   def markFinished(endState: CoflowState.Value) {
-    state = endState
+    changeState(endState)
     endTime = System.currentTimeMillis()
   }
 
@@ -182,5 +218,5 @@ private[varys] class CoflowInfo(
     }
   }
   
-  override def toString: String = "CoflowInfo(" + id + "[" + desc + "], state=" + state + ", numRegisteredFlows=" + numRegisteredFlows.get + ", numCompletedFlows=" + numCompletedFlows.get + ", bytesLeft= " + bytesLeft + ")"
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "], state=" + curState + ", numRegisteredFlows=" + numRegisteredFlows.get + ", numCompletedFlows=" + numCompletedFlows.get + ", bytesLeft= " + bytesLeft + ", deadlineMillis= " + desc.deadlineMillis + ")"
 }
