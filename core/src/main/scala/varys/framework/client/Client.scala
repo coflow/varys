@@ -53,7 +53,7 @@ class Client(
 
   val flowToTIS = new ConcurrentHashMap[DataIdentifier, ThrottledInputStream]()
   // TODO: Currently using flowToBitPerSec inside synchronized blocks. Might consider replacing with
-  // an appropriate data structure. E.g., Collections.synchronizedMap could be an option.
+  // an appropriate data structure; e.g., Collections.synchronizedMap.
   val flowToBitPerSec = new ConcurrentHashMap[DataIdentifier, Double]()
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
@@ -144,8 +144,24 @@ class Client(
           }
         }
 
-      case RejectedCoflow(coflowId, _) =>
-        
+      case RejectedCoflow(coflowId, rejectMessage) =>
+        // Let the client know
+        if (listener != null) {
+          listener.coflowRejected(coflowId, rejectMessage)
+        }
+
+        // Close ongoing streams, if any. This will raise exceptions in getOne() 
+        // and go back to the application.
+        // TODO: Find a more elegant solution.
+        flowToTIS.foreach { kv => {
+          // kv (key = dataId, value = TIS)
+          if (kv._1.coflowId == coflowId)
+            kv._2.close()
+          }
+        }
+
+        // Free local resources
+        freeLocalResources(coflowId)
     }
 
     /**
@@ -222,6 +238,10 @@ class Client(
     AkkaUtils.tellActor(slaveActor, UnregisterCoflow(coflowId))
     
     // Free local resources
+    freeLocalResources(coflowId)
+  }
+
+  private def freeLocalResources(coflowId: String) {
     flowToTIS.retain((dataId, _) => dataId.coflowId != coflowId)
     flowToBitPerSec.synchronized { flowToBitPerSec.retain((dataId, _) => dataId.coflowId != coflowId) }
     flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)

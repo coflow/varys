@@ -284,7 +284,7 @@ private[varys] class Master(
           val st = now
           canSchedule = coflow.addDestinations(flowIds, client)
 
-          // TODO: Always returning the default source. Considering selecting based on traffic etc.
+          // TODO: Always returning the default source. Consider selecting based on traffic etc.
           actor ! Some(GotFlowDescs(flowInfos.map(_.desc)))
 
           logInfo("Added " + flowIds.size + " destinations to " + coflow + ". " + coflow.numFlowsToRegister + " flows remain to register; in " + (now - st) + " milliseconds")
@@ -450,6 +450,7 @@ private[varys] class Master(
           }
 
           // FIXME: Must notify sending clients too
+          logInfo("Rejecting " + cf + " => " + rejectMessage)
         } else {
           val sUsed = new HashMap[String, Double]().withDefaultValue(0.0)
           val rUsed = new HashMap[String, Double]().withDefaultValue(0.0)
@@ -461,7 +462,7 @@ private[varys] class Master(
             val minFree = math.min(sBpsFree(src), rBpsFree(dst))
             if (minFree > 0.0) {
               if (CONSIDER_DEADLINE) {
-                flowInfo.currentBps = math.min((flowInfo.bytesLeft * 8) / (cf.deadlineMillis / 1000), minFree)
+                flowInfo.currentBps = math.min((flowInfo.bytesLeft * 8) / (cf.desc.deadlineMillis / 1000), minFree)
               } else {
                 flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.origAlpha)
               }
