@@ -379,7 +379,7 @@ private[varys] class Master(
     def addCoflow(client: ClientInfo, desc: CoflowDescription, actor: ActorRef): CoflowInfo = {
       val now = System.currentTimeMillis()
       val date = new Date(now)
-      val coflow = new CoflowInfo(now, newCoflowId(date), desc, date, actor)
+      val coflow = new CoflowInfo(now, newCoflowId(date), desc, client, date, actor)
 
       idToCoflow.put(coflow.id, coflow)
 
@@ -412,6 +412,7 @@ private[varys] class Master(
      */
     def schedule(): Boolean = synchronized {
       var st = now
+      val markedForRejection = new ArrayBuffer[CoflowInfo]()
 
       // STEP 1: Sort READY or RUNNING coflows by remaining bottleneck size
       var sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.remainingSizeInBytes > 0 && (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
@@ -428,30 +429,20 @@ private[varys] class Master(
       val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
 
       for (cf <- sortedCoflows) {
-        logInfo("Scheduling " + cf)
-
         // FIXME: Using 200 milliseconds, i.e., 25MB size, as threshold
         val minMillis = math.max(cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PADDING), 200)
+
+        logInfo("Scheduling " + cf + " minMillis=" + minMillis)
 
         if (CONSIDER_DEADLINE 
             && cf.curState == CoflowState.READY
             && minMillis > cf.desc.deadlineMillis) {
 
-          // Mark coflow as REJECTED and remove if it will miss its deadline
-          removeCoflow(cf, CoflowState.REJECTED, false)
-  
-          // Notify coflow owner
-          val rejectMessage = "Minimum completion time of " + minMillis + " millis is more than the deadline of " + cf.desc.deadlineMillis + " millis"
-          cf.actor ! RejectedCoflow(cf.id, rejectMessage)
-          
-          // Notify receiving clients
-          cf.getFlows.groupBy(_.destClient).foreach { tuple => 
-            val client = tuple._1
-            client.actor ! RejectedCoflow(cf.id, rejectMessage)
-          }
+          // Mark coflow for rejection, which will be removed later
+          markedForRejection += cf
 
-          // FIXME: Must notify sending clients too
-          logInfo("Rejecting " + cf + " => " + rejectMessage)
+          val rejectMessage = "Minimum completion time of " + minMillis + " millis is more than the deadline of " + cf.desc.deadlineMillis + " millis"
+          logInfo("Marking " + cf + " for rejection => " + rejectMessage)
         } else {
           val sUsed = new HashMap[String, Double]().withDefaultValue(0.0)
           val rUsed = new HashMap[String, Double]().withDefaultValue(0.0)
@@ -463,7 +454,7 @@ private[varys] class Master(
             val minFree = math.min(sBpsFree(src), rBpsFree(dst))
             if (minFree > 0.0) {
               if (CONSIDER_DEADLINE) {
-                flowInfo.currentBps = math.min((flowInfo.bytesLeft * 8) / (cf.desc.deadlineMillis / 1000), minFree)
+                flowInfo.currentBps = math.min((flowInfo.bytesLeft.toDouble * 8) / (cf.desc.deadlineMillis.toDouble / 1000), minFree)
               } else {
                 flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.origAlpha)
               }
@@ -534,6 +525,19 @@ private[varys] class Master(
       }
       val step3Dur = now - st
       logInfo("END_NEW_SCHEDULE in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + step2Dur + "+" + step3Dur + ") milliseconds")
+
+      // STEP 4: Remove rejected coflows
+      for (cf <- markedForRejection) {
+        val rejectMessage = "Cannot meet the specified deadline of " + cf.desc.deadlineMillis + " milliseconds"
+        
+        cf.parentClient.actor ! RejectedCoflow(cf.id, rejectMessage)
+        cf.getFlows.groupBy(_.destClient).foreach { tuple => 
+          val client = tuple._1
+          client.actor ! RejectedCoflow(cf.id, rejectMessage)
+        }
+
+        removeCoflow(cf, CoflowState.REJECTED, false)
+      }
 
       true
     }

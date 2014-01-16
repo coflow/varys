@@ -145,6 +145,8 @@ class Client(
         }
 
       case RejectedCoflow(coflowId, rejectMessage) =>
+        logDebug("Coflow " + coflowId + " has been rejected! " + rejectMessage)
+
         // Let the client know
         if (listener != null) {
           listener.coflowRejected(coflowId, rejectMessage)

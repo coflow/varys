@@ -15,6 +15,7 @@ private[varys] class CoflowInfo(
     val startTime: Long,
     val id: String,
     val desc: CoflowDescription,
+    val parentClient: ClientInfo,
     val submitDate: Date,
     val actor: ActorRef) {
   
