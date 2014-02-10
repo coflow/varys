@@ -23,7 +23,7 @@ private[varys] class SlaveToBpsMap {
 
   def getBps(id: String): Double = {
     val bpsInfo = idToBpsMap.getOrElse(id, new BpsInfo())
-    bpsInfo.modBps
+    bpsInfo.getBps
   }
 
   def getRandomN(numMachines: Int, adjustBytes: Long): ArrayBuffer[String] = this.synchronized {
