@@ -17,7 +17,7 @@ import scala.collection.JavaConversions._
 
 import varys.framework._
 import varys.{Logging, VarysException, Utils}
-import varys.util.AkkaUtils
+import varys.util.{AkkaUtils, SlaveToBpsMap}
 
 private[varys] class Master(
     systemName:String, 

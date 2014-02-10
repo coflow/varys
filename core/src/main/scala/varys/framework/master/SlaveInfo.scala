@@ -1,7 +1,10 @@
 package varys.framework.master
 
 import akka.actor.ActorRef
+
 import scala.collection.mutable
+
+import varys.util.BpsInfo
 
 private[varys] class SlaveInfo(
   val id: String,

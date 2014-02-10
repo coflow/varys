@@ -1,9 +1,10 @@
 package varys.framework.master
 
-import varys.framework.FlowDescription
+import java.util.concurrent.atomic.AtomicLong
+
 import scala.collection.mutable.HashSet
 
-import java.util.concurrent.atomic.AtomicLong
+import varys.framework.FlowDescription
 
 private[varys] class FlowInfo(
     val desc: FlowDescription) {

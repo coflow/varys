@@ -1,7 +1,8 @@
 package varys.framework
 
-import varys.framework.master.{CoflowInfo, ClientInfo, SlaveInfo}
 import akka.actor.ActorRef
+
+import varys.framework.master.{CoflowInfo, ClientInfo, SlaveInfo}
 
 private[varys] sealed trait FrameworkMessage extends Serializable
 

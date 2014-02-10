@@ -1,18 +1,22 @@
 package varys.util
 
 import akka.actor.{ActorRef, Props, ActorSystemImpl, ActorSystem}
-import com.typesafe.config.ConfigFactory
 import akka.util.duration._
 import akka.pattern.ask
 import akka.remote.RemoteActorRefProvider
+import akka.dispatch.Await
+
 import cc.spray.Route
 import cc.spray.io.IoWorker
 import cc.spray.{SprayCanRootService, HttpService}
 import cc.spray.can.server.HttpServer
 import cc.spray.io.pipelines.MessageHandlerDispatch.SingletonHandler
-import akka.dispatch.Await
-import varys.VarysException
+
+import com.typesafe.config.ConfigFactory
+
 import java.util.concurrent.TimeoutException
+
+import varys.VarysException
 
 /**
  * Various utility classes for working with Akka.

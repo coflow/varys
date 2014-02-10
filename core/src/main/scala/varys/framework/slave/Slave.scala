@@ -1,15 +1,15 @@
 package varys.framework.slave
 
+import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
+import akka.util.duration._
+import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
+
 import java.io.{File, ObjectInputStream, ObjectOutputStream, IOException}
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.net._
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
-
-import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
-import akka.util.duration._
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
 
 import varys.framework.master.Master
 import varys.{Logging, Utils, VarysException}

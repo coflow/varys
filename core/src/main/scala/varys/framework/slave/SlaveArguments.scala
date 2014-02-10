@@ -1,8 +1,9 @@
 package varys.framework.slave
 
+import java.lang.management.ManagementFactory
+
 import varys.util.IntParam
 import varys.Utils
-import java.lang.management.ManagementFactory
 
 /**
  * Command-line parser for the slave.

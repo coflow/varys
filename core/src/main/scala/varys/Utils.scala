@@ -1,5 +1,8 @@
 package varys
 
+import com.google.common.io.Files
+import com.google.common.util.concurrent.ThreadFactoryBuilder
+
 import java.io._
 import java.net._
 import java.nio.{ByteBuffer, MappedByteBuffer}
@@ -10,9 +13,6 @@ import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.io.Source
 import scala.Some
-
-import com.google.common.io.Files
-import com.google.common.util.concurrent.ThreadFactoryBuilder
 
 import sun.nio.ch.DirectBuffer
 

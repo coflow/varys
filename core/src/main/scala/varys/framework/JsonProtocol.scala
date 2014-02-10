@@ -1,7 +1,8 @@
 package varys.framework
 
-import master.{ClientInfo, CoflowInfo, SlaveInfo}
 import cc.spray.json._
+
+import master.{ClientInfo, CoflowInfo, SlaveInfo}
 
 /**
  * spray-json helper class containing implicit conversion to json for marshalling responses

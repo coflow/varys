@@ -1,4 +1,4 @@
-package varys.framework.master
+package varys.util
 
 import scala.collection.mutable.{ArrayBuffer, SynchronizedMap, HashMap}
 import scala.util.Random

@@ -1,7 +1,9 @@
 package varys.framework.master
 
-import java.util.Date
 import akka.actor.ActorRef
+
+import java.util.Date
+
 import scala.collection.mutable.{HashSet}
 
 private[varys] class ClientInfo(

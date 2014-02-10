@@ -1,4 +1,4 @@
-package varys.framework.master
+package varys.util
 
 private[varys] class BpsInfo {
 

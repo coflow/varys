@@ -1,13 +1,5 @@
 package varys.framework.client
 
-import java.io._
-import java.net._
-import java.util.concurrent.ConcurrentHashMap
-
-import scala.concurrent._
-import scala.collection.mutable.HashMap
-import scala.collection.JavaConversions._
-
 import akka.actor._
 import akka.actor.Terminated
 import akka.util.duration._
@@ -15,6 +7,14 @@ import akka.pattern.ask
 import akka.pattern.AskTimeoutException
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
 import akka.dispatch._
+
+import java.io._
+import java.net._
+import java.util.concurrent.ConcurrentHashMap
+
+import scala.concurrent._
+import scala.collection.mutable.HashMap
+import scala.collection.JavaConversions._
 
 import varys.{VarysException, Logging}
 import varys.framework._
