@@ -30,7 +30,7 @@ private[varys] class Master(
   val NUM_MASTER_INSTANCES = System.getProperty("varys.master.numInstances", "10").toInt
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
-  val NIC_BitPS = 1024 * 1048576
+  val NIC_BitPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1024.0 * 1024.0
   
   val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
   val DEADLINE_PADDING = System.getProperty("varys.master.deadlinePadding", "0.1").toDouble
