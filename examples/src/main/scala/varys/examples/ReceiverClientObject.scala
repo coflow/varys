@@ -16,10 +16,6 @@ private[varys] object ReceiverClientObject {
       logInfo("Disconnected from master")
       System.exit(0)
     }
-  
-    def coflowRejected(coflowId: String, rejectMessage: String) {
-      // Ignore
-    }
   }
 
   def main(args: Array[String]) {

@@ -18,10 +18,6 @@ private[varys] object SenderClientFile {
       logInfo("Disconnected from master")
       System.exit(0)
     }
-
-    def coflowRejected(coflowId: String, rejectMessage: String) {
-      // Ignore
-    }
   }
 
   private def write(aInput: Array[Byte], aOutputFileName: String) {

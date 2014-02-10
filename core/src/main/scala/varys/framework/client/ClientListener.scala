@@ -12,5 +12,6 @@ trait ClientListener {
 
   def disconnected(): Unit
 
-  def coflowRejected(coflowId: String, rejectMessage: String): Unit
+  // Only called for deadline-sensitive coflows
+  def coflowRejected(coflowId: String, rejectMessage: String): Unit = { }
 }

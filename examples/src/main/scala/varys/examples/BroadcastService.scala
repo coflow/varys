@@ -39,10 +39,6 @@ private[varys] object BroadcastSender extends Logging {
       logInfo("Disconnected from master")
       System.exit(0)
     }
-
-    def coflowRejected(coflowId: String, rejectMessage: String) {
-      // Ignore
-    }
   }
   
   class MasterThread (
@@ -210,10 +206,6 @@ private[varys] object BroadcastReceiver extends Logging {
     def disconnected() {
       logInfo("Disconnected from master")
       System.exit(0)
-    }
-
-    def coflowRejected(coflowId: String, rejectMessage: String) {
-      // Ignore
     }
   }
 
