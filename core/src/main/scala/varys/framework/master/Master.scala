@@ -30,10 +30,8 @@ private[varys] class Master(
   val NUM_MASTER_INSTANCES = System.getProperty("varys.master.numInstances", "10").toInt
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
-  val NIC_BitPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1024.0 * 1024.0
   
   val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
-  val DEADLINE_PADDING = System.getProperty("varys.master.deadlinePadding", "0.1").toDouble
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
@@ -59,6 +57,10 @@ private[varys] class Master(
 
   private def now() = System.currentTimeMillis
   
+  // Create the scheduler object
+  val schedulerClass = System.getProperty("varys.master.scheduler", "varys.framework.master.SEBFScheduler")
+  val coflowScheduler = Class.forName(schedulerClass).newInstance.asInstanceOf[CoflowScheduler]
+
   def start(): (ActorSystem, Int) = {
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)
     val actor = actorSystem.actorOf(Props(new MasterActor(host, boundPort, webUiPort)).withRouter(
@@ -412,107 +414,20 @@ private[varys] class Master(
      */
     def schedule(): Boolean = synchronized {
       var st = now
-      val markedForRejection = new ArrayBuffer[CoflowInfo]()
 
-      // STEP 1: Sort READY or RUNNING coflows by remaining bottleneck size
-      var sortedCoflows = idToCoflow.values.toBuffer.filter(x => x.remainingSizeInBytes > 0 && (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
-      if (CONSIDER_DEADLINE) {
-        sortedCoflows = sortedCoflows.sortWith(_.readyTime < _.readyTime)
-      } else {
-        sortedCoflows = sortedCoflows.sortWith(_.calcAlpha < _.calcAlpha)
-      }
-      val step1Dur = now - st
+      // Schedule coflows
+      val activeCoflows = idToCoflow.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]].filter(x => x.remainingSizeInBytes > 0 && (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
+      val activeSlaves = idToSlave.values.asInstanceOf[ArrayBuffer[SlaveInfo]]
+      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves))
+
+      val step12Dur = now - st
       st = now
 
-      // STEP 2: Perform WSS + Backfilling
-      val sBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
-      val rBpsFree = new HashMap[String, Double]().withDefaultValue(NIC_BitPS)
-
-      for (cf <- sortedCoflows) {
-        // FIXME: Using 200 milliseconds, i.e., 25MB size, as threshold
-        val minMillis = math.max(cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PADDING), 200)
-
-        logInfo("Scheduling " + cf + " minMillis=" + minMillis)
-
-        if (CONSIDER_DEADLINE 
-            && cf.curState == CoflowState.READY
-            && minMillis > cf.desc.deadlineMillis) {
-
-          // Mark coflow for rejection, which will be removed later
-          markedForRejection += cf
-
-          val rejectMessage = "Minimum completion time of " + minMillis + " millis is more than the deadline of " + cf.desc.deadlineMillis + " millis"
-          logInfo("Marking " + cf + " for rejection => " + rejectMessage)
-        } else {
-          val sUsed = new HashMap[String, Double]().withDefaultValue(0.0)
-          val rUsed = new HashMap[String, Double]().withDefaultValue(0.0)
-
-          for (flowInfo <- cf.getFlows) {
-            val src = flowInfo.source
-            val dst = flowInfo.destClient.host
-
-            val minFree = math.min(sBpsFree(src), rBpsFree(dst))
-            if (minFree > 0.0) {
-              if (CONSIDER_DEADLINE) {
-                flowInfo.currentBps = math.min((flowInfo.bytesLeft.toDouble * 8) / (cf.desc.deadlineMillis.toDouble / 1000), minFree)
-              } else {
-                flowInfo.currentBps = minFree * (flowInfo.getFlowSize() / cf.origAlpha)
-              }
-              if (math.abs(flowInfo.currentBps) < 1e-6) 
-                flowInfo.currentBps = 0.0
-              flowInfo.lastScheduled = System.currentTimeMillis
-
-              // Remember how much capacity was allocated
-              sUsed(src) = sUsed(src) + flowInfo.currentBps
-              rUsed(dst) = rUsed(dst) + flowInfo.currentBps
-
-              // Set the coflow as running
-              cf.changeState(CoflowState.RUNNING)
-            } else {
-              flowInfo.currentBps = 0.0
-            }
-          }
-
-          // Remove capacity from ALL sources and destination for this coflow
-          for (sl <- idToSlave.values) {
-            val host = sl.host
-            sBpsFree(host) = sBpsFree(host) - sUsed(host)
-            rBpsFree(host) = rBpsFree(host) - rUsed(host)
-          }
-        }
-      }
-
-      // Keep only the RUNNING coflows
-      sortedCoflows = sortedCoflows.filter(_.curState == CoflowState.RUNNING)
-
-      // STEP2A: Work conservation
-      for (cf <- sortedCoflows) {
-        var totalBps = 0.0
-        for (flowInfo <- cf.getFlows) {
-          val src = flowInfo.source
-          val dst = flowInfo.destClient.host
-
-          val minFree = math.min(sBpsFree(src), rBpsFree(dst))
-          if (minFree > 0.0) {
-            flowInfo.currentBps += minFree
-            sBpsFree(src) = sBpsFree(src) - minFree
-            rBpsFree(dst) = rBpsFree(dst) - minFree
-          }
-          
-          totalBps += flowInfo.currentBps
-        }
-        
-        // Update current allocation of the coflow
-        cf.setCurrentAllocation(totalBps)
-      }
-      val step2Dur = now - st
-      st = now
-
-      // STEP 3: Communicate updates to clients
-      val activeFlows = sortedCoflows.flatMap(_.getFlows)
-      logInfo("START_NEW_SCHEDULE: " + activeFlows.size + " flows in " + sortedCoflows.size + " coflows")
+      // Communicate the schedule to clients
+      val activeFlows = schedulerOutput.scheduledCoflows.flatMap(_.getFlows)
+      logInfo("START_NEW_SCHEDULE: " + activeFlows.size + " flows in " + schedulerOutput.scheduledCoflows.size + " coflows")
       
-      for (cf <- sortedCoflows) {
+      for (cf <- schedulerOutput.scheduledCoflows) {
         val (timeStamp, totalBps) = cf.currentAllocation
         logInfo(cf + " ==> " + (totalBps / 1048576.0) + " Mbps @ " + timeStamp)
       }
@@ -524,10 +439,10 @@ private[varys] class Master(
         client.actor ! UpdatedRates(rateMap)
       }
       val step3Dur = now - st
-      logInfo("END_NEW_SCHEDULE in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + step2Dur + "+" + step3Dur + ") milliseconds")
+      logInfo("END_NEW_SCHEDULE in " + (step12Dur + step12Dur + step3Dur) + " = (" + step12Dur + "+" + step12Dur + "+" + step3Dur + ") milliseconds")
 
-      // STEP 4: Remove rejected coflows
-      for (cf <- markedForRejection) {
+      // Remove rejected coflows
+      for (cf <- schedulerOutput.markedForRejection) {
         val rejectMessage = "Cannot meet the specified deadline of " + cf.desc.deadlineMillis + " milliseconds"
         
         cf.parentClient.actor ! RejectedCoflow(cf.id, rejectMessage)
