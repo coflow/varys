@@ -1,7 +1,8 @@
-package varys.framework.master
+package varys.framework.master.scheduler
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, Map}
 
+import varys.framework.master.{CoflowInfo, CoflowState, FlowInfo, SlaveInfo}
 import varys.Logging
 
 /**

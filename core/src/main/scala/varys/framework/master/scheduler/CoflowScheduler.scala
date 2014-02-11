@@ -1,6 +1,8 @@
-package varys.framework.master
+package varys.framework.master.scheduler
 
 import scala.collection.mutable.ArrayBuffer
+
+import varys.framework.master.{CoflowInfo, SlaveInfo}
 
 /**
  * Primary interface of coflow schedulers. 

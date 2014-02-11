@@ -16,6 +16,7 @@ import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
 
 import varys.framework._
+import varys.framework.master.scheduler._
 import varys.{Logging, VarysException, Utils}
 import varys.util.{AkkaUtils, SlaveToBpsMap}
 
@@ -31,7 +32,7 @@ private[varys] class Master(
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
   
-  val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
+  val CONSIDER_DEADLINE = System.getProperty("varys.master.considerDeadline", "false").toBoolean
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
@@ -58,7 +59,7 @@ private[varys] class Master(
   private def now() = System.currentTimeMillis
   
   // Create the scheduler object
-  val schedulerClass = System.getProperty("varys.master.scheduler", "varys.framework.master.SEBFScheduler")
+  val schedulerClass = System.getProperty("varys.master.scheduler", "varys.framework.master.scheduler.SEBFScheduler")
   val coflowScheduler = Class.forName(schedulerClass).newInstance.asInstanceOf[CoflowScheduler]
 
   def start(): (ActorSystem, Int) = {
