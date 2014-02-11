@@ -16,5 +16,6 @@ class CoflowDescription(
 
   val user = System.getProperty("user.name", "<unknown>")
 
-  override def toString: String = "CoflowDescription(" + name + "["+ coflowType + ", " + maxFlows + "])"
+  override def toString: String = "CoflowDescription(" + name + "["+ coflowType + ", " + 
+    maxFlows + "])"
 }

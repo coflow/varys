@@ -286,8 +286,15 @@ private[varys] object Slave {
     }
   }
 
-  def startSystemAndActor(host: String, port: Int, webUiPort: Int, commPort: Int,
-    masterUrl: String, workDir: String, slaveNumber: Option[Int] = None): (ActorSystem, Int) = {
+  def startSystemAndActor(
+      host: String, 
+      port: Int, 
+      webUiPort: Int, 
+      commPort: Int,
+      masterUrl: String, 
+      workDir: String, 
+      slaveNumber: Option[Int] = None): (ActorSystem, Int) = {
+    
     // The LocalVarysCluster runs multiple local varysSlaveX actor systems
     val systemName = "varysSlave" + slaveNumber.map(_.toString).getOrElse("")
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)

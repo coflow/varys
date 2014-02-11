@@ -40,7 +40,8 @@ private[varys] class MasterWebUI(
           completeWith {
             val future = master ? RequestMasterState
             future.map {
-              masterState => varys.framework.master.html.index.render(masterState.asInstanceOf[MasterState])
+              masterState => 
+                varys.framework.master.html.index.render(masterState.asInstanceOf[MasterState])
             }
           }
       } ~

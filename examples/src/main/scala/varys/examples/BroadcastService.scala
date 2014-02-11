@@ -159,7 +159,12 @@ private[varys] object BroadcastSender extends Logging {
     val client = new Client("BroadcastSender", url, listener)
     client.start()
     
-    val desc = new CoflowDescription("Broadcast-" + fileName, CoflowType.BROADCAST, numSlaves, LEN_BYTES * numSlaves)
+    val desc = new CoflowDescription(
+      "Broadcast-" + fileName, 
+      CoflowType.BROADCAST, 
+      numSlaves, 
+      LEN_BYTES * numSlaves)
+
     val coflowId = client.registerCoflow(desc)
     logInfo("Registered coflow " + coflowId)
     
@@ -328,8 +333,11 @@ private[varys] object BroadcastReceiver extends Logging {
     randomOffsets.foreach { offset =>
       val blockName = origFileName + "-" + offset
       logInfo("Getting " + blockName + " from coflow " + bInfo.coflowId)
+      
       val bArr = client.getFile(blockName, bInfo.coflowId)
-      logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + " at " + offset)
+      logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + 
+        " at " + offset)
+      
       FILE.seek(offset)
       FILE.write(bArr)
     }

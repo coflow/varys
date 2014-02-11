@@ -13,7 +13,7 @@ import varys.Logging
  */
 abstract class OrderingBasedScheduler extends CoflowScheduler with Logging {
 
-  val NIC_BitPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1024.0 * 1024.0
+  val NIC_BitPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1048576.0
 
   override def schedule(schedulerInput: SchedulerInput): SchedulerOutput = {
     val markedForRejection = new ArrayBuffer[CoflowInfo]()

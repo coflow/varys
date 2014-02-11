@@ -12,10 +12,10 @@ import varys.Logging
 class DeadlineScheduler extends OrderingBasedScheduler with Logging {
 
   val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
-  val DEADLINE_PADDING = System.getProperty("varys.master.deadlinePadding", "0.1").toDouble
+  val DEADLINE_PAD = System.getProperty("varys.master.deadlinePadding", "0.1").toDouble
 
   if (!CONSIDER_DEADLINE) {
-    logError("varys.master.consdierDeadline must be true for DeadlineScheduler.")
+    logError("varys.master.consdierDeadline must be true for DeadlineScheduler")
     System.exit(1)
   }
 
@@ -30,11 +30,12 @@ class DeadlineScheduler extends OrderingBasedScheduler with Logging {
       rBpsFree: Map[String, Double]): Boolean = {
     
     // FIXME: Using 200 milliseconds, i.e., 25MB size, as threshold
-    val minMillis = math.max(cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PADDING), 200)
+    val minMillis = math.max(cf.calcRemainingMillis(sBpsFree, rBpsFree) * (1 + DEADLINE_PAD), 200)
     
     val rejected = (cf.curState == CoflowState.READY && minMillis > cf.desc.deadlineMillis)
     if (rejected) {
-      val rejectMessage = "Minimum completion time of " + minMillis + " millis is more than the deadline of " + cf.desc.deadlineMillis + " millis"
+      val rejectMessage = "Minimum completion time of " + minMillis + 
+        " millis is more than the deadline of " + cf.desc.deadlineMillis + " millis"
       logInfo("Marking " + cf + " for rejection => " + rejectMessage)
     }
 

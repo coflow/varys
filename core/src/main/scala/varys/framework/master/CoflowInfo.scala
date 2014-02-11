@@ -219,5 +219,8 @@ private[varys] class CoflowInfo(
     }
   }
   
-  override def toString: String = "CoflowInfo(" + id + "[" + desc + "], state=" + curState + ", numRegisteredFlows=" + numRegisteredFlows.get + ", numCompletedFlows=" + numCompletedFlows.get + ", bytesLeft= " + bytesLeft + ", deadlineMillis= " + desc.deadlineMillis + ")"
+  override def toString: String = "CoflowInfo(" + id + "[" + desc + "], state=" + curState + 
+    ", numRegisteredFlows=" + numRegisteredFlows.get + ", numCompletedFlows=" + 
+    numCompletedFlows.get + ", bytesLeft= " + bytesLeft + ", deadlineMillis= " + 
+    desc.deadlineMillis + ")"
 }

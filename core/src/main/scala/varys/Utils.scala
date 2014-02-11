@@ -89,8 +89,8 @@ private object Utils extends Logging {
     while (dir == null) {
       attempts += 1
       if (attempts > maxAttempts) {
-        throw new IOException("Failed to create a temp directory after " + maxAttempts +
-            " attempts!")
+        throw new IOException("Failed to create a temp directory after " + maxAttempts + 
+          " attempts!")
       }
       try {
         dir = new File(root, "varys-" + UUID.randomUUID.toString)
@@ -155,8 +155,9 @@ private object Utils extends Logging {
         // Address resolves to something like 127.0.1.1, which happens on Debian; try to find
         // a better address using the local network interfaces
         for (ni <- NetworkInterface.getNetworkInterfaces) {
-          for (addr <- ni.getInetAddresses if !addr.isLinkLocalAddress &&
-               !addr.isLoopbackAddress && addr.isInstanceOf[Inet4Address]) {
+          for (addr <- ni.getInetAddresses if !addr.isLinkLocalAddress && 
+              !addr.isLoopbackAddress && addr.isInstanceOf[Inet4Address]) {
+
             // We've found an address that looks reasonable!
             logWarning("Your hostname, " + InetAddress.getLocalHost.getHostName + " resolves to" +
               " a loopback address: " + address.getHostAddress + "; using " + addr.getHostAddress +
