@@ -13,14 +13,6 @@ import varys.Logging
 
 class SEBFScheduler extends OrderingBasedScheduler with Logging {
 
-  val CONSIDER_DEADLINE = System.getProperty("varys.master.consdierDeadline", "false").toBoolean
-  val DEADLINE_PADDING = System.getProperty("varys.master.deadlinePadding", "0.1").toDouble
-
-  if (!CONSIDER_DEADLINE) {
-    logError("varys.master.consdierDeadline must be true for DeadlineScheduler.")
-    System.exit(1)
-  }
-
   override def getOrderedCoflows(
       activeCoflows: ArrayBuffer[CoflowInfo]): ArrayBuffer[CoflowInfo] = {
     activeCoflows.sortWith(_.calcAlpha < _.calcAlpha)
