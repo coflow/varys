@@ -10,7 +10,6 @@ import varys.Logging
  * It sorts coflows by expected CCT based on current bottlebneck duration.
  * All coflows are accepted; hence, there is no admission control.
  */
-
 class SEBFScheduler extends OrderingBasedScheduler with Logging {
 
   override def getOrderedCoflows(

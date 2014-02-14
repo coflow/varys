@@ -43,15 +43,6 @@ private[varys] case class RegisterCoflow(
     coflowDescription: CoflowDescription) 
   extends FrameworkMessage
 
-private[varys] case class RegisterCoflowFailed(
-    message: String) 
-  extends FrameworkMessage
-
-private[varys] case class RejectedCoflow(
-    coflowId: String,
-    message: String) 
-  extends FrameworkMessage
-
 private[varys] case class UnregisterCoflow(
     coflowId: String) 
   extends FrameworkMessage
@@ -86,8 +77,17 @@ private[varys] case class RegisteredCoflow(
     coflowId: String) 
   extends FrameworkMessage
 
+private[varys] case class RegisterCoflowFailed(
+    message: String) 
+  extends FrameworkMessage
+
 private[varys] case class UnregisteredCoflow(
     coflowId: String) 
+  extends FrameworkMessage
+
+private[varys] case class RejectedCoflow(
+    coflowId: String,
+    message: String) 
   extends FrameworkMessage
 
 private[varys] case class BestRxMachines(

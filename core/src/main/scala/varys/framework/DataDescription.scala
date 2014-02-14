@@ -29,7 +29,6 @@ private[varys] class FlowDescription(
   def updateCommPort(commPort: Int) {
     originCommPort = commPort
   }
-  
 }
 
 private[varys] class FileDescription(

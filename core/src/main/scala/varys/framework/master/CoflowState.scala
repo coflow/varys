@@ -11,6 +11,4 @@ private[varys] object CoflowState extends Enumeration(
   type CoflowState = Value
 
   val WAITING, READY, RUNNING, FINISHED, FAILED, REJECTED = Value
-
-  val MAX_NUM_RETRY = 10
 }
