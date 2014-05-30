@@ -8,7 +8,7 @@ Communication in data-parallel applications often involves a collection of paral
 More information on the coflow abstraction can be found at <http://www.mosharaf.com/wp-content/uploads/coflow-hotnets2012.pdf>
 
 ## Building Varys
-Varys is built on `Scala 2.9.3`. To build Varys and example programs using it, run
+Varys is built on `Scala 2.9.2`. To build Varys and example programs using it, run
 
 	./sbt/sbt package
 
@@ -35,4 +35,25 @@ While these examples by themselves do not perform any task, they show how a fram
 Take a look at the `BroadcastService` example that does a slightly better job in containing everything (driver, sender, and receiver) in the same application.
 
 ## Dependency Information
-TBA
+Currently, Varys has not yet been published to any repository. The easiest way to use it in your project is to first publish it to local ivy repository. 
+
+	./sbt/sbt publish-local
+
+Other projects on the same machine can then list the project as a dependency. 
+
+### SBT
+	libraryDependencies += "net.varys" % "varys-core" % "0.1.0-SNAPSHOT"
+
+### Apache Maven
+	<dependency>
+	  <groupId>net.varys</groupId>
+	  <artifactId>varys-core</artifactId>
+	  <version>0.1.0-SNAPSHOT</version>
+	</dependency>
+
+### Apache Ant
+	<dependency org="net.varys" name="varys-core" rev="0.1.0-SNAPSHOT">
+	  <artifact name="varys-core" type="jar" />
+	</dependency>
+
+The good old fashioned directly putting the jar in your classpath should also work. It is located at `./core/target/scala-*/varys-core*.jar`
