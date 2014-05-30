@@ -21,8 +21,8 @@ object VarysBuild extends Build {
   lazy val extractJars = TaskKey[Unit]("extract-jars", "Extracts JAR files")
 
   def sharedSettings = Defaults.defaultSettings ++ Seq(
-    organization := "org.varys-project",
-    version := "0.0.1",
+    organization := "net.varys",
+    version := "0.1.0",
     scalaVersion := "2.9.2",
     scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
     unmanagedJars in Compile <<= baseDirectory map { base => (base / "lib" ** "*.jar").classpath },
