@@ -8,13 +8,13 @@ private[varys] class BpsInfo {
   val OLD_FACTOR = System.getProperty("varys.network.oldFactor", "0.2").toDouble
   val NIC_BPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1024.0 * 1024.0
 
-  var bps = 0.0
+  var actualBps = 0.0
   var tempBps = 0.0
   var isTemp = false
   var lastUpdateTime = System.currentTimeMillis
   
   def resetToNormal(bps: Double) = { 
-    this.bps = bps
+    this.actualBps = bps
     this.tempBps = bps
     this.isTemp = false
     this.lastUpdateTime = System.currentTimeMillis
@@ -46,9 +46,9 @@ private[varys] class BpsInfo {
   }
   
   def update(curBps: Double) = {
-    val newBps = (1.0 - OLD_FACTOR) * curBps + OLD_FACTOR * bps
+    val newBps = (1.0 - OLD_FACTOR) * curBps + OLD_FACTOR * actualBps
     resetToNormal(newBps)
   }
 
-  def getBps = if (isTemp) tempBps else bps
+  def getBps = if (isTemp) tempBps else actualBps
 }

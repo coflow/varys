@@ -22,8 +22,8 @@ private[varys] class SlaveInfo(
   val rxBpsInfo = new BpsInfo()
   val txBpsInfo = new BpsInfo()
 
-  def rxBps = rxBpsInfo.bps
-  def txBps = txBpsInfo.bps
+  def rxBps = rxBpsInfo.getBps
+  def txBps = txBpsInfo.getBps
 
   def webUiAddress : String = {
     "http://" + this.publicAddress + ":" + this.webUiPort
