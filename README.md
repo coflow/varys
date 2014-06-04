@@ -8,7 +8,7 @@ Communication in data-parallel applications often involves a collection of paral
 More information on the coflow abstraction can be found at <http://www.mosharaf.com/wp-content/uploads/coflow-hotnets2012.pdf>
 
 ## Building Varys
-Varys is built on `Scala 2.9.2`. To build Varys and example programs using it, run
+Varys is built on `Scala 2.9.3`. To build Varys and example programs using it, run
 
 	./sbt/sbt package
 
@@ -44,7 +44,7 @@ Currently, Varys has not yet been published to any repository. The easiest way t
 Other projects on the same machine can then list the project as a dependency. 
 
 ### SBT
-	libraryDependencies += "net.varys" % "varys-core" % "0.1.0-SNAPSHOT"
+	libraryDependencies += "net.varys" %% "varys-core" % "0.1.0-SNAPSHOT"
 
 ### Apache Maven
 	<dependency>
