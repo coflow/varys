@@ -44,7 +44,7 @@ Currently, Varys has not yet been published to any repository. The easiest way t
 Other projects on the same machine can then list the project as a dependency. 
 
 ### SBT
-	libraryDependencies += "net.varys" % "varys-core" % "0.1.0-SNAPSHOT"
+	libraryDependencies += "net.varys" %% "varys-core" % "0.1.0-SNAPSHOT"
 
 ### Apache Maven
 	<dependency>

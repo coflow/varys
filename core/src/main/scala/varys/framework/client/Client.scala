@@ -12,7 +12,6 @@ import java.io._
 import java.net._
 import java.util.concurrent.ConcurrentHashMap
 
-import scala.concurrent._
 import scala.collection.mutable.HashMap
 import scala.collection.JavaConversions._
 
