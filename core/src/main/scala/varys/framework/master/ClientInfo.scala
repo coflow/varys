@@ -1,7 +1,9 @@
 package varys.framework.master
 
-import java.util.Date
 import akka.actor.ActorRef
+
+import java.util.Date
+
 import scala.collection.mutable.{HashSet}
 
 private[varys] class ClientInfo(
@@ -10,8 +12,8 @@ private[varys] class ClientInfo(
     val host: String, 
     val commPort: Int,
     val submitDate: Date,
-    val actor: ActorRef) 
-{ 
+    val actor: ActorRef) { 
+  
   var endTime = -1L
   var coflows = new HashSet[CoflowInfo]
 

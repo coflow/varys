@@ -1,9 +1,14 @@
 package varys.framework.master
 
-private[varys] object CoflowState extends Enumeration("WAITING", "READY", "RUNNING", "FINISHED", "FAILED") {
+private[varys] object CoflowState extends Enumeration(
+    "WAITING", 
+    "READY", 
+    "RUNNING", 
+    "FINISHED", 
+    "FAILED", 
+    "REJECTED") {
+  
   type CoflowState = Value
 
-  val WAITING, READY, RUNNING, FINISHED, FAILED = Value
-
-  val MAX_NUM_RETRY = 10
+  val WAITING, READY, RUNNING, FINISHED, FAILED, REJECTED = Value
 }

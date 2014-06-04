@@ -17,21 +17,20 @@
 
 package varys.framework.slave.ui
 
-import javax.servlet.http.HttpServletRequest
-
-import scala.xml.Node
-
 import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util.duration._
 
+import javax.servlet.http.HttpServletRequest
+
 import net.liftweb.json.JsonAST.JValue
 
-import varys.framework.JsonProtocol
-import varys.framework.{RequestSlaveState, SlaveStateResponse}
-import varys.ui.UIUtils
-import varys.util.Utils
+import scala.xml.Node
 
+import varys.framework.JsonProtocol
+import varys.framework.{RequestSlaveState, SlaveState}
+import varys.ui.UIUtils
+import varys.Utils
 
 private[varys] class IndexPage(parent: SlaveWebUI) {
   val slaveActor = parent.slave.self
@@ -39,13 +38,13 @@ private[varys] class IndexPage(parent: SlaveWebUI) {
   val timeout = parent.timeout
 
   def renderJson(request: HttpServletRequest): JValue = {
-    val stateFuture = (slaveActor ? RequestSlaveState)(timeout).mapTo[SlaveStateResponse]
+    val stateFuture = (slaveActor ? RequestSlaveState)(timeout).mapTo[SlaveState]
     val slaveState = Await.result(stateFuture, 30 seconds)
     JsonProtocol.writeSlaveState(slaveState)
   }
 
   def render(request: HttpServletRequest): Seq[Node] = {
-    val stateFuture = (slaveActor ? RequestSlaveState)(timeout).mapTo[SlaveStateResponse]
+    val stateFuture = (slaveActor ? RequestSlaveState)(timeout).mapTo[SlaveState]
     val slaveState = Await.result(stateFuture, 30 seconds)
 
     val content =

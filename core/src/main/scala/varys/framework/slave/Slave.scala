@@ -1,25 +1,25 @@
 package varys.framework.slave
 
+import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
+import akka.util.duration._
+import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
+
+import com.google.common.io.Files
+
 import java.io.{File, ObjectInputStream, ObjectOutputStream, IOException}
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.net._
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
-import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
-import akka.util.duration._
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import varys.framework.master.Master
 import varys.framework.slave.ui.SlaveWebUI
-import varys.{Logging, VarysException}
+import varys.{Logging, Utils, VarysException}
 import varys.util._
 import varys.framework._
-
-import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
-
-import com.google.common.io.Files
 
 private[varys] class SlaveActor(
     ip: String,
@@ -139,7 +139,7 @@ private[varys] class SlaveActor(
     }
 
     case RequestSlaveState => {
-      sender ! SlaveStateResponse(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
+      sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
     
     case RegisteredCoflow(coflowId) => {
@@ -271,7 +271,9 @@ private[varys] object Slave {
     actorSystem.awaitTermination()
   }
 
-  /** Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. */
+  /** 
+   * Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
+   */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>
@@ -281,8 +283,15 @@ private[varys] object Slave {
     }
   }
 
-  def startSystemAndActor(host: String, port: Int, webUiPort: Int, commPort: Int,
-    masterUrl: String, workDir: String, slaveNumber: Option[Int] = None): (ActorSystem, Int) = {
+  def startSystemAndActor(
+      host: String, 
+      port: Int, 
+      webUiPort: Int, 
+      commPort: Int,
+      masterUrl: String, 
+      workDir: String, 
+      slaveNumber: Option[Int] = None): (ActorSystem, Int) = {
+    
     // The LocalVarysCluster runs multiple local varysSlaveX actor systems
     val systemName = "varysSlave" + slaveNumber.map(_.toString).getOrElse("")
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)

@@ -1,4 +1,4 @@
-package varys.util
+package varys
 
 import com.google.common.io.Files
 import com.google.common.util.concurrent.ThreadFactoryBuilder
@@ -15,8 +15,6 @@ import scala.io.Source
 import scala.Some
 
 import sun.nio.ch.DirectBuffer
-
-import varys.{Logging, VarysException}
 
 /**
  * Various utility methods used by Varys.
@@ -233,8 +231,6 @@ private object Utils extends Logging {
 
   /**
    * Convert a Java memory parameter passed to -Xmx (such as 300m or 1g) to a number of megabytes.
-   * This is used to figure out how much memory to claim from Mesos based on the VARYS_MEM
-   * environment variable.
    */
   def memoryStringToMb(str: String): Int = {
     val lower = str.toLowerCase
@@ -361,8 +357,10 @@ private object Utils extends Logging {
       }
     }
   }
-  
-  /** Return a string containing part of a file from byte 'start' to 'end'. */
+
+  /** 
+   * Return a string containing part of a file from byte 'start' to 'end'. 
+   */
   def offsetBytes(path: String, start: Long, end: Long): String = {
     val file = new File(path)
     val length = file.length()

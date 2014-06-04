@@ -17,36 +17,36 @@
 
 package varys.framework.master.ui
 
-import javax.servlet.http.HttpServletRequest
-
-import scala.xml.Node
-
 import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util.duration._
 
+import javax.servlet.http.HttpServletRequest
+
 import net.liftweb.json.JsonAST.JValue
 
+import scala.xml.Node
+
 import varys.framework.FrameworkWebUI
-import varys.framework.{MasterStateResponse, RequestMasterState}
+import varys.framework.{MasterState, RequestMasterState}
 import varys.framework.JsonProtocol
 import varys.framework.master.{CoflowInfo, SlaveInfo, ClientInfo}
 import varys.ui.UIUtils
-import varys.util.Utils
+import varys.Utils
 
 private[varys] class IndexPage(parent: MasterWebUI) {
   val master = parent.masterActorRef
   implicit val timeout = parent.timeout
 
   def renderJson(request: HttpServletRequest): JValue = {
-    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterStateResponse]
+    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
     val state = Await.result(stateFuture, 30 seconds)
     JsonProtocol.writeMasterState(state)
   }
 
   /** Index view listing coflows and executors */
   def render(request: HttpServletRequest): Seq[Node] = {
-    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterStateResponse]
+    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
     val state = Await.result(stateFuture, 30 seconds)
 
     val slaveHeaders = Seq("Id", "Address", "State")
@@ -114,7 +114,7 @@ private[varys] class IndexPage(parent: MasterWebUI) {
       <td>{coflow.desc.name}</td>
       <td>{FrameworkWebUI.formatDate(coflow.submitDate)}</td>
       <td>{coflow.desc.user}</td>
-      <td>{coflow.state.toString}</td>
+      <td>{coflow.curState.toString}</td>
       <td>{FrameworkWebUI.formatDuration(coflow.duration)}</td>
     </tr>
   }

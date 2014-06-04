@@ -27,11 +27,10 @@ import javax.servlet.http.HttpServletRequest
 import org.eclipse.jetty.server.{Handler, Server}
 
 import varys.framework.slave.SlaveActor
-import varys.{Logging}
+import varys.{Logging, Utils}
 import varys.ui.JettyUtils
 import varys.ui.JettyUtils._
 import varys.ui.UIUtils
-import varys.util.Utils
 
 /**
  * Web UI server for the standalone slave.

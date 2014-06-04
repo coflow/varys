@@ -19,18 +19,17 @@ package varys.ui
 
 import javax.servlet.http.{HttpServletResponse, HttpServletRequest}
 
-import scala.annotation.tailrec
-import scala.util.{Try, Success, Failure}
-import scala.xml.Node
-
 import net.liftweb.json.{JValue, pretty, render}
 
 import org.eclipse.jetty.server.{Server, Request, Handler}
 import org.eclipse.jetty.server.handler.{ResourceHandler, HandlerList, ContextHandler, AbstractHandler}
 import org.eclipse.jetty.util.thread.QueuedThreadPool
 
-import varys.Logging
+import scala.annotation.tailrec
+import scala.util.{Try, Success, Failure}
+import scala.xml.Node
 
+import varys.Logging
 
 /** Utilities for launching a web server using Jetty's HTTP Server class */
 private[varys] object JettyUtils extends Logging {

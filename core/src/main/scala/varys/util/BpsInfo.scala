@@ -1,4 +1,4 @@
-package varys.framework.master
+package varys.util
 
 private[varys] class BpsInfo {
 
@@ -6,14 +6,15 @@ private[varys] class BpsInfo {
   
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   val OLD_FACTOR = System.getProperty("varys.network.oldFactor", "0.2").toDouble
+  val NIC_BPS = System.getProperty("varys.network.nicMbps", "1024").toDouble * 1024.0 * 1024.0
 
-  var bps = 0.0
+  var actualBps = 0.0
   var tempBps = 0.0
   var isTemp = false
   var lastUpdateTime = System.currentTimeMillis
   
   def resetToNormal(bps: Double) = { 
-    this.bps = bps
+    this.actualBps = bps
     this.tempBps = bps
     this.isTemp = false
     this.lastUpdateTime = System.currentTimeMillis
@@ -23,11 +24,8 @@ private[varys] class BpsInfo {
     // Into the temporary zone
     this.isTemp = true
 
-    // 1Gbps == 128MBps
-    val nicSpeed = 128.0 * 1024.0 * 1024.0
-    
     // Aim to increase by the remaining capacity of the link
-    var incVal = nicSpeed - this.tempBps
+    var incVal = NIC_BPS - this.tempBps
     if (incVal < 0.0) {
       incVal = 0.0
     }
@@ -38,7 +36,7 @@ private[varys] class BpsInfo {
 
     // Bound incVal by blockSize
     if (timeTillUpdate > 0.0) {
-      val temp = blockSize / timeTillUpdate
+      val temp = blockSize * 8.0 / timeTillUpdate
       if (temp < incVal) {
         incVal = temp
       }
@@ -48,9 +46,9 @@ private[varys] class BpsInfo {
   }
   
   def update(curBps: Double) = {
-    val newBps = (1.0 - OLD_FACTOR) * curBps + OLD_FACTOR * bps
+    val newBps = (1.0 - OLD_FACTOR) * curBps + OLD_FACTOR * actualBps
     resetToNormal(newBps)
   }
 
-  def modBps = if (isTemp) tempBps else bps
+  def getBps = if (isTemp) tempBps else actualBps
 }

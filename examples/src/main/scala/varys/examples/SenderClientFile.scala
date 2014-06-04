@@ -3,11 +3,9 @@ package varys.examples
 import java.io._
 
 import varys.util.AkkaUtils
-import varys.Logging
+import varys.{Logging, Utils}
 import varys.framework.client._
 import varys.framework._
-import varys.util.Utils
-
 
 private[varys] object SenderClientFile {
 

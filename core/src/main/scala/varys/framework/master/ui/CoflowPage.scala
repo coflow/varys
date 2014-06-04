@@ -17,8 +17,6 @@
 
 package varys.framework.master.ui
 
-import scala.xml.Node
-
 import akka.dispatch.Await
 import akka.pattern.ask
 import akka.util.duration._
@@ -27,11 +25,13 @@ import javax.servlet.http.HttpServletRequest
 
 import net.liftweb.json.JsonAST.JValue
 
-import varys.framework.{MasterStateResponse, RequestMasterState}
+import scala.xml.Node
+
+import varys.framework.{MasterState, RequestMasterState}
 import varys.framework.JsonProtocol
 import varys.framework.master.ClientInfo
 import varys.ui.UIUtils
-import varys.util.Utils
+import varys.Utils
 
 private[varys] class CoflowPage(parent: MasterWebUI) {
   val master = parent.masterActorRef
@@ -40,7 +40,7 @@ private[varys] class CoflowPage(parent: MasterWebUI) {
   /** Details for a particular Coflow */
   def renderJson(request: HttpServletRequest): JValue = {
     val coflowId = request.getParameter("coflowId")
-    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterStateResponse]
+    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
     val state = Await.result(stateFuture, 30 seconds)
     val coflow = state.activeCoflows.find(_.id == coflowId).getOrElse({
       state.completedCoflows.find(_.id == coflowId).getOrElse(null)
@@ -51,7 +51,7 @@ private[varys] class CoflowPage(parent: MasterWebUI) {
   /** Details for a particular Coflow */
   def render(request: HttpServletRequest): Seq[Node] = {
     val coflowId = request.getParameter("coflowId")
-    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterStateResponse]
+    val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
     val state = Await.result(stateFuture, 30 seconds)
     val coflow = state.activeCoflows.find(_.id == coflowId).getOrElse({
       state.completedCoflows.find(_.id == coflowId).getOrElse(null)
@@ -65,7 +65,7 @@ private[varys] class CoflowPage(parent: MasterWebUI) {
               <li><strong>Name:</strong> {coflow.desc.name}</li>
               <li><strong>User:</strong> {coflow.desc.user}</li>
               <li><strong>Submit Date:</strong> {coflow.submitDate}</li>
-              <li><strong>State:</strong> {coflow.state}</li>
+              <li><strong>State:</strong> {coflow.curState}</li>
             </ul>
           </div>
         </div>

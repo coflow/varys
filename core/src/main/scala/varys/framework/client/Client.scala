@@ -1,12 +1,5 @@
 package varys.framework.client
 
-import java.io._
-import java.net._
-import java.util.concurrent.ConcurrentHashMap
-
-import scala.collection.mutable.HashMap
-import scala.collection.JavaConversions._
-
 import akka.actor._
 import akka.actor.Terminated
 import akka.util.duration._
@@ -15,7 +8,14 @@ import akka.pattern.AskTimeoutException
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
 import akka.dispatch.{Await, ExecutionContext}
 
-import varys.{VarysException, Logging}
+import java.io._
+import java.net._
+import java.util.concurrent.ConcurrentHashMap
+
+import scala.collection.mutable.HashMap
+import scala.collection.JavaConversions._
+
+import varys.{Logging, Utils, VarysException}
 import varys.framework._
 import varys.framework.master.{Master, CoflowInfo}
 import varys.framework.slave.Slave
@@ -27,7 +27,8 @@ class Client(
     listener: ClientListener = null)
   extends Logging {
 
-  val INTERNAL_ASK_TIMEOUT_MS: Int = System.getProperty("varys.framework.ask.wait", "5000").toInt
+  val INTERNAL_ASK_TIMEOUT_MS: Int = 
+    System.getProperty("varys.client.internalAskTimeoutMillis", "5000").toInt
   val RATE_UPDATE_FREQ = System.getProperty("varys.client.rateUpdateIntervalMillis", "100").toLong
   val SHORT_FLOW_BYTES = System.getProperty("varys.client.shortFlowMB", "0").toLong * 1048576
   val NIC_BPS = 1024 * 1048576
@@ -51,7 +52,7 @@ class Client(
 
   val flowToTIS = new ConcurrentHashMap[DataIdentifier, ThrottledInputStream]()
   // TODO: Currently using flowToBitPerSec inside synchronized blocks. Might consider replacing with
-  // an appropriate data structure. E.g., Collections.synchronizedMap could be an option.
+  // an appropriate data structure; e.g., Collections.synchronizedMap.
   val flowToBitPerSec = new ConcurrentHashMap[DataIdentifier, Double]()
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
@@ -64,7 +65,9 @@ class Client(
 
   class ClientActor extends Actor with Logging {
     var masterAddress: Address = null
-    var alreadyDisconnected = false  // To avoid calling listener.disconnected() multiple times
+
+    // To avoid calling listener.disconnected() multiple times
+    var alreadyDisconnected = false  
 
     override def preStart() {
       logInfo("Connecting to master " + masterUrl)
@@ -74,7 +77,9 @@ class Client(
         masterAddress = masterActor.path.address
         masterActor ! RegisterClient(clientName, clientHost, clientCommPort)
         context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-        // context.watch(masterActor)  // Doesn't work with remote actors, but useful for testing
+
+        // context.watch doesn't work with remote actors but helps for testing
+        // context.watch(masterActor)
       } catch {
         case e: Exception =>
           logError("Failed to connect to master", e)
@@ -105,7 +110,8 @@ class Client(
           listener.connected(clientId)
         }
         clientRegisterLock.synchronized { clientRegisterLock.notifyAll() }  // Ready to go!
-        logInfo("Registered to master in " +  (now - regStartTime) + " milliseconds. Local slave url = " + slaveUrl)
+        logInfo("Registered to master in " +  (now - regStartTime) + 
+          " milliseconds. Local slave url = " + slaveUrl)
         
         // Thread to periodically uodate the rates of all existing ThrottledInputStreams
         context.system.scheduler.schedule(0 millis, RATE_UPDATE_FREQ millis) {
@@ -141,6 +147,27 @@ class Client(
             flowToBitPerSec.put(dataId, newBitPerSec)
           }
         }
+
+      case RejectedCoflow(coflowId, rejectMessage) =>
+        logDebug("Coflow " + coflowId + " has been rejected! " + rejectMessage)
+
+        // Let the client know
+        if (listener != null) {
+          listener.coflowRejected(coflowId, rejectMessage)
+        }
+
+        // Close ongoing streams, if any. This will raise exceptions in getOne() 
+        // and go back to the application.
+        // TODO: Find a more elegant solution.
+        flowToTIS.foreach { kv => {
+          // kv (key = dataId, value = TIS)
+          if (kv._1.coflowId == coflowId)
+            kv._2.close()
+          }
+        }
+
+        // Free local resources
+        freeLocalResources(coflowId)
     }
 
     /**
@@ -217,13 +244,20 @@ class Client(
     AkkaUtils.tellActor(slaveActor, UnregisterCoflow(coflowId))
     
     // Free local resources
+    freeLocalResources(coflowId)
+  }
+
+  private def freeLocalResources(coflowId: String) {
     flowToTIS.retain((dataId, _) => dataId.coflowId != coflowId)
-    flowToBitPerSec.synchronized { flowToBitPerSec.retain((dataId, _) => dataId.coflowId != coflowId) }
+    flowToBitPerSec.synchronized { 
+      flowToBitPerSec.retain((dataId, _) => dataId.coflowId != coflowId) 
+    }
     flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)
   }
 
   /**
-   * Makes data available for retrieval, and notifies local slave, which will register it with the master.
+   * Makes data available for retrieval, and notifies local slave, which will register it with the 
+   * master.
    * Non-blocking call.
    */
   private def handlePut(flowDesc: FlowDescription, serialObj: Array[Byte] = null) {
@@ -249,7 +283,11 @@ class Client(
    * Non-blocking call.
    * FIXME: Handles only DataType.FAKE right now.
    */
-  private def handlePutMultiple(flowDescs: Array[FlowDescription], coflowId: String, dataType: DataType.DataType) {
+  private def handlePutMultiple(
+      flowDescs: Array[FlowDescription], 
+      coflowId: String, 
+      dataType: DataType.DataType) {
+    
     if (dataType != DataType.FAKE) {
       val tmpM = "handlePutMultiple currently supports only DataType.FAKE"
       logWarning(tmpM)
@@ -269,11 +307,26 @@ class Client(
   /**
    * Puts any data structure
    */
-  def putObject[T: Manifest](objId: String, obj: T, coflowId: String, size: Long, numReceivers: Int) {
+  def putObject[T: Manifest](
+      objId: String, 
+      obj: T, 
+      coflowId: String, 
+      size: Long, 
+      numReceivers: Int) {
+    
     // TODO: Figure out class name
     val className = "UnknownType" 
-    val desc = new ObjectDescription(objId, className, coflowId, DataType.INMEMORY, size, 
-      numReceivers, clientHost, clientCommPort)
+    val desc = 
+      new ObjectDescription(
+        objId, 
+        className, 
+        coflowId, 
+        DataType.INMEMORY, 
+        size, 
+        numReceivers, 
+        clientHost, 
+        clientCommPort)
+
     val serialObj = Utils.serialize[T](obj)
     handlePut(desc, serialObj)
   }
@@ -288,9 +341,26 @@ class Client(
   /**
    * Puts a range of local file
    */
-  def putFile(fileId: String, pathToFile: String, coflowId: String, offset: Long, size: Long, numReceivers: Int) {
-    val desc = new FileDescription(fileId, pathToFile, coflowId, DataType.ONDISK, offset, size, numReceivers, 
-      clientHost, clientCommPort)
+  def putFile(
+      fileId: String, 
+      pathToFile: String, 
+      coflowId: String, 
+      offset: Long, 
+      size: Long, 
+      numReceivers: Int) {
+    
+    val desc = 
+      new FileDescription(
+        fileId, 
+        pathToFile, 
+        coflowId, 
+        DataType.ONDISK, 
+        offset, 
+        size, 
+        numReceivers, 
+        clientHost, 
+        clientCommPort)
+
     handlePut(desc)
   }
   
@@ -298,8 +368,16 @@ class Client(
    * Emulates the process without having to actually put anything
    */
   def putFake(blockId: String, coflowId: String, size: Long, numReceivers: Int) {
-    val desc = new FlowDescription(blockId, coflowId, DataType.FAKE, size, numReceivers, 
-      clientHost, clientCommPort)
+    val desc = 
+      new FlowDescription(
+        blockId, 
+        coflowId, 
+        DataType.FAKE, 
+        size, 
+        numReceivers, 
+        clientHost, 
+        clientCommPort)
+
     handlePut(desc)
   }
   
@@ -308,14 +386,22 @@ class Client(
    * blocks => (blockId, blockSize, numReceivers)
    */ 
   def putFakeMultiple(blocks: Array[(String, Long, Int)], coflowId: String) {
-    val descs = blocks.map(blk => new FlowDescription(blk._1, coflowId, DataType.FAKE, blk._2, blk._3, 
-      clientHost, clientCommPort))
+    val descs = 
+      blocks.map(blk => 
+        new FlowDescription(
+          blk._1, 
+          coflowId, 
+          DataType.FAKE, 
+          blk._2, 
+          blk._3, 
+          clientHost, 
+          clientCommPort))
+
     handlePutMultiple(descs, coflowId, DataType.FAKE)
   }
   
   /**
    * Performs exactly one get operation
-   * 
    */
   @throws(classOf[VarysException])
   private def getOne(flowDesc: FlowDescription): (FlowDescription, Array[Byte]) = {
@@ -329,7 +415,8 @@ class Client(
 
     val tis = new ThrottledInputStream(sock.getInputStream, clientName, tisRate)
     flowToTIS.put(flowDesc.dataId, tis)
-    // logTrace("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + " milliseconds")
+    // logTrace("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + 
+    //   " milliseconds")
     
     oos.writeObject(GetRequest(flowDesc))
     oos.flush
@@ -379,7 +466,8 @@ class Client(
         }
       }
     }
-    logTrace("Received " + flowDesc.sizeInBytes + " bytes for " + flowDesc + " in " + (now - st) + " milliseconds")
+    logTrace("Received " + flowDesc.sizeInBytes + " bytes for " + flowDesc + " in " + (now - st) + 
+      " milliseconds")
     
     // Close everything
     flowToTIS.remove(flowDesc.dataId)
@@ -394,7 +482,11 @@ class Client(
    * Blocking call.
    */
   @throws(classOf[VarysException])
-  private def handleGet(blockId: String, dataType: DataType.DataType, coflowId: String): Array[Byte] = {
+  private def handleGet(
+      blockId: String, 
+      dataType: DataType.DataType, 
+      coflowId: String): Array[Byte] = {
+    
     waitForRegistration
     
     var st = now
@@ -413,7 +505,8 @@ class Client(
         throw new VarysException(tmpM)
       }
     }
-    logInfo("Received " + flowDesc + " for " + blockId + " of coflow " + coflowId + " in " + (now - st) + " milliseconds")
+    logInfo("Received " + flowDesc + " for " + blockId + " of coflow " + coflowId + " in " + 
+      (now - st) + " milliseconds")
     
     // Notify local slave
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
@@ -421,7 +514,12 @@ class Client(
     // Get it!
     val (origFlowDesc, retVal) = getOne(flowDesc)
     // Notify flow completion
-    masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+    masterActor ! FlowProgress(
+      origFlowDesc.id, 
+      origFlowDesc.coflowId, 
+      origFlowDesc.sizeInBytes, 
+      true)
+
     retVal
   }
   
@@ -431,7 +529,11 @@ class Client(
    * FIXME: Handles only DataType.FAKE right now.
    */
   @throws(classOf[VarysException])
-  private def handleGetMultiple(blockIds: Array[String], dataType: DataType.DataType, coflowId: String) {
+  private def handleGetMultiple(
+      blockIds: Array[String], 
+      dataType: DataType.DataType, 
+      coflowId: String) {
+    
     if (dataType != DataType.FAKE) {
       val tmpM = "handleGetMultiple currently supports only DataType.FAKE"
       logWarning(tmpM)
@@ -445,18 +547,22 @@ class Client(
     // Notify master and retrieve the FlowDescription in response
     var flowDescs: Array[FlowDescription] = null
 
-    val gotFlowDescs = AkkaUtils.askActorWithReply[Option[GotFlowDescs]](masterActor, 
+    val gotFlowDescs = AkkaUtils.askActorWithReply[Option[GotFlowDescs]](
+      masterActor, 
       GetFlows(blockIds, coflowId, clientId, slaveId))
+
     gotFlowDescs match {
       case Some(GotFlowDescs(x)) => flowDescs = x
       case None => { 
-        val tmpM = "Failed to receive FlowDescriptions for " + blockIds.size + " flows of coflow " + coflowId
+        val tmpM = "Failed to receive FlowDescriptions for " + blockIds.size + " flows of coflow " + 
+          coflowId
         logWarning(tmpM)
         // TODO: Define proper VarysExceptions
         throw new VarysException(tmpM)
       }
     }
-    logInfo("Received " + flowDescs.size + " flowDescs " + " of coflow " + coflowId + " in " + (now - st) + " milliseconds")
+    logInfo("Received " + flowDescs.size + " flowDescs " + " of coflow " + coflowId + " in " + 
+      (now - st) + " milliseconds")
     
     // Notify local slave
     AkkaUtils.tellActor(slaveActor, GetFlows(blockIds, coflowId, clientId, slaveId, flowDescs))
@@ -470,7 +576,11 @@ class Client(
         override def run() {
           val (origFlowDesc, retVal) = getOne(flowDesc)
           // Notify flow completion
-          masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+          masterActor ! FlowProgress(
+            origFlowDesc.id, 
+            origFlowDesc.coflowId, 
+            origFlowDesc.sizeInBytes, 
+            true)
           
           recvLock.synchronized {
             recvFinished += 1
@@ -491,7 +601,11 @@ class Client(
     //   case Right(arrayOfFlowDesc_Res) => {
     //     arrayOfFlowDesc_Res.foreach { x =>
     //       val (origFlowDesc, res) = x
-    //       masterActor ! FlowProgress(origFlowDesc.id, origFlowDesc.coflowId, origFlowDesc.sizeInBytes, true)
+    //       masterActor ! FlowProgress(
+    //         origFlowDesc.id, 
+    //         origFlowDesc.coflowId, 
+    //         origFlowDesc.sizeInBytes, 
+    //         true)
     //     }
     //   }
     //   case Left(vex) => throw vex
@@ -540,7 +654,8 @@ class Client(
    * Receive 'howMany' machines with the lowest incoming usage
    */
   def getBestRxMachines(howMany: Int, adjustBytes: Long): Array[String] = {
-    val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](masterActor,  
+    val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](
+      masterActor,  
       RequestBestRxMachines(howMany, adjustBytes))
     bestRxMachines
   }
@@ -549,7 +664,8 @@ class Client(
    * Receive the machine with the lowest incoming usage
    */
   def getBestRxMachine(adjustBytes: Long): String = {
-    val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](masterActor,  
+    val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](
+      masterActor,  
       RequestBestRxMachines(1, adjustBytes))
     bestRxMachines(0)
   }
@@ -558,7 +674,8 @@ class Client(
    * Receive 'howMany' machines with the lowest outgoing usage
    */
   def getTxMachines(howMany: Int, adjustBytes: Long): Array[String] = {
-    val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](masterActor,  
+    val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](
+      masterActor,  
       RequestBestTxMachines(howMany, adjustBytes))
     bestTxMachines
   }
@@ -567,7 +684,8 @@ class Client(
    * Receive the machine with the lowest outgoing usage
    */
   def getBestTxMachine(adjustBytes: Long): String = {
-    val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](masterActor,  
+    val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](
+      masterActor,  
       RequestBestTxMachines(1, adjustBytes))
     bestTxMachines(0)
   }

@@ -5,12 +5,12 @@ import net.liftweb.json.JsonDSL._
 import varys.framework.master.{ClientInfo, CoflowInfo, SlaveInfo}
 
 private[varys] object JsonProtocol {
- def writeSlaveInfo(obj: SlaveInfo) = {
-   ("id" -> obj.id) ~
-   ("host" -> obj.host) ~
-   ("port" -> obj.port) ~
-   ("webuiaddress" -> obj.webUiAddress)
- }
+  def writeSlaveInfo(obj: SlaveInfo) = {
+    ("id" -> obj.id) ~
+    ("host" -> obj.host) ~
+    ("port" -> obj.port) ~
+    ("webuiaddress" -> obj.webUiAddress)
+  }
 
   def writeCoflowInfo(obj: CoflowInfo) = {
     ("starttime" -> obj.startTime) ~
@@ -18,7 +18,7 @@ private[varys] object JsonProtocol {
     ("name" -> obj.desc.name) ~
     ("user" ->  obj.desc.user) ~
     ("submitdate" -> obj.submitDate.toString)
-    ("state" -> obj.state.toString) ~
+    ("state" -> obj.curState.toString) ~
     ("duration" -> obj.duration)
   }
 
@@ -35,16 +35,15 @@ private[varys] object JsonProtocol {
     ("user" -> obj.user)
   }
 
-  def writeMasterState(obj: MasterStateResponse) = {
+  def writeMasterState(obj: MasterState) = {
     ("url" -> ("varys://" + obj.uri)) ~
     ("slaves" -> obj.slaves.toList.map(writeSlaveInfo)) ~
     ("activecoflows" -> obj.activeCoflows.toList.map(writeCoflowInfo)) ~
     ("completedcoflows" -> obj.completedCoflows.toList.map(writeCoflowInfo)) ~
-    ("activeclients" -> obj.activeClients.toList.map(writeClientInfo)) ~
-    ("completedclients" -> obj.completedClients.toList.map(writeClientInfo))
+    ("activeclients" -> obj.activeClients.toList.map(writeClientInfo))
   }
 
-  def writeSlaveState(obj: SlaveStateResponse) = {
+  def writeSlaveState(obj: SlaveState) = {
     ("id" -> obj.slaveId) ~
     ("masterurl" -> obj.masterUrl) ~
     ("masterwebuiurl" -> obj.masterWebUiUrl) ~

@@ -6,7 +6,9 @@ private[varys] object DataType extends Enumeration("FAKE", "INMEMORY", "ONDISK")
   val FAKE, INMEMORY, ONDISK = Value
 }
 
-private[varys] case class DataIdentifier(dataId: String, coflowId: String)
+private[varys] case class DataIdentifier(
+    dataId: String, 
+    coflowId: String)
 
 private[varys] class FlowDescription(
     val id: String,  // Expected to be unique within the coflow
@@ -21,12 +23,12 @@ private[varys] class FlowDescription(
   val dataId = DataIdentifier(id, coflowId)
   val user = System.getProperty("user.name", "<unknown>")
 
-  override def toString: String = "FlowDescription(" + id + ":" + dataType + ":" + coflowId + " # " + sizeInBytes + " Bytes)"
+  override def toString: String = "FlowDescription(" + id + ":" + dataType + ":" + coflowId + 
+    " # " + sizeInBytes + " Bytes)"
   
   def updateCommPort(commPort: Int) {
     originCommPort = commPort
   }
-  
 }
 
 private[varys] class FileDescription(
@@ -41,7 +43,8 @@ private[varys] class FileDescription(
     val originCommPort_ : Int)
   extends FlowDescription(id_, cId_, dataType_, size_, maxR_, originHost_, originCommPort_) {
 
-  override def toString: String = "FileDescription(" + id + "["+ pathToFile + "]:" + dataType + ":" + coflowId + " # " + sizeInBytes + " Bytes)"
+  override def toString: String = "FileDescription(" + id + "["+ pathToFile + "]:" + dataType + 
+    ":" + coflowId + " # " + sizeInBytes + " Bytes)"
 }
 
 private[varys] class ObjectDescription(
@@ -52,8 +55,9 @@ private[varys] class ObjectDescription(
     val serializedSize : Long,
     val maxR_ : Int,
     val originHost_ : String,
-    val originCommPort_ : Int)
-  extends FlowDescription(id_, cId_, dataType_, serializedSize, maxR_, originHost_, originCommPort_) {
+    val origCommPort_ : Int)
+  extends FlowDescription(id_, cId_, dataType_, serializedSize, maxR_, originHost_, origCommPort_) {
 
-  override def toString: String = "ObjectDescription(" + id + "["+ className + "]:" + dataType + ":" + coflowId + " # " + sizeInBytes + " Bytes)"
+  override def toString: String = "ObjectDescription(" + id + "["+ className + "]:" + dataType + 
+    ":" + coflowId + " # " + sizeInBytes + " Bytes)"
 }

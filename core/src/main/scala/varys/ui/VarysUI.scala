@@ -21,10 +21,9 @@ import javax.servlet.http.HttpServletRequest
 
 import org.eclipse.jetty.server.{Handler, Server}
 
-import varys.{Logging}
+import varys.{Logging, Utils}
 import varys.ui.env.EnvironmentUI
 import varys.ui.JettyUtils._
-import varys.util.Utils
 
 /** Top level user interface for Varys */
 private[varys] class VarysUI() extends Logging {

@@ -1,11 +1,14 @@
 package varys.framework.master
 
-import varys.framework.FlowDescription
-import scala.collection.mutable.HashSet
-
 import java.util.concurrent.atomic.AtomicLong
 
-private[varys] class FlowInfo(val desc: FlowDescription) {
+import scala.collection.mutable.HashSet
+
+import varys.framework.FlowDescription
+
+private[varys] class FlowInfo(
+    val desc: FlowDescription) {
+  
   var source = desc.originHost
   var destClient:ClientInfo = null
   var currentBps = 0.0
@@ -21,7 +24,10 @@ private[varys] class FlowInfo(val desc: FlowDescription) {
   def isLive = (destClient != null && bytesLeft > 0)
   
   def getFlowSize() = desc.sizeInBytes
-  def decreaseBytes(byteToDecrease: Long) { bytesLeft_.getAndAdd(-byteToDecrease) }
+  def decreaseBytes(byteToDecrease: Long) { 
+    bytesLeft_.getAndAdd(-byteToDecrease) 
+  }
 
-  override def toString:String = "FlowInfo(" + source + " --> " + destClient.host + "[" + desc + "], bytesLeft=" + bytesLeft + ", currentBps=" + currentBps + ")"
+  override def toString:String = "FlowInfo(" + source + " --> " + destClient.host + "[" + desc + 
+    "], bytesLeft=" + bytesLeft + ", currentBps=" + currentBps + ")"
 }

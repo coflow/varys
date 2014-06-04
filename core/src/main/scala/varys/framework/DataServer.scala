@@ -5,8 +5,7 @@ import java.net._
 
 import scala.collection.mutable.HashMap
 
-import varys.Logging
-import varys.util.Utils
+import varys.{Logging, Utils}
 
 /**
  * A common server to serve requested pieces of data. 
@@ -58,12 +57,15 @@ private[varys] class DataServer(
                         val buf = new Array[Byte](65536)
                         var bytesSent = 0L
                         while (bytesSent < req.flowDesc.sizeInBytes) {
-                          val bytesToSend = math.min(req.flowDesc.sizeInBytes - bytesSent, buf.length)
+                          val bytesToSend = 
+                            math.min(req.flowDesc.sizeInBytes - bytesSent, buf.length)
+                          
                           out.write(buf, 0, bytesToSend.toInt)
                           bytesSent += bytesToSend
                         }
                     } else {
-                      val oos = new ObjectOutputStream(new BufferedOutputStream(clientSocket.getOutputStream))
+                      val oos = new ObjectOutputStream(
+                        new BufferedOutputStream(clientSocket.getOutputStream))
                       oos.flush
                       
                       val toSend: Option[Array[Byte]] = req.flowDesc.dataType match {
