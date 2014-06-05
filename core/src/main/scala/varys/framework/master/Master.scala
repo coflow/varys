@@ -28,7 +28,7 @@ private[varys] class Master(
     webUiPort: Int) 
   extends Logging {
   
-  val NUM_MASTER_INSTANCES = System.getProperty("varys.master.numInstances", "10").toInt
+  val NUM_MASTER_INSTANCES = System.getProperty("varys.master.numInstances", "1").toInt
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
   
@@ -50,6 +50,8 @@ private[varys] class Master(
   val idToClient = new ConcurrentHashMap[String, ClientInfo]()
   val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]
   val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
+
+  val webUiStarted = new AtomicBoolean(false)
 
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
@@ -89,7 +91,9 @@ private[varys] class Master(
       logInfo("Starting Varys master at varys://" + ip + ":" + port)
       // Listen for remote client disconnection events, since they don't go through Akka's watch()
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-      webUi.start()
+      if (!webUiStarted.getAndSet(true)) {
+        webUi.start()
+      }
       // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
     }
 

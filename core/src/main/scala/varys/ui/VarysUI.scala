@@ -72,5 +72,5 @@ private[varys] class VarysUI() extends Logging {
 
 private[varys] object VarysUI {
   val DEFAULT_PORT = "4040"
-  val STATIC_RESOURCE_DIR = "org/apache/varys/ui/static"
+  val STATIC_RESOURCE_DIR = "varys/ui/static"
 }

@@ -73,5 +73,5 @@ class MasterWebUI(masterActorRef_ : ActorRef, requestedPort: Int) extends Loggin
 }
 
 private[varys] object MasterWebUI {
-  val STATIC_RESOURCE_DIR = "org/apache/varys/ui/static"
+  val STATIC_RESOURCE_DIR = "varys/ui/static"
 }

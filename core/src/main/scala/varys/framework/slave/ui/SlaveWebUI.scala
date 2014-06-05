@@ -182,6 +182,6 @@ class SlaveWebUI(val slave: SlaveActor, val workDir: File, requestedPort: Option
 }
 
 private[varys] object SlaveWebUI {
-  val STATIC_RESOURCE_DIR = "org/apache/varys/ui/static"
-  val DEFAULT_PORT="8081"
+  val STATIC_RESOURCE_DIR = "varys/ui/static"
+  val DEFAULT_PORT="16017"
 }

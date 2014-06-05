@@ -32,10 +32,11 @@ object VarysBuild extends Build {
     parallelExecution := false,
     
     libraryDependencies ++= Seq(
-      "org.eclipse.jetty" % "jetty-server" % "7.6.8.v20121106"
+        "org.eclipse.jetty" % "jetty-server"   % jettyVersion
     )
   )
 
+  val jettyVersion = "8.1.14.v20131031"
   val slf4jVersion = "1.6.1"
   val sigarVersion = "1.6.4"
 
@@ -64,6 +65,7 @@ object VarysBuild extends Build {
       "io.netty" % "netty-all" % "4.0.0.Beta2",
       "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native",
       "com.esotericsoftware.kryo" % "kryo" % "2.19",
+      "javax.servlet" % "javax.servlet-api" % "3.0.1",
       // akka-kryo-serialization has been added in an hackish way. We've compiled locally, then uploaded the jar to my website.
       "akka-kryo-serialization" % "akka-kryo-serialization" % "0.2-SNAPSHOT" from "http://mosharaf.com/akka-kryo-serialization-0.2-SNAPSHOT.jar"
     ),
