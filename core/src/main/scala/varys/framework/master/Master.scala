@@ -116,6 +116,11 @@ private[varys] class Master(
             slave_commPort, 
             publicAddress, 
             currentSender)
+
+          // Wait for webUi to bind. Needed when NUM_MASTER_INSTANCES > 1.
+          while (webUi.boundPort == None) {
+            Thread.sleep(100)
+          }
           
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)  
