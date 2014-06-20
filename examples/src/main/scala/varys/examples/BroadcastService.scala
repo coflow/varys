@@ -156,7 +156,7 @@ private[varys] object BroadcastSender extends Logging {
     val LEN_BYTES = FILE.length
     
     val listener = new TestListener
-    val client = new Client("BroadcastSender", url, listener)
+    val client = new VarysClient("BroadcastSender", url, listener)
     client.start()
     
     val desc = new CoflowDescription(
@@ -326,7 +326,7 @@ private[varys] object BroadcastReceiver extends Logging {
     
     // Now create coflow client
     val listener = new TestListener
-    val client = new Client("BroadcastReceiver", url, listener)
+    val client = new VarysClient("BroadcastReceiver", url, listener)
     client.start()
     
     // Receive blocks in random order

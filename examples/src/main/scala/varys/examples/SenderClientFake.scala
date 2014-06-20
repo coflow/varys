@@ -30,7 +30,7 @@ private[varys] object SenderClientFake {
     val LEN_BYTES = 1010101L
 
     val listener = new TestListener
-    val client = new Client("SenderClientFake", url, listener)
+    val client = new VarysClient("SenderClientFake", url, listener)
     client.start()
 
     val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, LEN_BYTES)

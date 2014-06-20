@@ -29,7 +29,7 @@ private[varys] object ReceiverClientFile {
     val FILE_NAME = if (args.length > 2) args(2) else "INFILE"
 
     val listener = new TestListener
-    val client = new Client("ReceiverClientFile", url, listener)
+    val client = new VarysClient("ReceiverClientFile", url, listener)
     client.start()
     
     Thread.sleep(5000)

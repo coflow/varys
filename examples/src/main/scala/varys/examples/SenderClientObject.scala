@@ -31,7 +31,7 @@ private[varys] object SenderClientObject {
     val toSend = Array.tabulate[Int](NUM_ELEMS)(_.toByte)
 
     val listener = new TestListener
-    val client = new Client("SenderClientObject", url, listener)
+    val client = new VarysClient("SenderClientObject", url, listener)
     client.start()
 
     val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, NUM_ELEMS * 4)

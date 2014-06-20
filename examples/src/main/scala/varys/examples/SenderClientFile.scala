@@ -47,7 +47,7 @@ private[varys] object SenderClientFile {
     val LEN_BYTES = 1212121
     
     val listener = new TestListener
-    val client = new Client("SenderClientFile", url, listener)
+    val client = new VarysClient("SenderClientFile", url, listener)
     client.start()
 
     val desc = new CoflowDescription("DEFAULT", CoflowType.DEFAULT, 1, LEN_BYTES)

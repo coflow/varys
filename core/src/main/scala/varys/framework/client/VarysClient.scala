@@ -21,7 +21,7 @@ import varys.framework.master.{Master, CoflowInfo}
 import varys.framework.slave.Slave
 import varys.util._
 
-class Client(
+class VarysClient(
     clientName: String,
     masterUrl: String,
     listener: ClientListener = null)

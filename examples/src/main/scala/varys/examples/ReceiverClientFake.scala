@@ -29,7 +29,7 @@ private[varys] object ReceiverClientFake {
     val DATA_NAME = if (args.length > 2) args(2) else "DATA"
 
     val listener = new TestListener
-    val client = new Client("ReceiverClientFake", url, listener)
+    val client = new VarysClient("ReceiverClientFake", url, listener)
     client.start()
     
     Thread.sleep(5000)

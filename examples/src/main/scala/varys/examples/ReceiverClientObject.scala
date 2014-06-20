@@ -29,7 +29,7 @@ private[varys] object ReceiverClientObject {
     val OBJ_NAME = if (args.length > 2) args(2) else "OBJ"
 
     val listener = new TestListener
-    val client = new Client("ReceiverClientObject", url, listener)
+    val client = new VarysClient("ReceiverClientObject", url, listener)
     client.start()
     
     Thread.sleep(5000)
