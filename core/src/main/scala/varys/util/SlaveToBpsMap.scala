@@ -1,6 +1,6 @@
 package varys.util
 
-import scala.collection.mutable.{ArrayBuffer, SynchronizedMap, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, SynchronizedMap}
 import scala.util.Random
 
 private[varys] class SlaveToBpsMap {

@@ -189,4 +189,45 @@ private object Utils extends Logging {
     Source.fromBytes(buff).mkString
   }
   
+  /*
+   * Runs a shell command and returns output lines in an array
+   */
+  def runShellCommand(commandToRun: String, returnOutput: Boolean = true): Array[String] = {
+    var retVal: Array[String] = null
+    try {
+      var pb: java.lang.ProcessBuilder = null
+      pb = new java.lang.ProcessBuilder("/bin/sh", "-c", commandToRun)
+      val p = pb.start()
+      if (returnOutput) {
+        retVal = Source.fromInputStream(p.getInputStream()).getLines().toArray
+      }
+    } catch {
+      case e: Exception =>
+        e.printStackTrace()
+    }
+    retVal
+  }
+
+  /*
+   * Write each element of an array in different lines of a file
+   */ 
+  def writeToFile(x: Array[_], fileName: String) {
+    val pw = new java.io.PrintWriter(fileName)
+    x.foreach(pw.println)
+    pw.close
+  }
+
+
+  /**
+   * DO NOT use other than debugging purposes.
+   * Not the best way, but more or less works.
+   * Adapted from: http://stackoverflow.com/questions/9160001/how-to-profile-methods-in-scala
+   */
+  def time[R](block: => R, blockName: String = ""): R = {
+    val t0 = System.nanoTime()
+    val result = block    // call-by-name
+    val t1 = System.nanoTime()
+    println(blockName + " elapsed time: " + (t1 - t0) + "ns")
+    result
+  }
 }
