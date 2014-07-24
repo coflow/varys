@@ -304,12 +304,6 @@ private[varys] class Master(
           (now - st) + " milliseconds")
       }
 
-      case DeleteFlow(flowId, coflowId) => {
-        // TODO: Actually do something; e.g., remove destination?
-        // self ! ScheduleRequest
-        // sender ! true
-      }
-
       case ScheduleRequest => {
         schedule()
       }

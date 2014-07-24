@@ -30,7 +30,6 @@ class VarysClient(
   val INTERNAL_ASK_TIMEOUT_MS: Int = 
     System.getProperty("varys.client.internalAskTimeoutMillis", "5000").toInt
   val RATE_UPDATE_FREQ = System.getProperty("varys.client.rateUpdateIntervalMillis", "100").toLong
-  val SHORT_FLOW_BYTES = System.getProperty("varys.client.shortFlowMB", "0").toLong * 1048576
   val NIC_BPS = 1024 * 1048576
 
   var actorSystem: ActorSystem = null
@@ -50,10 +49,6 @@ class VarysClient(
 
   var regStartTime = 0L
 
-  val flowToTIS = new ConcurrentHashMap[DataIdentifier, ThrottledInputStream]()
-  // TODO: Currently using flowToBitPerSec inside synchronized blocks. Might consider replacing with
-  // an appropriate data structure; e.g., Collections.synchronizedMap.
-  val flowToBitPerSec = new ConcurrentHashMap[DataIdentifier, Double]()
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
   val serverThreadName = "ServerThread for Client@" + Utils.localHostName()
@@ -113,18 +108,6 @@ class VarysClient(
         logInfo("Registered to master in " +  (now - regStartTime) + 
           " milliseconds. Local slave url = " + slaveUrl)
         
-        // Thread to periodically uodate the rates of all existing ThrottledInputStreams
-        context.system.scheduler.schedule(0 millis, RATE_UPDATE_FREQ millis) {
-          flowToBitPerSec.synchronized {
-            flowToBitPerSec.foreach { kv => {
-              // kv (key = FlowId, value = Rate)
-              if (flowToTIS.containsKey(kv._1)) 
-                flowToTIS.get(kv._1).setNewRate(kv._2)
-              }
-            }
-          }
-        }
-
       case Terminated(actor_) if actor_ == masterActor =>
         masterDisconnected()
 
@@ -140,13 +123,7 @@ class VarysClient(
         context.stop(self)
         
       case UpdatedRates(newRates) => 
-        logInfo("Received updated shares")
-        flowToBitPerSec.synchronized {
-          for ((dataId, newBitPerSec) <- newRates) {
-            logTrace(dataId + " ==> " + newBitPerSec + " bps")
-            flowToBitPerSec.put(dataId, newBitPerSec)
-          }
-        }
+        logInfo("Received updated shares, which shouldn't have happened!. Ignoring.")
 
       case RejectedCoflow(coflowId, rejectMessage) =>
         logDebug("Coflow " + coflowId + " has been rejected! " + rejectMessage)
@@ -154,16 +131,6 @@ class VarysClient(
         // Let the client know
         if (listener != null) {
           listener.coflowRejected(coflowId, rejectMessage)
-        }
-
-        // Close ongoing streams, if any. This will raise exceptions in getOne() 
-        // and go back to the application.
-        // TODO: Find a more elegant solution.
-        flowToTIS.foreach { kv => {
-          // kv (key = dataId, value = TIS)
-          if (kv._1.coflowId == coflowId)
-            kv._2.close()
-          }
         }
 
         // Free local resources
@@ -248,10 +215,6 @@ class VarysClient(
   }
 
   private def freeLocalResources(coflowId: String) {
-    flowToTIS.retain((dataId, _) => dataId.coflowId != coflowId)
-    flowToBitPerSec.synchronized { 
-      flowToBitPerSec.retain((dataId, _) => dataId.coflowId != coflowId) 
-    }
     flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)
   }
 
@@ -410,11 +373,8 @@ class VarysClient(
     val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
     oos.flush
 
-    // Don't wait for scheduling for 'SHORT' flows
-    val tisRate = if (flowDesc.sizeInBytes > SHORT_FLOW_BYTES) 0.0 else NIC_BPS
-
+    val tisRate = NIC_BPS
     val tis = new ThrottledInputStream(sock.getInputStream, clientName, tisRate)
-    flowToTIS.put(flowDesc.dataId, tis)
     // logTrace("Created socket and " + tis + " for " + flowDesc + " in " + (now - st) + 
     //   " milliseconds")
     
@@ -470,7 +430,6 @@ class VarysClient(
       " milliseconds")
     
     // Close everything
-    flowToTIS.remove(flowDesc.dataId)
     tis.close
     sock.close
     
@@ -595,21 +554,6 @@ class VarysClient(
         recvLock.wait()
       }
     }
-
-    // val futureList = Future.traverse(flowDescs.toList)(fd => Future(getOne(fd)))
-    // futureList.onComplete {
-    //   case Right(arrayOfFlowDesc_Res) => {
-    //     arrayOfFlowDesc_Res.foreach { x =>
-    //       val (origFlowDesc, res) = x
-    //       masterActor ! FlowProgress(
-    //         origFlowDesc.id, 
-    //         origFlowDesc.coflowId, 
-    //         origFlowDesc.sizeInBytes, 
-    //         true)
-    //     }
-    //   }
-    //   case Left(vex) => throw vex
-    // }
   }
 
   /**
@@ -643,11 +587,6 @@ class VarysClient(
   @throws(classOf[VarysException])
   def getFakeMultiple(blockIds: Array[String], coflowId: String) {
     handleGetMultiple(blockIds, DataType.FAKE, coflowId)
-  }
-
-  def deleteFlow(flowId: String, coflowId: String) {
-    // TODO: Do something!
-    // AkkaUtils.tellActor(slaveActor, DeleteFlow(flowId, coflowId))
   }
 
   /**
