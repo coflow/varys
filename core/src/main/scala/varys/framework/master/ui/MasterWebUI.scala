@@ -61,8 +61,8 @@ class MasterWebUI(masterActorRef_ : ActorRef, requestedPort: Int) extends Loggin
 
   val handlers = Array[(String, Handler)](
     ("/static", createStaticHandler(MasterWebUI.STATIC_RESOURCE_DIR)),
-    ("/app/json", (request: HttpServletRequest) => coflowPage.renderJson(request)),
-    ("/app", (request: HttpServletRequest) => coflowPage.render(request)),
+    ("/coflow/json", (request: HttpServletRequest) => coflowPage.renderJson(request)),
+    ("/coflow", (request: HttpServletRequest) => coflowPage.render(request)),
     ("/json", (request: HttpServletRequest) => indexPage.renderJson(request)),
     ("*", (request: HttpServletRequest) => indexPage.render(request))
   )
