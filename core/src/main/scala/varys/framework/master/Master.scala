@@ -494,7 +494,7 @@ private[varys] class Master(
         x => x.remainingSizeInBytes > 0 && 
         (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
       
-      val activeSlaves = idToSlave.values.asInstanceOf[ArrayBuffer[SlaveInfo]]
+      val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
       val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves))
 
       val step12Dur = now - st

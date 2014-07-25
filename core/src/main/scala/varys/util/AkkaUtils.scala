@@ -17,7 +17,7 @@ import varys.VarysException
  */
 private[varys] object AkkaUtils {
 
-  val AKKA_TIMEOUT_MS: Int = System.getProperty("varys.akka.timeout", "3000").toInt
+  val AKKA_TIMEOUT_MS: Int = System.getProperty("varys.akka.timeout", "30").toInt * 1000
 
   /**
    * Creates an ActorSystem ready for remoting, with various Varys features. Returns both the
@@ -112,6 +112,8 @@ private[varys] object AkkaUtils {
               "varys.framework.CoflowDescription",
               "varys.framework.CoflowType$",
               "varys.framework.FlowDescription",
+              "varys.framework.FileDescription",
+              "varys.framework.ObjectDescription",
               "varys.framework.DataIdentifier",
               "varys.framework.DataType$",
               "scala.collection.immutable.Map$Map1",

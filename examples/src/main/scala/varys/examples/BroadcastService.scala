@@ -5,11 +5,27 @@ import java.net._
 import java.util.concurrent.atomic.AtomicInteger
 
 import scala.collection.mutable.ArrayBuffer
-  
+import scala.collection.JavaConversions._
+import scala.concurrent.duration._
+import scala.concurrent.{Future, Await, ExecutionContext}
+
 import varys.util.AkkaUtils
 import varys.{Logging, Utils}
 import varys.framework.client._
 import varys.framework._
+
+/**
+ * HOWTO Run the BroadcastService Example
+ * ======================================
+ *
+ * BroadcastService consists of two pieces: the sender/master and the receivers/clients.
+ * Each one has its own process and must be started separately. 
+ *
+ * First, we must start the BroadcastSender by providing varysMasterUrl, pathToFile, and 
+ * numSlaves. Note the broadcast Master Url printed on console.
+ * 
+ * Next, we start the BroadcastReceiver by providing varysMasterUrl and broadcast Master Url.
+ */
 
 private[varys] object BroadcastUtils {
   
@@ -155,6 +171,11 @@ private[varys] object BroadcastSender extends Logging {
     }
     val LEN_BYTES = FILE.length
     
+    var numBlocks = (LEN_BYTES / BroadcastUtils.BLOCK_SIZE).toInt
+    if (LEN_BYTES % BroadcastUtils.BLOCK_SIZE > 0) {
+      numBlocks += 1
+    }
+
     val listener = new TestListener
     val client = new VarysClient("BroadcastSender", url, listener)
     client.start()
@@ -162,7 +183,7 @@ private[varys] object BroadcastSender extends Logging {
     val desc = new CoflowDescription(
       "Broadcast-" + fileName, 
       CoflowType.BROADCAST, 
-      numSlaves, 
+      numBlocks * numSlaves, 
       LEN_BYTES * numSlaves)
 
     val coflowId = client.registerCoflow(desc)
@@ -185,6 +206,9 @@ private[varys] object BroadcastSender extends Logging {
     val masterThread = new MasterThread(BroadcastInfo(coflowId, pathToFile, LEN_BYTES), numSlaves)
     masterThread.start()
     logInfo("Started MasterThread. Now waiting for it to die.")
+    logInfo("Broadcast Master Url: %s:%d".format(
+        Utils.localHostName, BroadcastUtils.BROADCAST_MASTER_PORT))
+    logInfo("Number of blocks: %d".format(numBlocks))
 
     // Wait for all slaves to receive
     masterThread.join()
@@ -202,6 +226,9 @@ private[varys] object BroadcastReceiver extends Logging {
   var oos: ObjectOutputStream = null
   var ois: ObjectInputStream = null
   var FILE: RandomAccessFile = null
+
+  // ExecutionContext for Futures
+  implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
 
   class TestListener extends ClientListener with Logging {
     def connected(id: String) {
@@ -279,6 +306,7 @@ private[varys] object BroadcastReceiver extends Logging {
 
     // Receive FileInfo
     bInfo = ois.readObject.asInstanceOf[BroadcastInfo]
+    logInfo("Preparing to receive " + bInfo)
     
     // Open file and setup variables
     var origPathToFile = bInfo.pathToFile
@@ -310,13 +338,12 @@ private[varys] object BroadcastReceiver extends Logging {
       case e => logError(e.toString)
       exitGracefully(1)
     }
-    val LEN_BYTES = bInfo.LEN_BYTES
     
     // Create a random order of blocks
     val allOffsets = new ArrayBuffer[Int]
-    for (fromBytes <- 0L to LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
-      val blockSize = if (fromBytes + BroadcastUtils.BLOCK_SIZE >= LEN_BYTES) {
-        LEN_BYTES - fromBytes
+    for (fromBytes <- 0L to bInfo.LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
+      val blockSize = if (fromBytes + BroadcastUtils.BLOCK_SIZE >= bInfo.LEN_BYTES) {
+        bInfo.LEN_BYTES - fromBytes
       } else {
         BroadcastUtils.BLOCK_SIZE
       }
@@ -329,25 +356,26 @@ private[varys] object BroadcastReceiver extends Logging {
     val client = new VarysClient("BroadcastReceiver", url, listener)
     client.start()
     
-    // Receive blocks in random order
-    randomOffsets.foreach { offset =>
+    logInfo("About to receive " + bInfo + " with " + randomOffsets.size + " blocks.")
+    val futureList = Future.traverse(randomOffsets)(offset => Future {
       val blockName = origFileName + "-" + offset
       logInfo("Getting " + blockName + " from coflow " + bInfo.coflowId)
       
       val bArr = client.getFile(blockName, bInfo.coflowId)
       logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + 
         " at " + offset)
-      
+
       FILE.seek(offset)
       FILE.write(bArr)
-    }
-    
+    })
+
+    Await.result(futureList, Duration.Inf)
+
     // Mark end
     oos.writeObject(BroadcastDone())
     oos.flush
     
     // Close everything
     exitGracefully(0)
-    
   }
 }
