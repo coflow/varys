@@ -112,6 +112,8 @@ private[varys] object AkkaUtils {
               "varys.framework.CoflowDescription",
               "varys.framework.CoflowType$",
               "varys.framework.FlowDescription",
+              "varys.framework.FileDescription",
+              "varys.framework.ObjectDescription",
               "varys.framework.DataIdentifier",
               "varys.framework.DataType$",
               "scala.collection.immutable.Map$Map1",
