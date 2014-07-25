@@ -33,8 +33,7 @@ private[varys] class SlaveActor(
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
-  var dataServer = new DataServer(commPort, serverThreadName)
-  dataServer.start()
+  var dataServer: DataServer = null
 
   // TODO: Keep track of local data
   val idsToFlow = new HashMap[(String, String), FlowDescription]
@@ -81,8 +80,10 @@ private[varys] class SlaveActor(
     logInfo("Varys home: " + varysHome)
     createWorkDir()
     webUi = new SlaveWebUI(this, workDir, Some(webUiPort))
+    dataServer = new DataServer(commPort, serverThreadName)
 
     webUi.start()
+    dataServer.start()
     connectToMaster()
   }
 

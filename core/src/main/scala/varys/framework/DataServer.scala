@@ -5,7 +5,7 @@ import java.net._
 
 import scala.collection.mutable.HashMap
 
-import varys.{Logging, Utils}
+import varys.{Logging, Utils, VarysException}
 
 /**
  * A common server to serve requested pieces of data. 
@@ -20,7 +20,18 @@ private[varys] class DataServer(
   extends Logging {
   
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
-  var serverSocket: ServerSocket = new ServerSocket(commPort, 256)
+  var serverSocket: ServerSocket = null
+  
+  try {
+    serverSocket = new ServerSocket(commPort, 256)
+    logInfo("Created DataServer at %s:%d".format(Utils.localHostName, getCommPort))
+    } catch {
+      case e: Exception => {
+        val errString = "Couldn't create data server due to " + e
+        logError(errString)
+        throw new VarysException(errString)
+      }
+    }
   
   var stopServer = false
   val serverThread = new Thread(serverThreadName) {
