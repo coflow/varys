@@ -152,34 +152,6 @@ private[varys] class SlaveActor(
       sender ! true
     }
     
-    case AddFlow(flowDesc) => {
-      // TODO: Do something!
-      logInfo("Received AddFlow for " + flowDesc)
-      
-      // Update commPort if the end point will be a client
-      if (flowDesc.dataType != DataType.INMEMORY) {
-        flowDesc.updateCommPort(commPort)
-      }
-      
-      // Now let the master know and notify the client
-      AkkaUtils.tellActor(master, AddFlow(flowDesc))
-      sender ! true
-    }
-    
-    case AddFlows(flowDescs, coflowId, dataType) => {
-      // TODO: Do something!
-      logInfo("Received AddFlows for coflow " + coflowId)
-      
-      // Update commPort if the end point will be a client
-      if (dataType != DataType.INMEMORY) {
-        flowDescs.foreach(_.updateCommPort(commPort))
-      }
-      
-      // Now let the master know and notify the client
-      AkkaUtils.tellActor(master, AddFlows(flowDescs, coflowId, dataType))
-      sender ! true
-    }
-
     case GetFlow(flowId, coflowId, clientId, _, flowDesc) => {
       // TODO: Do something!
       logInfo("Received GetFlow for " + flowDesc)
@@ -191,11 +163,6 @@ private[varys] class SlaveActor(
       // TODO: Do something!
       logInfo("Received GetFlows for " + flowIds.size + " flows of coflow " + coflowId)
       
-      sender ! true
-    }
-
-    case DeleteFlow(flowId, coflowId) => {
-      // TODO: Actually remove
       sender ! true
     }
   }

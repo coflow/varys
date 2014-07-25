@@ -35,7 +35,11 @@ private[varys] object ReceiverClientObject {
     Thread.sleep(5000)
     
     println("Trying to retrieve " + OBJ_NAME)
-    val respArr = client.getObject[Array[Int]](OBJ_NAME, coflowId)
+    val respArr = 
+      client.getObject[Array[Int]](
+        OBJ_NAME, 
+        coflowId, 
+        SenderClientObject.getDataDescription(client, coflowId))
     println("Got " + OBJ_NAME + " with " + respArr.length + " elements. Now waiting to die.")
     
     client.awaitTermination()

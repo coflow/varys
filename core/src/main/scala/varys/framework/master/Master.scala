@@ -247,35 +247,6 @@ private[varys] class Master(
           howMany, bytes).toArray.map(x => idToSlave.get(x).host))
       }
 
-      case AddFlows(flowDescs, coflowId, dataType) => {
-        val currentSender = sender
-
-        // coflowId will always be valid
-        val coflow = idToCoflow.get(coflowId)
-        assert(coflow != null)
-
-        val st = now
-        flowDescs.foreach { coflow.addFlow }
-        logDebug("Added " + flowDescs.size + " flows to " + coflow + " in " + (now - st) + 
-          " milliseconds")
-        
-        currentSender ! true
-      }
-
-      case AddFlow(flowDesc) => {
-        val currentSender = sender
-
-        // coflowId will always be valid
-        val coflow = idToCoflow.get(flowDesc.coflowId)
-        assert(coflow != null)
-
-        val st = now
-        coflow.addFlow(flowDesc)
-        logDebug("Added flow to " + coflow + " in " + (now - st) + " milliseconds")
-        
-        currentSender ! true
-      }
-
       case GetFlow(flowId, coflowId, clientId, slaveId, _) => {
         logTrace("Received GetFlow(" + flowId + ", " + coflowId + ", " + slaveId + ", " + sender + 
           ")")
@@ -290,18 +261,6 @@ private[varys] class Master(
         
         val currentSender = sender
         Future { handleGetFlows(flowIds, coflowId, clientId, slaveId, currentSender) }
-      }
-
-      case FlowProgress(flowId, coflowId, bytesSinceLastUpdate, isCompleted) => {
-        // coflowId will always be valid
-        val coflow = idToCoflow.get(coflowId)
-        assert(coflow != null)
-
-        val st = now
-        coflow.updateFlow(flowId, bytesSinceLastUpdate, isCompleted)
-        
-        logTrace("Received FlowProgress for flow " + flowId + " of " + coflow + " in " + 
-          (now - st) + " milliseconds")
       }
 
       case ScheduleRequest => {
@@ -488,7 +447,7 @@ private[varys] class Master(
         x => x.remainingSizeInBytes > 0 && 
         (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
       
-      val activeSlaves = idToSlave.values.asInstanceOf[ArrayBuffer[SlaveInfo]]
+      val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
       val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves))
 
       val step12Dur = now - st

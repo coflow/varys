@@ -7,6 +7,9 @@ import varys.framework._
 
 private[varys] object SenderClientFake {
 
+  val LEN_BYTES = 1010101L
+  var DATA_NAME = "DATA"
+
   class TestListener extends ClientListener with Logging {
     def connected(id: String) {
       logInfo("Connected to master, got client ID " + id)
@@ -18,6 +21,14 @@ private[varys] object SenderClientFake {
     }
   }
 
+  /*
+   * This passes sender information to the receiver, which actually should've happened through the
+   * framework master.
+   */ 
+  def getDataDescription(client: VarysClient, coflowId: String): FlowDescription = {
+    client.createFakeDescription(DATA_NAME, coflowId, LEN_BYTES, 1)
+  }
+
   def main(args: Array[String]) {
     if (args.length < 1) {
       println("USAGE: SenderClientFake <masterUrl> [dataName]")
@@ -25,9 +36,7 @@ private[varys] object SenderClientFake {
     }
 
     val url = args(0)
-    val DATA_NAME = if (args.length > 1) args(1) else "DATA"
-
-    val LEN_BYTES = 1010101L
+    DATA_NAME = if (args.length > 1) args(1) else "DATA"
 
     val listener = new TestListener
     val client = new VarysClient("SenderClientFake", url, listener)
@@ -39,8 +48,8 @@ private[varys] object SenderClientFake {
     val SLEEP_MS1 = 5000    
     println("Registered coflow " + coflowId + ". Now sleeping for " + SLEEP_MS1 + " milliseconds.")
     Thread.sleep(SLEEP_MS1)
-    
-    client.putFake(DATA_NAME, coflowId, LEN_BYTES, 1)
+
+    // Do nothing really. 
     println("Put a fake piece of data of " + LEN_BYTES + " bytes. Now waiting to die.")
     
     // client.unregisterCoflow(coflowId)

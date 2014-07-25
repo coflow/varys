@@ -35,7 +35,10 @@ private[varys] object ReceiverClientFake {
     Thread.sleep(5000)
     
     println("Trying to retrieve " + DATA_NAME)
-    client.getFake(DATA_NAME, coflowId)
+    client.getFake(
+      DATA_NAME, 
+      coflowId, 
+      SenderClientFake.getDataDescription(client, coflowId))
     println("Got " + DATA_NAME + ". Now waiting to die.")
     
     client.awaitTermination()

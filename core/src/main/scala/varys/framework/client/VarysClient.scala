@@ -217,65 +217,83 @@ class VarysClient(
   private def freeLocalResources(coflowId: String) {
     flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)
   }
-
+  
   /**
-   * Makes data available for retrieval, and notifies local slave, which will register it with the 
-   * master.
-   * Non-blocking call.
+   * Creates FAKE data request
    */
-  private def handlePut(flowDesc: FlowDescription, serialObj: Array[Byte] = null) {
-    waitForRegistration
-    
-    val st = now
-    
-    // Notify the slave, which will notify the master
-    AkkaUtils.tellActor(slaveActor, AddFlow(flowDesc))
-    
-    logInfo("Registered " + flowDesc + " in " + (now - st) + " milliseconds")
-    
-    // Keep a reference to the object to be served when asked for.
-    if (flowDesc.dataType == DataType.INMEMORY) {
-      assert(serialObj != null)
-      flowToObject(flowDesc.dataId) = serialObj
-    } 
-  }
-
-  /**
-   * Makes multiple pieces of data available for retrieval, and notifies local slave, which will 
-   * register it with the master. 
-   * Non-blocking call.
-   * FIXME: Handles only DataType.FAKE right now.
-   */
-  private def handlePutMultiple(
-      flowDescs: Array[FlowDescription], 
+  def createFakeDescription(
+      blockId: String, 
       coflowId: String, 
-      dataType: DataType.DataType) {
-    
-    if (dataType != DataType.FAKE) {
-      val tmpM = "handlePutMultiple currently supports only DataType.FAKE"
-      logWarning(tmpM)
-      throw new VarysException(tmpM)
-    }
-    
-    waitForRegistration
-  
-    val st = now
-  
-    // Notify the slave, which will notify the master
-    AkkaUtils.tellActor(slaveActor, AddFlows(flowDescs, coflowId, dataType))
-  
-    logInfo("Registered Array[FlowDescription] in " + (now - st) + " milliseconds")
+      size: Long, 
+      numReceivers: Int): FlowDescription = {
+    val desc = 
+      new FlowDescription(
+        blockId, 
+        coflowId, 
+        DataType.FAKE, 
+        size, 
+        numReceivers, 
+        clientHost, 
+        clientCommPort)
+    desc
   }
 
   /**
-   * Puts any data structure
+   * Creates an entire file request
    */
-  def putObject[T: Manifest](
+  def createFileDescription(
+      fileId: String, 
+      pathToFile: String, 
+      coflowId: String, 
+      size: Long, 
+      numReceivers: Int): FileDescription = {
+    val desc = 
+      new FileDescription(
+        fileId, 
+        pathToFile, 
+        coflowId, 
+        DataType.ONDISK, 
+        0, 
+        size, 
+        numReceivers, 
+        clientHost, 
+        clientCommPort)
+    desc
+  }
+
+  /**
+   * Creates a file request from given offset
+   */
+  def createFileDescription(
+      fileId: String, 
+      pathToFile: String, 
+      coflowId: String, 
+      offset: Long,
+      size: Long, 
+      numReceivers: Int): FileDescription = {
+    val desc = 
+      new FileDescription(
+        fileId, 
+        pathToFile, 
+        coflowId, 
+        DataType.ONDISK, 
+        offset, 
+        size, 
+        numReceivers, 
+        clientHost, 
+        clientCommPort)
+    desc
+  }
+
+  /**
+   * Creates a object request for any data structure
+   */
+  def createObjectDescription[T: Manifest](
       objId: String, 
       obj: T, 
       coflowId: String, 
       size: Long, 
-      numReceivers: Int) {
+      numReceivers: Int): ObjectDescription = {
     
     // TODO: Figure out class name
     val className = "UnknownType" 
@@ -290,79 +308,12 @@ class VarysClient(
         clientHost, 
         clientCommPort)
 
-    val serialObj = Utils.serialize[T](obj)
-    handlePut(desc, serialObj)
-  }
-  
-  /**
-   * Puts a complete local file
-   */
-  def putFile(fileId: String, pathToFile: String, coflowId: String, size: Long, numReceivers: Int) {
-    putFile(fileId, pathToFile, coflowId, 0, size, numReceivers)
+    // Keep a reference to the object to be served when asked for.
+    flowToObject(DataIdentifier(objId, coflowId)) = Utils.serialize[T](obj)
+
+    desc
   }
 
-  /**
-   * Puts a range of local file
-   */
-  def putFile(
-      fileId: String, 
-      pathToFile: String, 
-      coflowId: String, 
-      offset: Long, 
-      size: Long, 
-      numReceivers: Int) {
-    
-    val desc = 
-      new FileDescription(
-        fileId, 
-        pathToFile, 
-        coflowId, 
-        DataType.ONDISK, 
-        offset, 
-        size, 
-        numReceivers, 
-        clientHost, 
-        clientCommPort)
-
-    handlePut(desc)
-  }
-  
-  /**
-   * Emulates the process without having to actually put anything
-   */
-  def putFake(blockId: String, coflowId: String, size: Long, numReceivers: Int) {
-    val desc = 
-      new FlowDescription(
-        blockId, 
-        coflowId, 
-        DataType.FAKE, 
-        size, 
-        numReceivers, 
-        clientHost, 
-        clientCommPort)
-
-    handlePut(desc)
-  }
-  
-  /**
-   * Puts multiple blocks at the same time of same size and same number of receivers
-   * blocks => (blockId, blockSize, numReceivers)
-   */ 
-  def putFakeMultiple(blocks: Array[(String, Long, Int)], coflowId: String) {
-    val descs = 
-      blocks.map(blk => 
-        new FlowDescription(
-          blk._1, 
-          coflowId, 
-          DataType.FAKE, 
-          blk._2, 
-          blk._3, 
-          clientHost, 
-          clientCommPort))
-
-    handlePutMultiple(descs, coflowId, DataType.FAKE)
-  }
-  
   /**
    * Performs exactly one get operation
    */
@@ -444,40 +395,18 @@ class VarysClient(
   private def handleGet(
       blockId: String, 
       dataType: DataType.DataType, 
-      coflowId: String): Array[Byte] = {
+      coflowId: String,
+      flowDesc: FlowDescription): Array[Byte] = {
     
     waitForRegistration
-    
-    var st = now
-    
-    // Notify master and retrieve the FlowDescription in response
-    var flowDesc: FlowDescription = null
-
-    val gotFlowDesc = AkkaUtils.askActorWithReply[Option[GotFlowDesc]](masterActor, 
-      GetFlow(blockId, coflowId, clientId, slaveId))
-    gotFlowDesc match {
-      case Some(GotFlowDesc(x)) => flowDesc = x
-      case None => { 
-        val tmpM = "Failed to receive FlowDescription for " + blockId + " of coflow " + coflowId
-        logWarning(tmpM)
-        // TODO: Define proper VarysExceptions
-        throw new VarysException(tmpM)
-      }
-    }
-    logInfo("Received " + flowDesc + " for " + blockId + " of coflow " + coflowId + " in " + 
-      (now - st) + " milliseconds")
     
     // Notify local slave
     AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
     
     // Get it!
     val (origFlowDesc, retVal) = getOne(flowDesc)
-    // Notify flow completion
-    masterActor ! FlowProgress(
-      origFlowDesc.id, 
-      origFlowDesc.coflowId, 
-      origFlowDesc.sizeInBytes, 
-      true)
+
+    // TODO: Notify flow completion to slave
 
     retVal
   }
@@ -534,12 +463,7 @@ class VarysClient(
       new Thread("Receive thread for " + flowDesc) {
         override def run() {
           val (origFlowDesc, retVal) = getOne(flowDesc)
-          // Notify flow completion
-          masterActor ! FlowProgress(
-            origFlowDesc.id, 
-            origFlowDesc.coflowId, 
-            origFlowDesc.sizeInBytes, 
-            true)
+          // TODO: Notify flow completion to slave
           
           recvLock.synchronized {
             recvFinished += 1
@@ -560,8 +484,8 @@ class VarysClient(
    * Retrieves data from any of the feasible locations. 
    */
   @throws(classOf[VarysException])
-  def getObject[T](objectId: String, coflowId: String): T = {
-    val resp = handleGet(objectId, DataType.INMEMORY, coflowId)
+  def getObject[T](objectId: String, coflowId: String, objDesc: ObjectDescription): T = {
+    val resp = handleGet(objectId, DataType.INMEMORY, coflowId, objDesc)
     Utils.deserialize[T](resp)
   }
   
@@ -569,16 +493,16 @@ class VarysClient(
    * Gets a file
    */
   @throws(classOf[VarysException])
-  def getFile(fileId: String, coflowId: String): Array[Byte] = {
-    handleGet(fileId, DataType.ONDISK, coflowId)
+  def getFile(fileId: String, coflowId: String, fileDesc: FileDescription): Array[Byte] = {
+    handleGet(fileId, DataType.ONDISK, coflowId, fileDesc)
   }
   
   /**
    * Paired get() for putFake. Doesn't return anything, but emulates the retrieval process.
    */
   @throws(classOf[VarysException])
-  def getFake(blockId: String, coflowId: String) {
-    handleGet(blockId, DataType.FAKE, coflowId)
+  def getFake(blockId: String, coflowId: String, flowDesc: FlowDescription) {
+    handleGet(blockId, DataType.FAKE, coflowId, flowDesc)
   }
   
   /**

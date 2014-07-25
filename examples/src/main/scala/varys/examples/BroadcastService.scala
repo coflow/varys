@@ -178,7 +178,7 @@ private[varys] object BroadcastSender extends Logging {
       
       val blockName = fileName + "-" + fromBytes
       logInfo("Putting " + blockName + " into coflow " + coflowId)
-      client.putFile(blockName, pathToFile, coflowId, fromBytes, blockSize, numSlaves)
+      // Do nothing really.
     }
 
     // Start server after registering the coflow and relevant 
@@ -242,12 +242,13 @@ private[varys] object BroadcastReceiver extends Logging {
 
   def main(args: Array[String]) {
     if (args.length < 2) {
-      println("USAGE: BroadcastReceiver <varysMasterUrl> <broadcastMasterUrl>")
+      println("USAGE: BroadcastReceiver <varysMasterUrl> <broadcastMasterUrl> <numSlaves>")
       System.exit(1)
     }
     
     val url = args(0)
     val bUrl = args(1)
+    val numSlaves = args(2).toInt
     
     var masterHost: String = null
     var masterPort: Int = 0
@@ -334,7 +335,8 @@ private[varys] object BroadcastReceiver extends Logging {
       val blockName = origFileName + "-" + offset
       logInfo("Getting " + blockName + " from coflow " + bInfo.coflowId)
       
-      val bArr = client.getFile(blockName, bInfo.coflowId)
+      val fileDesc = client.createFileDescription(blockName, bInfo.pathToFile, bInfo.coflowId, offset, BroadcastUtils.BLOCK_SIZE, numSlaves)
+      val bArr = client.getFile(blockName, bInfo.coflowId, fileDesc)
       logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + 
         " at " + offset)
       

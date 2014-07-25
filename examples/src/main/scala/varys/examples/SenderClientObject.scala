@@ -7,6 +7,9 @@ import varys.framework._
 
 private[varys] object SenderClientObject {
 
+  var OBJ_NAME = "OBJ"
+  val NUM_ELEMS = 1231231
+
   class TestListener extends ClientListener with Logging {
     def connected(id: String) {
       logInfo("Connected to master, got client ID " + id)
@@ -18,6 +21,15 @@ private[varys] object SenderClientObject {
     }
   }
 
+  /*
+   * This passes sender information to the receiver, which actually should've happened through the
+   * framework master.
+   */ 
+  def getDataDescription(client: VarysClient, coflowId: String): ObjectDescription = {
+    val toSend = Array.tabulate[Int](NUM_ELEMS)(_.toByte)
+    client.createObjectDescription[Array[Int]](OBJ_NAME, toSend, coflowId, NUM_ELEMS * 4, 1)
+  }
+
   def main(args: Array[String]) {
     if (args.length < 1) {
       println("USAGE: SenderClientObject <masterUrl> [objectName]")
@@ -25,10 +37,7 @@ private[varys] object SenderClientObject {
     }
 
     val url = args(0)
-    val OBJ_NAME = if (args.length > 1) args(1) else "OBJ"
-
-    val NUM_ELEMS = 1231231
-    val toSend = Array.tabulate[Int](NUM_ELEMS)(_.toByte)
+    OBJ_NAME = if (args.length > 1) args(1) else "OBJ"
 
     val listener = new TestListener
     val client = new VarysClient("SenderClientObject", url, listener)
@@ -41,7 +50,7 @@ private[varys] object SenderClientObject {
     println("Registered coflow " + coflowId + ". Now sleeping for " + SLEEP_MS1 + " milliseconds.")
     Thread.sleep(SLEEP_MS1)
     
-    client.putObject[Array[Int]](OBJ_NAME, toSend, coflowId, NUM_ELEMS * 4, 1)
+    // Do nothing really.
     println("Put an Array[Int] of " + NUM_ELEMS + " elements. Now waiting to die.")
     
     // client.unregisterCoflow(coflowId)

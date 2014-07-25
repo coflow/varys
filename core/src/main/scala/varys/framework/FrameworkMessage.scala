@@ -103,16 +103,6 @@ private[varys] case class UpdatedRates(
   extends FrameworkMessage
 
 // Client/Slave to Slave/Master
-private[varys] case class AddFlow(
-    flowDescription: FlowDescription) 
-  extends FrameworkMessage
-
-private[varys] case class AddFlows(
-    flowDescriptions: Array[FlowDescription], 
-    coflowId: String, 
-    dataType: DataType.DataType) 
-  extends FrameworkMessage
-
 private[varys] case class GetFlow(
     flowId: String, 
     coflowId: String, 
@@ -127,18 +117,6 @@ private[varys] case class GetFlows(
     clientId: String,
     slaveId: String,
     flowDescs: Array[FlowDescription] = null) 
-  extends FrameworkMessage
-
-private[varys] case class FlowProgress(
-    flowId: String, 
-    coflowId: String, 
-    bytesSinceLastUpdate: Long, 
-    isCompleted: Boolean)
-  extends FrameworkMessage
-
-private[varys] case class DeleteFlow(
-    flowId: String, 
-    coflowId: String) 
   extends FrameworkMessage
 
 // Slave/Master to Client/Slave
