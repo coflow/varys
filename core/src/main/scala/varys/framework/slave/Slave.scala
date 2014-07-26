@@ -144,27 +144,31 @@ private[varys] class SlaveActor(
     }
     
     case RegisteredCoflow(coflowId) => {
+      val currentSender = sender
+      logInfo("Received RegisteredCoflow for coflow " + coflowId)
       // TODO: Do something!
-      sender ! true
+      currentSender ! true
     }
     
     case UnregisterCoflow(coflowId) => {
+      val currentSender = sender
+      logInfo("Received UnregisterCoflow for coflow " + coflowId)
       // TODO: Do something!
-      sender ! true
+      currentSender ! true
     }
     
-    case GetFlow(flowId, coflowId, clientId, _, flowDesc) => {
-      // TODO: Do something!
-      logInfo("Received GetFlow for " + flowDesc)
-      
-      sender ! true
+    case StartedFlow(coflowId, dPort) => {
+      val currentSender = sender
+      logInfo("Received StartedFlow for " + dPort + " of coflow " + coflowId)
+      // TODO: 
+      currentSender ! true
     }
-    
-    case GetFlows(flowIds, coflowId, clientId, _, flowDescs) => {
-      // TODO: Do something!
-      logInfo("Received GetFlows for " + flowIds.size + " flows of coflow " + coflowId)
-      
-      sender ! true
+
+    case CompletedFlow(coflowId, dPort) => {
+      val currentSender = sender
+      logInfo("Received CompletedFlow for " + dPort + " of coflow " + coflowId)
+      // TODO: 
+      currentSender ! true
     }
   }
 

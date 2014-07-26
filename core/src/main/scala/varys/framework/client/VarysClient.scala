@@ -320,9 +320,13 @@ class VarysClient(
   @throws(classOf[VarysException])
   private def getOne(flowDesc: FlowDescription): (FlowDescription, Array[Byte]) = {
     var st = now
-    val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)
+    val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)    
     val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
     oos.flush
+
+    // Now, notify the local slave
+    val sockLocalPort = sock.getLocalPort
+    AkkaUtils.tellActor(slaveActor, StartedFlow(flowDesc.coflowId, sockLocalPort))
 
     val tisRate = NIC_BPS
     val tis = new ThrottledInputStream(sock.getInputStream, clientName, tisRate)
@@ -379,6 +383,9 @@ class VarysClient(
     }
     logTrace("Received " + flowDesc.sizeInBytes + " bytes for " + flowDesc + " in " + (now - st) + 
       " milliseconds")
+
+    // Now, notify the local slave
+    AkkaUtils.tellActor(slaveActor, CompletedFlow(flowDesc.coflowId, sockLocalPort))
     
     // Close everything
     tis.close
@@ -388,7 +395,7 @@ class VarysClient(
   }
   
   /**
-   * Notifies the master and the slave. But everything is done in the client
+   * Notifies the slave. But everything is done in the client.
    * Blocking call.
    */
   @throws(classOf[VarysException])
@@ -399,20 +406,12 @@ class VarysClient(
       flowDesc: FlowDescription): Array[Byte] = {
     
     waitForRegistration
-    
-    // Notify local slave
-    AkkaUtils.tellActor(slaveActor, GetFlow(blockId, coflowId, clientId, slaveId, flowDesc))
-    
-    // Get it!
-    val (origFlowDesc, retVal) = getOne(flowDesc)
-
-    // TODO: Notify flow completion to slave
-
+    val (_, retVal) = getOne(flowDesc)
     retVal
   }
   
   /**
-   * Notifies the master and the slave. But everything is done in the client
+   * Notifies the slave. But everything is done in the client.
    * Blocking call.
    * FIXME: Handles only DataType.FAKE right now.
    */
@@ -420,8 +419,11 @@ class VarysClient(
   private def handleGetMultiple(
       blockIds: Array[String], 
       dataType: DataType.DataType, 
-      coflowId: String) {
+      coflowId: String,
+      flowDescs: Array[FlowDescription]) {
     
+    throw new VarysException("FIXME: Not supported!!!")
+
     if (dataType != DataType.FAKE) {
       val tmpM = "handleGetMultiple currently supports only DataType.FAKE"
       logWarning(tmpM)
@@ -430,31 +432,6 @@ class VarysClient(
 
     waitForRegistration
     
-    var st = now
-    
-    // Notify master and retrieve the FlowDescription in response
-    var flowDescs: Array[FlowDescription] = null
-
-    val gotFlowDescs = AkkaUtils.askActorWithReply[Option[GotFlowDescs]](
-      masterActor, 
-      GetFlows(blockIds, coflowId, clientId, slaveId))
-
-    gotFlowDescs match {
-      case Some(GotFlowDescs(x)) => flowDescs = x
-      case None => { 
-        val tmpM = "Failed to receive FlowDescriptions for " + blockIds.size + " flows of coflow " + 
-          coflowId
-        logWarning(tmpM)
-        // TODO: Define proper VarysExceptions
-        throw new VarysException(tmpM)
-      }
-    }
-    logInfo("Received " + flowDescs.size + " flowDescs " + " of coflow " + coflowId + " in " + 
-      (now - st) + " milliseconds")
-    
-    // Notify local slave
-    AkkaUtils.tellActor(slaveActor, GetFlows(blockIds, coflowId, clientId, slaveId, flowDescs))
-    
     // Get 'em!
     val recvLock = new Object()
     var recvFinished = 0
@@ -462,9 +439,7 @@ class VarysClient(
     for (flowDesc <- flowDescs) {
       new Thread("Receive thread for " + flowDesc) {
         override def run() {
-          val (origFlowDesc, retVal) = getOne(flowDesc)
-          // TODO: Notify flow completion to slave
-          
+          getOne(flowDesc)
           recvLock.synchronized {
             recvFinished += 1
             recvLock.notifyAll()
@@ -509,8 +484,8 @@ class VarysClient(
    * Paired get() for putFakeMultiple. Doesn't return anything, but emulates the retrieval process.
    */
   @throws(classOf[VarysException])
-  def getFakeMultiple(blockIds: Array[String], coflowId: String) {
-    handleGetMultiple(blockIds, DataType.FAKE, coflowId)
+  def getFakeMultiple(blockIds: Array[String], coflowId: String, flowDescs: Array[FlowDescription]) {
+    handleGetMultiple(blockIds, DataType.FAKE, coflowId, flowDescs)
   }
 
   /**

@@ -57,6 +57,15 @@ private[varys] case class RequestBestTxMachines(
     adjustBytes: Long) 
   extends FrameworkMessage
 
+// Client to Slave
+private[varys] case class StartedFlow(
+    coflowId: String,
+    dPort: Int)
+
+private[varys] case class CompletedFlow(
+    coflowId: String,
+    dPort: Int)
+
 // Master/Client to Client/Slave
 private[varys] case class RegisteredClient(
     clientId: String, 

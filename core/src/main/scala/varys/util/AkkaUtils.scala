@@ -105,6 +105,8 @@ private[varys] object AkkaUtils {
               "varys.framework.GetFlows",
               "varys.framework.GotFlowDesc",
               "varys.framework.GotFlowDescs",
+              "varys.framework.StartedFlow",
+              "varys.framework.CompletedFlow".
               "varys.framework.CoflowDescription",
               "varys.framework.CoflowType$",
               "varys.framework.FlowDescription",
@@ -188,8 +190,7 @@ private[varys] object AkkaUtils {
       case ie: InterruptedException => throw ie
       case e: Exception => {
         throw new VarysException(
-          "Error sending message to " + actor + " [message = " + message + "]", 
-          e)
+          "Error sending message to " + actor + " [message = " + message + "]", e)
       }
     }
   }
