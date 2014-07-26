@@ -1,4 +1,4 @@
-package varys.util
+package varys.framework.slave
 
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
@@ -9,9 +9,9 @@ import scala.collection.JavaConversions._
 
 import varys.{Logging, Utils, VarysException}
 
-private[varys] class IPTablesClient(clientName: String) extends Logging {
+private[slave] object IPTablesClient extends Logging {
 
-  val IPTABLES_UPDATE_FREQ = 40 // milliseconds
+  val IPTABLES_UPDATE_FREQ = System.getProperty("varys.slave.iptcUpdateFreq", "40").toInt // milliseconds
   val MAX_RULES_IN_MULTIPORT = 15
 
   case class CoflowInfo(
@@ -64,7 +64,7 @@ private[varys] class IPTablesClient(clientName: String) extends Logging {
       toWrite += "-A %s -j ACCEPT".format(coflowId)
     }
     toWrite += "COMMIT"
-    val outputFile = "/tmp/VarysIPTables-%s.txt".format(clientName)
+    val outputFile = "/tmp/VarysIPTables.txt"
     Utils.writeToFile(toWrite.toArray, outputFile)
 
     // Remember old sizes and update iptables
@@ -170,21 +170,18 @@ private[varys] class IPTablesClient(clientName: String) extends Logging {
     retVal
   }
 
-}
-
-private[varys] object IPTablesClient {
   def main(args: Array[String]) {
-    val iptables = new IPTablesClient("Test")
     for (i <- 0 to 10) {
-      iptables.addCoflow("COFLOW-" + i)
+      IPTablesClient.addCoflow("COFLOW-" + i)
       var r = new scala.util.Random
       for (j <- 0 to r.nextInt(20)) {
-        iptables.addFlow("COFLOW-" + i, (i+1) * 1000 + j)
+        IPTablesClient.addFlow("COFLOW-" + i, (i+1) * 1000 + j)
       }
     }
-    iptables.updateIPTables()
+    IPTablesClient.updateIPTables()
     Thread.sleep(1000)
-    iptables.stop()
+    IPTablesClient.stop()
     System.exit(1)
   }  
+
 }
