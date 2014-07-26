@@ -35,9 +35,6 @@ private[varys] class SlaveActor(
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
   var dataServer: DataServer = null
 
-  // TODO: Keep track of local data
-  val idsToFlow = new HashMap[(String, String), FlowDescription]
-
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For slave IDs
 
   var master: ActorRef = null
@@ -146,28 +143,28 @@ private[varys] class SlaveActor(
     case RegisteredCoflow(coflowId) => {
       val currentSender = sender
       logInfo("Received RegisteredCoflow for coflow " + coflowId)
-      // TODO: Do something!
+      IPTablesClient.addCoflow(coflowId)
       currentSender ! true
     }
     
     case UnregisterCoflow(coflowId) => {
       val currentSender = sender
       logInfo("Received UnregisterCoflow for coflow " + coflowId)
-      // TODO: Do something!
+      IPTablesClient.deleteCoflow(coflowId)
       currentSender ! true
     }
     
     case StartedFlow(coflowId, dPort) => {
       val currentSender = sender
       logInfo("Received StartedFlow for " + dPort + " of coflow " + coflowId)
-      // TODO: 
+      IPTablesClient.addFlow(coflowId, dPort)
       currentSender ! true
     }
 
     case CompletedFlow(coflowId, dPort) => {
       val currentSender = sender
       logInfo("Received CompletedFlow for " + dPort + " of coflow " + coflowId)
-      // TODO: 
+      IPTablesClient.deleteFlow(coflowId, dPort)
       currentSender ! true
     }
   }

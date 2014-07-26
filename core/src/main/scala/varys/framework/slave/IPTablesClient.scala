@@ -11,29 +11,54 @@ import varys.{Logging, Utils, VarysException}
 
 private[slave] object IPTablesClient extends Logging {
 
-  val IPTABLES_UPDATE_FREQ = System.getProperty("varys.slave.iptcUpdateFreq", "40").toInt // milliseconds
-  val MAX_RULES_IN_MULTIPORT = 15
-
   case class CoflowInfo(
     val coflowId: String,
     var curSize: Long,
-    val flows: HashSet[Int]
+    val flows: HashSet[Int],
+    var lastSweeped: Long = -1
   )
 
   private val coflows = new ConcurrentHashMap[String, CoflowInfo]
   private var tableUpdated = false
 
+  // Periodically drop old coflows
+  private val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.iptcCleanupSec", "120").toInt * 1000
+  private val cleanupScheduler = Executors.newScheduledThreadPool(1)
+  private val cleanupTask = new Runnable() {
+    def run() { 
+      logTrace("Cleaning up dead coflows")
+      val allCoflows = coflows.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]]
+      val toRemove = allCoflows.filter(x => 
+        (System.currentTimeMillis - x.lastSweeped) >= CLEANUP_INTERVAL_MS)
+      val numToRemove = toRemove.size
+      toRemove.foreach(c => coflows -= c.coflowId)
+      allCoflows.foreach(c => {
+        if (!toRemove.contains(c.coflowId)) {
+          c.lastSweeped = System.currentTimeMillis
+        }
+      })
+      logTrace("Removed %d dead coflows %s".format(numToRemove, toRemove))
+    }
+  }
+  private val cleanupStopHandle = cleanupScheduler.scheduleAtFixedRate(cleanupTask, 
+    CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS, MILLISECONDS)
+
   // Periodically update iptables if anything has changed
-  private val scheduler = Executors.newScheduledThreadPool(1)
+  private val IPTABLES_UPDATE_FREQ_MS = System.getProperty("varys.slave.iptcUpdateMillis", "40").toInt
+  private val MAX_RULES_IN_MULTIPORT = 15
+
+  private val updateScheduler = Executors.newScheduledThreadPool(1)
   private val updateTask = new Runnable() {
     def run() { 
       if (tableUpdated) {
+        logTrace("Updating iptables")
         updateIPTables
         tableUpdated = false
       }
     }
   }
-  private val stopHandle = scheduler.scheduleAtFixedRate(updateTask, 0, IPTABLES_UPDATE_FREQ, MILLISECONDS)
+  private val updateStopHandle = updateScheduler.scheduleAtFixedRate(updateTask, 0, 
+    IPTABLES_UPDATE_FREQ_MS, MILLISECONDS)
 
   private def updateIPTables() {
     val toWrite = new ArrayBuffer[String]
@@ -80,8 +105,12 @@ private[slave] object IPTablesClient extends Logging {
    */ 
   private def getCoflowSizesAndUpdate(outputFile: String): HashMap[String, Long] = {
     val retVal = new HashMap[String, Long]
+
+    // Not very clean, but we can run two commands in one ProcessBuilder call. Ugly.
     val theTable = Utils.runShellCommand(
       "iptables -vL INPUT; iptables-restore %s".format(outputFile))
+    
+    // Ignore first two lines
     var a = 2
     while (a < theTable.length) { 
       val pieces = theTable(a).split("\\s+")
@@ -98,55 +127,62 @@ private[slave] object IPTablesClient extends Logging {
   }
 
   def stop() {
-    stopHandle.cancel(true)
+    cleanupStopHandle.cancel(true)
+    updateStopHandle.cancel(true)
   }
 
   def addCoflow(coflowId: String) {
     if (coflows.containsKey(coflowId)) {
-      throw new VarysException("%s already exists!".format(coflowId))
+      logWarning("Coflow %s already exists! Ignoring...".format(coflowId))
+    } else {
+      coflows(coflowId) = CoflowInfo(coflowId, 0, new HashSet[Int])
+      tableUpdated = true
     }
-    coflows(coflowId) = CoflowInfo(coflowId, 0, new HashSet[Int])
-    tableUpdated = true
   }
 
   def deleteCoflow(coflowId: String) {
     if (!coflows.containsKey(coflowId)) {
-      throw new VarysException("%s doesn't exist!".format(coflowId))
+      logWarning("Coflow %s doesn't exist!".format(coflowId))
+    } else {
+      coflows -= coflowId
+      tableUpdated = true
     }
-    coflows -= coflowId
+  }
+
+  def addFlow(coflowId: String, dstPort: Int) {
+    if (!coflows.containsKey(coflowId)) {
+      logWarning("Coflow %s doesn't exist! Trying to create...".format(coflowId))
+      addCoflow(coflowId)
+    }
+    coflows(coflowId).flows += dstPort
     tableUpdated = true
   }
 
-  def addFlow(coflowId: String, srcPort: Int) {
+  def deleteFlow(coflowId: String, dstPort: Int) {
     if (!coflows.containsKey(coflowId)) {
-      throw new VarysException("%s doesn't exist!".format(coflowId))
+      logWarning("Coflow %s doesn't exist! Ignoring...".format(coflowId))
+    } else {
+      coflows(coflowId).flows -= dstPort
+      tableUpdated = true
     }
-    coflows(coflowId).flows += srcPort
+  }
+
+  def addFlows(coflowId: String, dstPorts: Array[Int]) {
+    if (!coflows.containsKey(coflowId)) {
+      logWarning("Coflow %s doesn't exist! Trying to create...".format(coflowId))
+      addCoflow(coflowId)
+    }
+    coflows(coflowId).flows ++= dstPorts
     tableUpdated = true
   }
 
-  def deleteFlow(coflowId: String, srcPort: Int) {
+  def deleteFlows(coflowId: String, dstPorts: Array[Int]) {
     if (!coflows.containsKey(coflowId)) {
-      throw new VarysException("%s doesn't exist!".format(coflowId))
+      logWarning("Coflow %s doesn't exist! Ignoring...".format(coflowId))
+    } else {
+      coflows(coflowId).flows --= dstPorts
+      tableUpdated = true
     }
-    coflows(coflowId).flows -= srcPort
-    tableUpdated = true
-  }
-
-  def addFlows(coflowId: String, srcPorts: Array[Int]) {
-    if (!coflows.containsKey(coflowId)) {
-      throw new VarysException("%s doesn't exist!".format(coflowId))
-    }
-    coflows(coflowId).flows ++= srcPorts
-    tableUpdated = true
-  }
-
-  def deleteFlows(coflowId: String, srcPorts: Array[Int]) {
-    if (!coflows.containsKey(coflowId)) {
-      throw new VarysException("%s doesn't exist!".format(coflowId))
-    }
-    coflows(coflowId).flows --= srcPorts
-    tableUpdated = true
   }
 
   /**
