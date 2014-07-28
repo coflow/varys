@@ -111,32 +111,6 @@ private[varys] case class UpdatedRates(
     newRates: Map[DataIdentifier, Double]) 
   extends FrameworkMessage
 
-// Client/Slave to Slave/Master
-private[varys] case class GetFlow(
-    flowId: String, 
-    coflowId: String, 
-    clientId: String,
-    slaveId: String,
-    flowDesc: FlowDescription = null) 
-  extends FrameworkMessage
-
-private[varys] case class GetFlows(
-    flowIds: Array[String], 
-    coflowId: String, 
-    clientId: String,
-    slaveId: String,
-    flowDescs: Array[FlowDescription] = null) 
-  extends FrameworkMessage
-
-// Slave/Master to Client/Slave
-private[varys] case class GotFlowDesc(
-    flowDesc: FlowDescription) 
-  extends FrameworkMessage
-
-private[varys] case class GotFlowDescs(
-    flowDescs: Array[FlowDescription]) 
-  extends FrameworkMessage
-
 // Internal message in Client/Slave
 private[varys] case object StopClient
 
