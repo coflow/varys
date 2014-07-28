@@ -34,10 +34,13 @@ private[varys] class Master(
   
   val CONSIDER_DEADLINE = System.getProperty("varys.master.considerDeadline", "false").toBoolean
 
+  val SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.syncPeriod", "80").toInt
+
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
   val addressToSlave = new ConcurrentHashMap[Address, SlaveInfo]
   val hostToSlave = new ConcurrentHashMap[String, SlaveInfo]
+  val localCoflowSizes = new ConcurrentHashMap[String, Array[(String, Long)]]
 
   val idToRxBps = new SlaveToBpsMap
   val idToTxBps = new SlaveToBpsMap
@@ -94,7 +97,13 @@ private[varys] class Master(
       if (!webUiStarted.getAndSet(true)) {
         webUi.start()
       }
+
+      // Thread to watch out for dead slaves
       // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
+
+      // Thread to periodically update global coflow sizes to all slaves
+      context.system.scheduler.schedule(0 millis, SYNC_PERIOD_MILLIS millis, self, SyncSlaves)
+
     }
 
     override def postStop() {
@@ -233,8 +242,17 @@ private[varys] class Master(
         timeOutDeadSlaves()
       }
 
+      case SyncSlaves => {
+        mergeAllAndSyncSlaves()
+      }
+
       case RequestWebUIPort => {
         sender ! WebUIPortResponse(webUi.boundPort.getOrElse(-1))
+      }
+
+      case LocalCoflows(slaveId, coflowSizes) => {
+        localCoflowSizes(slaveId) = coflowSizes
+        sender ! true
       }
 
       case RequestBestRxMachines(howMany, bytes) => {
@@ -417,6 +435,13 @@ private[varys] class Master(
           slave.id, SLAVE_TIMEOUT))
         removeSlave(slave)
       }
+    }
+
+    /*
+     * Combine current information from each slave and send it out
+     */
+    def mergeAllAndSyncSlaves() {
+      // TODO: 
     }
   }
 }

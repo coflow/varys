@@ -84,8 +84,10 @@ private[varys] object AkkaUtils {
             classes = [
               "varys.framework.RegisterSlave",  
               "varys.framework.Heartbeat",
+              "varys.framework.LocalCoflows",
               "varys.framework.RegisteredSlave",
               "varys.framework.RegisterSlaveFailed",
+              "varys.framework.GlobalCoflows",
               "varys.framework.RegisterClient",
               "varys.framework.RegisterCoflow",
               "varys.framework.RegisterCoflowFailed",

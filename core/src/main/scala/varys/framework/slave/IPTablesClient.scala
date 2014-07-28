@@ -188,8 +188,8 @@ private[slave] object IPTablesClient extends Logging {
   /**
    * Returns the actual size of each active coflow
    */ 
-  def getActiveCoflowSizes(): HashMap[String, Long] = {
-    val retVal = new HashMap[String, Long]
+  def getActiveCoflowSizes(): Array[(String, Long)] = {
+    val retVal = new ArrayBuffer[(String, Long)]
     val theTable = Utils.runShellCommand("iptables -vL INPUT")
     var a = 2
     while (a < theTable.length) { 
@@ -200,10 +200,10 @@ private[slave] object IPTablesClient extends Logging {
         toAdd = coflows(pieces(3)).curSize
       }
 
-      retVal(pieces(3)) = pieces(2).toLong + toAdd
+      retVal += ((pieces(3), pieces(2).toLong + toAdd))
       a += 1
     }
-    retVal
+    retVal.toArray
   }
 
   def main(args: Array[String]) {

@@ -22,6 +22,12 @@ private[varys] case class Heartbeat(
     txBps: Double)
   extends FrameworkMessage
 
+private[varys] case class LocalCoflows(
+    slaveId: String,
+    coflowSizes: Array[(String, Long)]
+    )
+  extends FrameworkMessage
+
 // Master to Slave
 private[varys] case class RegisteredSlave(
     masterWebUiUrl: String) 
@@ -29,6 +35,10 @@ private[varys] case class RegisteredSlave(
 
 private[varys] case class RegisterSlaveFailed(
     message: String) 
+  extends FrameworkMessage
+
+private[varys] case class GlobalCoflows(
+    coflowSizes: Array[(String, Long)])
   extends FrameworkMessage
 
 // Client to Master
@@ -127,6 +137,8 @@ private[varys] case class GetRequest(
 private[varys] case object ScheduleRequest
 
 private[varys] case object CheckForSlaveTimeOut
+
+private[varys] case object SyncSlaves
 
 private[varys] case object RequestWebUIPort
 

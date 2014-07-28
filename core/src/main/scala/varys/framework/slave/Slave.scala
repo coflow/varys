@@ -31,6 +31,7 @@ private[varys] class SlaveActor(
   extends Actor with Logging {
   
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
+  val SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.syncPeriod", "80").toInt
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
   var dataServer: DataServer = null
@@ -117,11 +118,21 @@ private[varys] class SlaveActor(
           master ! Heartbeat(slaveId, curRxBps, curTxBps)
         }
       }
+
+      // Thread to periodically update coflow sizes to master from iptables info
+      context.system.scheduler.schedule(SYNC_PERIOD_MILLIS millis, SYNC_PERIOD_MILLIS millis) {
+        val curCoflows = IPTablesClient.getActiveCoflowSizes()
+        AkkaUtils.tellActor(master, LocalCoflows(slaveId, curCoflows))
+      } 
     }
 
     case RegisterSlaveFailed(message) => {
       logError("Slave registration failed: " + message)
       System.exit(1)
+    }
+
+    case GlobalCoflows(coflowSizes) => {
+      // TODO: Use tc to update rates
     }
 
     case Terminated(actor) if actor == master => {
