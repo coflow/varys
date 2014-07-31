@@ -441,7 +441,27 @@ private[varys] class Master(
      * Combine current information from each slave and send it out
      */
     def mergeAllAndSyncSlaves() {
-      // TODO: 
+      var st = now
+
+      // Combine
+      val coflowSizes = new HashMap[String, Long]() { override def default(key: String) = 0L }
+      for ((lcs, vals) <- localCoflowSizes) {
+        for ((c, v) <- vals) {
+          coflowSizes(c) += v
+        }
+      }
+      val step1Dur = now - st
+
+      // Send out
+      st = now
+      val arrToSend = coflowSizes.toArray
+      for (slaveActor <- actorToSlave.keys) {
+        slaveActor ! GlobalCoflows(arrToSend)
+      }
+      val step2Dur = now - st
+
+      logInfo("MERGE_AND_SYNC in " + (step1Dur + step2Dur) + " = (" + step1Dur + "+" + step2Dur + 
+        ") milliseconds")
     }
   }
 }
