@@ -134,8 +134,6 @@ private[varys] case class GetRequest(
 } 
 
 // Internal message in Master
-private[varys] case object ScheduleRequest
-
 private[varys] case object CheckForSlaveTimeOut
 
 private[varys] case object SyncSlaves

@@ -15,7 +15,6 @@ import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
 
 import varys.framework._
-import varys.framework.master.scheduler._
 import varys.framework.master.ui.MasterWebUI
 import varys.{Logging, Utils, VarysException}
 import varys.util.{AkkaUtils, SlaveToBpsMap}
@@ -61,13 +60,6 @@ private[varys] class Master(
 
   private def now() = System.currentTimeMillis
   
-  // Create the scheduler object
-  val schedulerClass = System.getProperty(
-    "varys.master.scheduler", 
-    "varys.framework.master.scheduler.SEBFScheduler")
-
-  val coflowScheduler = Class.forName(schedulerClass).newInstance.asInstanceOf[CoflowScheduler]
-
   def start(): (ActorSystem, Int) = {
     val (actorSystem, boundPort) = AkkaUtils.createActorSystem(systemName, host, port)
     val actor = actorSystem.actorOf(
@@ -264,10 +256,6 @@ private[varys] class Master(
         sender ! BestTxMachines(idToTxBps.getTopN(
           howMany, bytes).toArray.map(x => idToSlave.get(x).host))
       }
-
-      case ScheduleRequest => {
-        schedule()
-      }
     }
 
     def addSlave(
@@ -331,82 +319,23 @@ private[varys] class Master(
       idToCoflow.put(coflow.id, coflow)
 
       // Update its parent client
-      client.addCoflow(coflow)  
+      client.addCoflow(coflow)
 
       coflow
     }
 
     // TODO: Let all involved clients know so that they can free up local resources
     def removeCoflow(coflow: CoflowInfo) {
-      removeCoflow(coflow, CoflowState.FINISHED, true)
+      removeCoflow(coflow, CoflowState.FINISHED)
     }
 
-    def removeCoflow(coflow: CoflowInfo, endState: CoflowState.Value, reschedule: Boolean) {
+    def removeCoflow(coflow: CoflowInfo, endState: CoflowState.Value) {
       if (coflow != null && idToCoflow.containsValue(coflow)) {
         idToCoflow.remove(coflow.id)
         completedCoflows += coflow  // Remember it in our history
         coflow.markFinished(endState)
         logInfo("Removing " + coflow)
-
-        if (reschedule) {
-          self ! ScheduleRequest
-        }
       }
-    }
-
-    /**
-     * Schedule ongoing coflows and flows. 
-     * Returns a Boolean indicating whether it ran or not
-     */
-    def schedule(): Boolean = synchronized {
-      var st = now
-
-      // Schedule coflows
-      val activeCoflows = idToCoflow.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]].filter(
-        x => x.remainingSizeInBytes > 0 && 
-        (x.curState == CoflowState.READY || x.curState == CoflowState.RUNNING))
-      
-      val activeSlaves = idToSlave.values.toBuffer.asInstanceOf[ArrayBuffer[SlaveInfo]]
-      val schedulerOutput = coflowScheduler.schedule(SchedulerInput(activeCoflows, activeSlaves))
-
-      val step12Dur = now - st
-      st = now
-
-      // Communicate the schedule to clients
-      val activeFlows = schedulerOutput.scheduledCoflows.flatMap(_.getFlows)
-      logInfo("START_NEW_SCHEDULE: " + activeFlows.size + " flows in " + 
-        schedulerOutput.scheduledCoflows.size + " coflows")
-      
-      for (cf <- schedulerOutput.scheduledCoflows) {
-        val (timeStamp, totalBps) = cf.currentAllocation
-        logInfo(cf + " ==> " + (totalBps / 1048576.0) + " Mbps @ " + timeStamp)
-      }
-      
-      activeFlows.groupBy(_.destClient).foreach { tuple => 
-        val client = tuple._1
-        val flows = tuple._2
-        val rateMap = flows.map(t => (t.desc.dataId, t.currentBps)).toMap
-        client.actor ! UpdatedRates(rateMap)
-      }
-      val step3Dur = now - st
-      logInfo("END_NEW_SCHEDULE in " + (step12Dur + step12Dur + step3Dur) + " = (" + step12Dur + 
-        "+" + step12Dur + "+" + step3Dur + ") milliseconds")
-
-      // Remove rejected coflows
-      for (cf <- schedulerOutput.markedForRejection) {
-        val rejectMessage = "Cannot meet the specified deadline of " + cf.desc.deadlineMillis + 
-          " milliseconds"
-        
-        cf.parentClient.actor ! RejectedCoflow(cf.id, rejectMessage)
-        cf.getFlows.groupBy(_.destClient).foreach { tuple => 
-          val client = tuple._1
-          client.actor ! RejectedCoflow(cf.id, rejectMessage)
-        }
-
-        removeCoflow(cf, CoflowState.REJECTED, false)
-      }
-
-      true
     }
 
     /** 
