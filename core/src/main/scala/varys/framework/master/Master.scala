@@ -374,6 +374,9 @@ private[varys] class Master(
      * Combine current information from each slave and send it out
      */
     def mergeAllAndSyncSlaves() {
+      if (DarkScheduler.skipScheduling)
+        return
+
       var st = now
 
       // Combine

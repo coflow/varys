@@ -122,7 +122,9 @@ private[varys] class SlaveActor(
       // Thread to periodically update coflow sizes to master from iptables info
       context.system.scheduler.schedule(SYNC_PERIOD_MILLIS millis, SYNC_PERIOD_MILLIS millis) {
         val curCoflows = IPTablesClient.getActiveCoflowSizes()
-        AkkaUtils.tellActor(master, LocalCoflows(slaveId, curCoflows))
+        if (curCoflows.size > 0) {
+          AkkaUtils.tellActor(master, LocalCoflows(slaveId, curCoflows))
+        }
       } 
     }
 

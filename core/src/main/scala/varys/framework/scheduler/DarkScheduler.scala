@@ -1,6 +1,7 @@
 package varys.framework.scheduler
 
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
@@ -22,6 +23,9 @@ private[framework] object DarkScheduler extends Logging {
     sortedCoflows(i) = new ArrayBuffer[Coflow]()
   }
 
+  private val thingsChanged = new AtomicBoolean(false)
+  def skipScheduling = !thingsChanged.get()
+
   /**
    * Add coflow to the end of the first queue
    */
@@ -31,6 +35,7 @@ private[framework] object DarkScheduler extends Logging {
     sortedCoflowsLock.synchronized {
       sortedCoflows(0) += cf
     }
+    thingsChanged.set(true)
   }
 
   def deleteCoflow(coflowId: String) {
@@ -44,6 +49,7 @@ private[framework] object DarkScheduler extends Logging {
       if (allCoflows.containsValue(coflowId)) {
         allCoflows.remove(coflowId)
       }
+      thingsChanged.set(true)
     }
   }
 
@@ -54,6 +60,7 @@ private[framework] object DarkScheduler extends Logging {
         cf.sizeSoFar = newSize
       }
     }
+    thingsChanged.set(true)
   }
 
   /**
@@ -82,6 +89,7 @@ private[framework] object DarkScheduler extends Logging {
         }
       }
     }
+    thingsChanged.set(false)
   }
 
   def getSchedule(): Array[(String, Long)] = {
