@@ -4,7 +4,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 import scala.collection.mutable.HashSet
 
-import varys.framework.FlowDescription
+import varys.framework.{ClientInfo, FlowDescription}
 
 private[varys] class FlowInfo(
     val desc: FlowDescription) {

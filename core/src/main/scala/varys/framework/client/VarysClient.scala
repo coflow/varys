@@ -35,19 +35,23 @@ class VarysClient(
   var actorSystem: ActorSystem = null
   
   var masterActor: ActorRef = null
-  val clientRegisterLock = new Object
+  val masterClientRegisterLock = new Object
   
-  var slaveId: String = null
-  var slaveUrl: String = null
+  var slaveUrl: String = "varys://" + Utils.localHostName + ":1607"
+  
   var slaveActor: ActorRef = null
+  val slaveClientRegisterLock = new Object
   
-  var clientId: String = null
+  var masterClientId: String = null
+  var slaveClientId: String = null
+
   var clientActor: ActorRef = null
 
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
 
-  var regStartTime = 0L
+  var masterRegStartTime = 0L
+  var slaveRegStartTime = 0L
 
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
@@ -60,24 +64,23 @@ class VarysClient(
 
   class ClientActor extends Actor with Logging {
     var masterAddress: Address = null
+    var slaveAddress: Address = null
 
     // To avoid calling listener.disconnected() multiple times
     var alreadyDisconnected = false  
 
     override def preStart() {
-      logInfo("Connecting to master " + masterUrl)
-      regStartTime = now
-      try {
-        masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
-        masterAddress = masterActor.path.address
-        masterActor ! RegisterClient(clientName, clientHost, clientCommPort)
-        context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
+      context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
 
-        // context.watch doesn't work with remote actors but helps for testing
-        // context.watch(masterActor)
+      logInfo("Connecting to local slave " + slaveUrl)
+      slaveRegStartTime = now
+      try {
+        slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
+        slaveAddress = slaveActor.path.address
+        slaveActor ! RegisterSlaveClient(clientName, clientHost, clientCommPort)
       } catch {
         case e: Exception =>
-          logError("Failed to connect to master", e)
+          logError("Failed to connect to local slave", e)
           markDisconnected()
           context.stop(self)
       }
@@ -94,28 +97,71 @@ class VarysClient(
       throw new VarysException(connToMasterFailedMsg)
     }
 
+    @throws(classOf[VarysException])
+    def slaveDisconnected() {
+      // TODO: It would be nice to try to reconnect to the slave, but just shut down for now.
+      // (Note that if reconnecting we would also need to assign IDs differently.)
+      val connToSlaveFailedMsg = "Connection to local slave failed; stopping client"
+      logWarning(connToSlaveFailedMsg)
+      markDisconnected()
+      context.stop(self)
+      throw new VarysException(connToSlaveFailedMsg)
+    }
+
     override def receive = {
       
-      case RegisteredClient(clientId_, slaveId_, slaveUrl_) =>
-        clientId = clientId_
-        slaveId = slaveId_
-        slaveUrl = slaveUrl_
-        slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
-        if (listener != null) {
-          listener.connected(clientId)
+      case RegisterWithMaster =>
+        logInfo("Connecting to master " + masterUrl)
+        masterRegStartTime = now
+        try {
+          masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
+          masterAddress = masterActor.path.address
+          masterActor ! RegisterMasterClient(clientName, clientHost, clientCommPort)
+          
+        } catch {
+          case e: Exception =>
+            logError("Failed to connect to master", e)
+            markDisconnected()
+            context.stop(self)
         }
-        clientRegisterLock.synchronized { clientRegisterLock.notifyAll() }  // Ready to go!
-        logInfo("Registered to master in " +  (now - regStartTime) + 
-          " milliseconds. Local slave url = " + slaveUrl)
-        
-      case Terminated(actor_) if actor_ == masterActor =>
-        masterDisconnected()
 
-      case RemoteClientDisconnected(_, address) if address == masterAddress =>
-        masterDisconnected()
+      case RegisteredMasterClient(clientId_, _, _) =>
+        masterClientId = clientId_
+        if (listener != null) {
+          listener.connected(masterClientId)
+        }
+        masterClientRegisterLock.synchronized { 
+          masterClientRegisterLock.notifyAll() 
+        }
+        logInfo("Registered to master in " +  (now - masterRegStartTime) + " milliseconds.")
 
-      case RemoteClientShutdown(_, address) if address == masterAddress =>
-        masterDisconnected()
+      case RegisteredSlaveClient(clientId_) =>
+        slaveClientId = clientId_
+        slaveClientRegisterLock.synchronized { 
+          slaveClientRegisterLock.notifyAll() 
+        }
+        logInfo("Registered to local slave in " +  (now - slaveRegStartTime) + " milliseconds.")
+
+      case Terminated(actor_) => 
+        if (actor_ == masterActor) {
+          masterDisconnected()
+        } else if (actor_ == slaveActor) {
+          slaveDisconnected()
+        }
+
+      case RemoteClientDisconnected(_, address) => 
+        if (address == masterAddress) {
+          masterDisconnected()
+        } else if (address == slaveAddress) {
+          slaveDisconnected()
+        }
+
+      case RemoteClientShutdown(_, address) => 
+        if (address == masterAddress) {
+          masterDisconnected()
+        } else if (address == slaveAddress) {
+          slaveDisconnected()
+        }
 
       case StopClient =>
         markDisconnected()
@@ -178,22 +224,34 @@ class VarysClient(
     actorSystem.awaitTermination() 
   }
   
-  // Wait until the client has been registered
-  private def waitForRegistration = {
-    while (clientId == null) {
-      clientRegisterLock.synchronized { 
-        clientRegisterLock.wait()
-        clientRegisterLock.notifyAll()
+  // Wait until the client has been registered with the master
+  private def waitForMasterRegistration = {
+    while (masterClientId == null) {
+      clientActor ! RegisterWithMaster
+      masterClientRegisterLock.synchronized { 
+        masterClientRegisterLock.wait()
+        masterClientRegisterLock.notifyAll()
       }
     }
   }
   
+  // Wait until the client has been registered with the master
+  private def waitForSlaveRegistration = {
+    while (slaveClientId == null) {
+      slaveClientRegisterLock.synchronized { 
+        slaveClientRegisterLock.wait()
+        slaveClientRegisterLock.notifyAll()
+      }
+    }
+  }
+
   def registerCoflow(coflowDesc: CoflowDescription): String = {
-    waitForRegistration
-    
+    waitForSlaveRegistration
+    waitForMasterRegistration
+
     // Register with the master
     val RegisteredCoflow(coflowId) = AkkaUtils.askActorWithReply[RegisteredCoflow](masterActor, 
-      RegisterCoflow(clientId, coflowDesc))
+      RegisterCoflow(masterClientId, coflowDesc))
       
     // Let the local slave know
     AkkaUtils.tellActor(slaveActor, RegisteredCoflow(coflowId))
@@ -202,7 +260,8 @@ class VarysClient(
   }
   
   def unregisterCoflow(coflowId: String) {
-    waitForRegistration
+    waitForSlaveRegistration
+    waitForMasterRegistration
     
     // Let the master know
     AkkaUtils.tellActor(masterActor, UnregisterCoflow(coflowId))
@@ -319,6 +378,8 @@ class VarysClient(
    */
   @throws(classOf[VarysException])
   private def getOne(flowDesc: FlowDescription): (FlowDescription, Array[Byte]) = {
+    waitForSlaveRegistration
+
     var st = now
     val sock = new Socket(flowDesc.originHost, flowDesc.originCommPort)    
     val oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
@@ -405,7 +466,6 @@ class VarysClient(
       coflowId: String,
       flowDesc: FlowDescription): Array[Byte] = {
     
-    waitForRegistration
     val (_, retVal) = getOne(flowDesc)
     retVal
   }
@@ -430,8 +490,6 @@ class VarysClient(
       throw new VarysException(tmpM)
     }
 
-    waitForRegistration
-    
     // Get 'em!
     val recvLock = new Object()
     var recvFinished = 0
@@ -492,6 +550,7 @@ class VarysClient(
    * Receive 'howMany' machines with the lowest incoming usage
    */
   def getBestRxMachines(howMany: Int, adjustBytes: Long): Array[String] = {
+    waitForMasterRegistration
     val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](
       masterActor,  
       RequestBestRxMachines(howMany, adjustBytes))
@@ -502,6 +561,7 @@ class VarysClient(
    * Receive the machine with the lowest incoming usage
    */
   def getBestRxMachine(adjustBytes: Long): String = {
+    waitForMasterRegistration
     val BestRxMachines(bestRxMachines) = AkkaUtils.askActorWithReply[BestRxMachines](
       masterActor,  
       RequestBestRxMachines(1, adjustBytes))
@@ -512,6 +572,7 @@ class VarysClient(
    * Receive 'howMany' machines with the lowest outgoing usage
    */
   def getTxMachines(howMany: Int, adjustBytes: Long): Array[String] = {
+    waitForMasterRegistration
     val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](
       masterActor,  
       RequestBestTxMachines(howMany, adjustBytes))
@@ -522,6 +583,7 @@ class VarysClient(
    * Receive the machine with the lowest outgoing usage
    */
   def getBestTxMachine(adjustBytes: Long): String = {
+    waitForMasterRegistration
     val BestTxMachines(bestTxMachines) = AkkaUtils.askActorWithReply[BestTxMachines](
       masterActor,  
       RequestBestTxMachines(1, adjustBytes))

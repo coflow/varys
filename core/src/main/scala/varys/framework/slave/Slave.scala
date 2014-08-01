@@ -8,18 +8,21 @@ import com.google.common.io.Files
 
 import java.io.{File, ObjectInputStream, ObjectOutputStream, IOException}
 import java.text.SimpleDateFormat
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.ConcurrentHashMap
 import java.util.Date
 import java.net._
 
 import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
 import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.JavaConversions._
 
+import varys.framework._
 import varys.framework.master.Master
 import varys.framework.slave.ui.SlaveWebUI
 import varys.{Logging, Utils, VarysException}
 import varys.util._
-import varys.framework._
 
 private[varys] class SlaveActor(
     ip: String,
@@ -51,12 +54,19 @@ private[varys] class SlaveActor(
   }
   var webUi: SlaveWebUI = null
 
+  var nextClientNumber = new AtomicInteger()
+  val idToClient = new ConcurrentHashMap[String, ClientInfo]()
+  val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]
+  val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
+
   var sigar = new Sigar()
   var lastRxBytes = -1.0
   var lastTxBytes = -1.0
   
   var curRxBps = 0.0
   var curTxBps = 0.0
+
+  private def now() = System.currentTimeMillis
 
   def createWorkDir() {
     workDir = Option(workDirPath).map(new File(_)).getOrElse(new File(varysHome, "work"))
@@ -105,6 +115,18 @@ private[varys] class SlaveActor(
   }
 
   override def receive = {
+    case RegisterSlaveClient(clientName, host, commPort) => {
+      val currentSender = sender
+      val st = now
+      logTrace("Registering client %s@%s:%d".format(clientName, host, commPort))
+      
+      val client = addClient(clientName, host, commPort, currentSender)
+      currentSender ! RegisteredSlaveClient(client.id)
+      
+      logInfo("Registered client " + clientName + " with ID " + client.id + " in " + 
+        (now - st) + " milliseconds")
+    }
+
     case RegisteredSlave(url) => {
       masterWebUiUrl = url
       logInfo("Successfully registered with master")
@@ -137,16 +159,28 @@ private[varys] class SlaveActor(
       // TODO: Use tc to update rates
     }
 
-    case Terminated(actor) if actor == master => {
-      masterDisconnected()
+    case Terminated(actor) => {
+      if (actor == master) {
+        masterDisconnected()
+      }
+      if (actorToClient.containsKey(actor))  
+        removeClient(actorToClient.get(actor))
     }
-    
-    case RemoteClientDisconnected(_, address) if address == masterAddress => {
-      masterDisconnected()
+
+    case RemoteClientDisconnected(_, address) => {
+      if (address == masterAddress) {
+        masterDisconnected()
+      }
+      if (addressToClient.containsKey(address))  
+        removeClient(addressToClient.get(address))
     }
-     
-    case RemoteClientShutdown(_, address) if address == masterAddress => {
-      masterDisconnected()
+
+    case RemoteClientShutdown(_, address) => {
+      if (address == masterAddress) {
+        masterDisconnected()
+      }
+      if (addressToClient.containsKey(address))  
+        removeClient(addressToClient.get(address))
     }
 
     case RequestSlaveState => {
@@ -187,6 +221,29 @@ private[varys] class SlaveActor(
     // (Note that if reconnecting we would also need to assign IDs differently.)
     logError("Connection to master failed! Shutting down.")
     System.exit(1)
+  }
+
+  def addClient(clientName: String, host: String, commPort: Int, actor: ActorRef): ClientInfo = {
+    val date = new Date(now)
+    val client = new ClientInfo(now, newClientId, host, commPort, date, actor)
+    idToClient.put(client.id, client)
+    actorToClient(actor) = client
+    addressToClient(actor.path.address) = client
+    client
+  }
+
+  def removeClient(client: ClientInfo) {
+    if (client != null && idToClient.containsValue(client)) {
+      logTrace("Removing " + client)
+      idToClient.remove(client.id)
+      actorToClient -= client.actor
+      addressToClient -= client.actor.path.address
+      client.markFinished()
+    }
+  }
+
+  def newClientId(): String = {
+    "CLIENT-%06d".format(nextClientNumber.getAndIncrement())
   }
 
   def generateSlaveId(): String = {

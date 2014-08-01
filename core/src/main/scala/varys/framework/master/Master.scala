@@ -130,7 +130,7 @@ private[varys] class Master(
         }
       }
 
-      case RegisterClient(clientName, host, commPort) => {
+      case RegisterMasterClient(clientName, host, commPort) => {
         val currentSender = sender
         val st = now
         logTrace("Registering client %s@%s:%d".format(clientName, host, commPort))
@@ -141,7 +141,7 @@ private[varys] class Master(
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)
           val slave = hostToSlave(host)
-          currentSender ! RegisteredClient(
+          currentSender ! RegisteredMasterClient(
             client.id, 
             slave.id, 
             "varys://" + slave.host + ":" + slave.port)

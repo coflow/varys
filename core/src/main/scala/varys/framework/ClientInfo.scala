@@ -1,10 +1,12 @@
-package varys.framework.master
+package varys.framework
 
 import akka.actor.ActorRef
 
 import java.util.Date
 
 import scala.collection.mutable.{HashSet}
+
+import varys.framework.master.{CoflowInfo}
 
 private[varys] class ClientInfo(
     val startTime: Long,

@@ -2,7 +2,7 @@ package varys.framework
 
 import net.liftweb.json.JsonDSL._
 
-import varys.framework.master.{ClientInfo, CoflowInfo, SlaveInfo}
+import varys.framework.master.{CoflowInfo, SlaveInfo}
 
 private[varys] object JsonProtocol {
   def writeSlaveInfo(obj: SlaveInfo) = {

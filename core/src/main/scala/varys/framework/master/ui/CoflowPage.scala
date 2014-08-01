@@ -29,7 +29,7 @@ import scala.xml.Node
 
 import varys.framework.{MasterState, RequestMasterState}
 import varys.framework.JsonProtocol
-import varys.framework.master.ClientInfo
+import varys.framework.ClientInfo
 import varys.ui.UIUtils
 import varys.Utils
 

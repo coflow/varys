@@ -2,7 +2,7 @@ package varys.framework
 
 import akka.actor.ActorRef
 
-import varys.framework.master.{CoflowInfo, ClientInfo, SlaveInfo}
+import varys.framework.master.{CoflowInfo, SlaveInfo}
 
 private[varys] sealed trait FrameworkMessage extends Serializable
 
@@ -22,11 +22,10 @@ private[varys] case class Heartbeat(
     txBps: Double)
   extends FrameworkMessage
 
+// FIXME: Not extending FrameworkMessage because it crashes kryo
 private[varys] case class LocalCoflows(
     slaveId: String,
-    coflowSizes: Array[(String, Long)]
-    )
-  extends FrameworkMessage
+    coflowSizes: Array[(String, Long)])
 
 // Master to Slave
 private[varys] case class RegisteredSlave(
@@ -37,12 +36,12 @@ private[varys] case class RegisterSlaveFailed(
     message: String) 
   extends FrameworkMessage
 
+// FIXME: Not extending FrameworkMessage because it crashes kryo
 private[varys] case class GlobalCoflows(
     coflowSizes: Array[(String, Long)])
-  extends FrameworkMessage
 
 // Client to Master
-private[varys] case class RegisterClient(
+private[varys] case class RegisterMasterClient(
     clientName: String, 
     host: String, 
     commPort: Int) 
@@ -68,19 +67,31 @@ private[varys] case class RequestBestTxMachines(
   extends FrameworkMessage
 
 // Client to Slave
+private[varys] case class RegisterSlaveClient(
+    clientName: String, 
+    host: String, 
+    commPort: Int) 
+  extends FrameworkMessage
+
 private[varys] case class StartedFlow(
     coflowId: String,
     dPort: Int)
+  extends FrameworkMessage
 
 private[varys] case class CompletedFlow(
     coflowId: String,
     dPort: Int)
+  extends FrameworkMessage
 
 // Master/Client to Client/Slave
-private[varys] case class RegisteredClient(
+private[varys] case class RegisteredMasterClient(
     clientId: String, 
     slaveId: String,
     slaveUrl:String) 
+  extends FrameworkMessage
+
+private[varys] case class RegisteredSlaveClient(
+    clientId: String) 
   extends FrameworkMessage
 
 private[varys] case class CoflowKilled(
@@ -123,6 +134,8 @@ private[varys] case class UpdatedRates(
 
 // Internal message in Client/Slave
 private[varys] case object StopClient
+
+private[varys] case object RegisterWithMaster
 
 private[varys] case class GetRequest(
     flowDesc: FlowDescription, 

@@ -12,9 +12,9 @@ private[varys] class SlaveArguments(
     args: Array[String]) {
   
   var ip = Utils.localHostName()
-  var port = 0
+  var port = 1607
   var webUiPort = 16017
-  var commPort = 1607
+  var commPort = 1617
   var master: String = null
   var workDir: String = null
   

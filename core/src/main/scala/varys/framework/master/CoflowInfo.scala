@@ -9,7 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
 import scala.collection.JavaConverters._
 import scala.collection.mutable.{ArrayBuffer, HashMap, Map}
 
-import varys.framework.{FlowDescription, CoflowDescription}
+import varys.framework.{ClientInfo, CoflowDescription, FlowDescription}
 
 private[varys] class CoflowInfo(
     val startTime: Long,

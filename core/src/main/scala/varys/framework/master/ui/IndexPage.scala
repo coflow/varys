@@ -29,8 +29,8 @@ import scala.xml.Node
 
 import varys.framework.FrameworkWebUI
 import varys.framework.{MasterState, RequestMasterState}
-import varys.framework.JsonProtocol
-import varys.framework.master.{CoflowInfo, SlaveInfo, ClientInfo}
+import varys.framework.{ClientInfo, JsonProtocol}
+import varys.framework.master.{CoflowInfo, SlaveInfo}
 import varys.ui.UIUtils
 import varys.Utils
 
