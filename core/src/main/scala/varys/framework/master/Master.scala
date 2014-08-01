@@ -16,6 +16,7 @@ import scala.collection.JavaConversions._
 
 import varys.framework._
 import varys.framework.master.ui.MasterWebUI
+import varys.framework.scheduler.DarkScheduler
 import varys.{Logging, Utils, VarysException}
 import varys.util.{AkkaUtils, SlaveToBpsMap}
 
@@ -317,6 +318,7 @@ private[varys] class Master(
       val coflow = new CoflowInfo(now, newCoflowId(date), desc, client, date, actor)
 
       idToCoflow.put(coflow.id, coflow)
+      DarkScheduler.addCoflow(coflow.id)
 
       // Update its parent client
       client.addCoflow(coflow)
@@ -332,6 +334,8 @@ private[varys] class Master(
     def removeCoflow(coflow: CoflowInfo, endState: CoflowState.Value) {
       if (coflow != null && idToCoflow.containsValue(coflow)) {
         idToCoflow.remove(coflow.id)
+        DarkScheduler.deleteCoflow(coflow.id)
+
         completedCoflows += coflow  // Remember it in our history
         coflow.markFinished(endState)
         logInfo("Removing " + coflow)
@@ -379,18 +383,24 @@ private[varys] class Master(
           coflowSizes(c) += v
         }
       }
+      DarkScheduler.updateCoflowSizes(coflowSizes.toArray)
       val step1Dur = now - st
+
+      // Schedule
+      st = now
+      DarkScheduler.updateCoflowOrder()
+      val step2Dur = now - st
 
       // Send out
       st = now
-      val arrToSend = coflowSizes.toArray
+      val arrToSend = DarkScheduler.getSchedule()
       for (slaveActor <- actorToSlave.keys) {
         slaveActor ! GlobalCoflows(arrToSend)
       }
-      val step2Dur = now - st
+      val step3Dur = now - st
 
-      logInfo("MERGE_AND_SYNC in " + (step1Dur + step2Dur) + " = (" + step1Dur + "+" + step2Dur + 
-        ") milliseconds")
+      logInfo("MERGE_AND_SYNC in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + 
+        step2Dur + "+" + step3Dur + ") milliseconds")
     }
   }
 }
