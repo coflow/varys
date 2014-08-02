@@ -150,7 +150,7 @@ private[client] object VarysOutputStream extends Logging {
 
   private def init(coflowId: String) {
     if (!initCalled.getAndSet(true)) {
-      clientName = coflowId + "@" + Utils.localHostName
+      clientName = (coflowId + "@" + Utils.localHostName).replaceAll("[^a-zA-Z0-9\\-]+", "")
   
       // Just launch an actor; it will call back into the listener.
       val (actorSystem_, _) = AkkaUtils.createActorSystem(clientName, Utils.localIpAddress, 0)
