@@ -21,7 +21,7 @@ import varys.util._
  * It is implemented as a wrapper on top of another OutputStream instance.
  * Currently, works only directly on sockets.
  */
-private[varys] class VarysOutputStream(
+class VarysOutputStream(
     val sock: Socket,
     val coflowId: String)
   extends OutputStream() with Logging {
