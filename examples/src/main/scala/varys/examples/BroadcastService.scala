@@ -43,6 +43,9 @@ private[varys] case class BroadcastInfo(
     val LEN_BYTES: Long)
 private[varys] case class BroadcastRequest()
 private[varys] case class BroadcastDone()
+private[varys] case class PieceRequest(
+    val offset: Int, 
+    val sizeInBytes: Int)
 
 private[varys] object BroadcastSender extends Logging {
 
@@ -93,22 +96,46 @@ private[varys] object BroadcastSender extends Logging {
             try {
               threadPool.execute (new Thread {
                 override def run: Unit = {
-                  val oos = new ObjectOutputStream(clientSocket.getOutputStream)
+                  val oos = new ObjectOutputStream(
+                    new BufferedOutputStream(new VarysOutputStream(clientSocket, bInfo.coflowId)))
                   oos.flush
                   val ois = new ObjectInputStream(clientSocket.getInputStream)
 
                   try {
-                    // Mark start of slave connection
-                    val bMsg1 = ois.readObject.asInstanceOf[BroadcastRequest]
-                    connectedSlaves.getAndIncrement()
-                    
-                    // Send file information
-                    oos.writeObject(bInfo)
-                    oos.flush
-                    
-                    // Mark end of slave connection
-                    val bMsg2 = ois.readObject.asInstanceOf[BroadcastDone]
-                    finishedSlaves.getAndIncrement()
+                    val msg = ois.readObject
+                    msg match {
+                      case br: BroadcastRequest => {
+                        // Mark start of slave connection
+                        val bMsg1 = msg.asInstanceOf[BroadcastRequest]
+                        connectedSlaves.getAndIncrement()
+                        
+                        // Send file information
+                        oos.writeObject(bInfo)
+                        oos.flush
+                        
+                        // Mark end of slave connection
+                        val bMsg2 = ois.readObject.asInstanceOf[BroadcastDone]
+                        finishedSlaves.getAndIncrement()
+                      }
+                      case pr: PieceRequest => {
+                        // Parse
+                        val pMsg = msg.asInstanceOf[PieceRequest]
+                        
+                        // Read from file
+                        val randFile = new RandomAccessFile(bInfo.pathToFile, "r")
+                        randFile.seek(pMsg.offset)
+                        val bArr = new Array[Byte](pMsg.sizeInBytes)
+                        randFile.read(bArr, 0, pMsg.sizeInBytes)
+                        randFile.close()
+
+                        // Send
+                        oos.writeObject(bArr)
+                        oos.flush
+                      }
+                      case _ => {
+                        throw new Exception("Unknown request to BroadcastMaster")
+                      }
+                    }
                   } catch {
                     case e: Exception => {
                       logWarning (serverThreadName + " had a " + e)
@@ -189,21 +216,9 @@ private[varys] object BroadcastSender extends Logging {
     val coflowId = client.registerCoflow(desc)
     logInfo("Registered coflow " + coflowId)
     
-    // PUT blocks of the input file
-    for (fromBytes <- 0L to LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
-      val blockSize = if (fromBytes + BroadcastUtils.BLOCK_SIZE >= LEN_BYTES) {
-        LEN_BYTES - fromBytes
-      } else {
-        BroadcastUtils.BLOCK_SIZE
-      }
-      
-      val blockName = fileName + "-" + fromBytes
-      logInfo("Putting " + blockName + " into coflow " + coflowId)
-      // Do nothing really.
-    }
-
     // Start server after registering the coflow and relevant 
-    val masterThread = new MasterThread(BroadcastInfo(coflowId, pathToFile, LEN_BYTES), numSlaves)
+    val masterThread = new MasterThread(BroadcastInfo(coflowId, pathToFile, LEN_BYTES), numSlaves, 
+      coflowId)
     masterThread.start()
     logInfo("Started MasterThread. Now waiting for it to die.")
     logInfo("Broadcast Master Url: %s:%d".format(
@@ -229,17 +244,6 @@ private[varys] object BroadcastReceiver extends Logging {
 
   // ExecutionContext for Futures
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
-
-  class TestListener extends ClientListener with Logging {
-    def connected(id: String) {
-      logInfo("Connected to master, got client ID " + id)
-    }
-
-    def disconnected() {
-      logInfo("Disconnected from master")
-      System.exit(0)
-    }
-  }
 
   private def createSocket(host: String, port: Int): Socket = {
     var retriesLeft = BroadcastUtils.BROADCAST_SLAVE_NUM_RETRIES
@@ -268,14 +272,12 @@ private[varys] object BroadcastReceiver extends Logging {
   }
 
   def main(args: Array[String]) {
-    if (args.length < 2) {
-      println("USAGE: BroadcastReceiver <varysMasterUrl> <broadcastMasterUrl> <numSlaves>")
+    if (args.length < 1) {
+      println("USAGE: BroadcastReceiver <broadcastMasterUrl>")
       System.exit(1)
     }
     
-    val url = args(0)
-    val bUrl = args(1)
-    val numSlaves = args(2).toInt
+    val bUrl = args(0)
     
     var masterHost: String = null
     var masterPort: Int = 0
@@ -297,7 +299,7 @@ private[varys] object BroadcastReceiver extends Logging {
       exitGracefully(1)
     }
     
-    oos = new ObjectOutputStream(sock.getOutputStream)
+    oos = new ObjectOutputStream(new BufferedOutputStream(sock.getOutputStream))
     oos.flush
     ois = new ObjectInputStream(sock.getInputStream)
     
@@ -340,35 +342,50 @@ private[varys] object BroadcastReceiver extends Logging {
       exitGracefully(1)
     }
     
-    // Create a random order of blocks
-    val allOffsets = new ArrayBuffer[Int]
+    // Create a random order of blocks (Array[(offset, blockSize)])
+    val allOffsets = new ArrayBuffer[(Int, Int)]
     for (fromBytes <- 0L to bInfo.LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
       val blockSize = if (fromBytes + BroadcastUtils.BLOCK_SIZE >= bInfo.LEN_BYTES) {
         bInfo.LEN_BYTES - fromBytes
       } else {
         BroadcastUtils.BLOCK_SIZE
       }
-      allOffsets += fromBytes.toInt
+      allOffsets += ((fromBytes.toInt, blockSize.toInt))
     }
     val randomOffsets = Utils.randomize(allOffsets)
     
-    // Now create coflow client
-    val listener = new TestListener
-    val client = new VarysClient("BroadcastReceiver", url, listener)
-    client.start()
-    
     logInfo("About to receive " + bInfo + " with " + randomOffsets.size + " blocks.")
-    val futureList = Future.traverse(randomOffsets)(offset => Future {
-      val blockName = origFileName + "-" + offset
+    val futureList = Future.traverse(randomOffsets)(pInfo => Future {
+
+      val blockName = origFileName + "-" + pInfo._1
       logInfo("Getting " + blockName + " from coflow " + bInfo.coflowId)
       
-      val fileDesc = client.createFileDescription(blockName, bInfo.pathToFile, bInfo.coflowId, offset, BroadcastUtils.BLOCK_SIZE, numSlaves)
-      val bArr = client.getFile(blockName, bInfo.coflowId, fileDesc)
-      logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + 
-        " at " + offset)
+      // Connect to broadcast master, retry silently if required
+      val pieceSock = createSocket(masterHost, masterPort)
+      if (pieceSock == null) {
+        exitGracefully(1)
+      }
+      
+      val poos = new ObjectOutputStream(new BufferedOutputStream(pieceSock.getOutputStream))
+      poos.flush
+      val pois = new ObjectInputStream(new VarysInputStream(pieceSock, bInfo.coflowId))
+      
+      // Mark start
+      poos.writeObject(PieceRequest(pInfo._1, pInfo._2))
+      poos.flush
 
-      FILE.seek(offset)
-      FILE.write(bArr)
+      val bArr = pois.readObject.asInstanceOf[Array[Byte]]
+
+      logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + 
+        " at " + pInfo._1)
+
+      FILE.synchronized {
+        FILE.seek(pInfo._1)
+        FILE.write(bArr)
+      }
+
+      // Close socket
+      pieceSock.close
     })
 
     Await.result(futureList, Duration.Inf)
