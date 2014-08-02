@@ -17,26 +17,26 @@ import varys.framework.slave.Slave
 import varys.util._
 
 /**
- * The VarysInputStream enables Varys on InputStream. 
- * It is implemented as a wrapper on top of another InputStream instance.
+ * The VarysOutputStream enables Varys on OutputStream. 
+ * It is implemented as a wrapper on top of another OutputStream instance.
  * Currently, works only directly on sockets.
  */
-private[varys] class VarysInputStream(
+private[varys] class VarysOutputStream(
     val sock: Socket,
     val coflowId: String)
-  extends InputStream() with Logging {
+  extends OutputStream() with Logging {
 
-  // Register with the shared VarysInputStream object
-  val visId = VarysInputStream.register(this, coflowId)
+  // Register with the shared VarysOutputStream object
+  val visId = VarysOutputStream.register(this, coflowId)
 
-  val rawStream = sock.getInputStream
+  val rawStream = sock.getOutputStream
 
   val startTime = System.currentTimeMillis()
 
   val mBPSLock = new Object
 
   var maxBytesPerSec: Long = 1048576 * 128
-  var bytesRead = 0L
+  var bytesWritten = 0L
   var totalSleepTime = 0L
 
   val SLEEP_DURATION_MS = 50L
@@ -45,38 +45,33 @@ private[varys] class VarysInputStream(
     throw new IOException("Bandwidth " + maxBytesPerSec + " is invalid")
   }
   
-  override def read(): Int = {
+  override def write(b: Int) = synchronized {
     throttle()
-    val data = rawStream.read()
-    if (data != -1) {
-      bytesRead += 1
-      VarysInputStream.updateReceivedSoFar(1)
-    }
-    data
+    rawStream.write(b)
+    bytesWritten += 1
+    VarysOutputStream.updateSentSoFar(1)
   }
 
-  override def read(b: Array[Byte]): Int = {
+  override def write(b: Array[Byte]) = synchronized {
     throttle()
-    val readLen = rawStream.read(b)
-    if (readLen != -1) {
-      bytesRead += readLen
-      VarysInputStream.updateReceivedSoFar(readLen)
-    }
-    readLen
+    rawStream.write(b)
+    bytesWritten += b.length
+    VarysOutputStream.updateSentSoFar(b.length)
   }
 
-  override def read(b: Array[Byte], off: Int, len: Int): Int = {
+  override def write(b: Array[Byte], off: Int, len: Int) = synchronized {
     throttle()
-    val readLen = rawStream.read(b, off, len)
-    if (readLen != -1) {
-      bytesRead += readLen
-      VarysInputStream.updateReceivedSoFar(readLen)
-    }
-    readLen
+    rawStream.write(b, off, len)
+    bytesWritten += len
+    VarysOutputStream.updateSentSoFar(len)
+  }
+
+  override def flush() {
+    rawStream.flush()
   }
 
   override def close() {
-    VarysInputStream.unregister(visId)
+    VarysOutputStream.unregister(visId)
     rawStream.close()
   }
 
@@ -107,22 +102,22 @@ private[varys] class VarysInputStream(
     }
   }
 
-  def getTotalBytesRead() = bytesRead
+  def getTotalBytesWritten() = bytesWritten
 
   def getBytesPerSec(): Long = {
     val elapsed = (System.currentTimeMillis() - startTime) / 1000
     if (elapsed == 0) {
-      bytesRead 
+      bytesWritten 
     } else {
-      bytesRead / elapsed
+      bytesWritten / elapsed
     }
   }
 
   def getTotalSleepTime() = totalSleepTime
 
   override def toString(): String = {
-    "VarysInputStream{" +
-      ", bytesRead=" + bytesRead +
+    "VarysOutputStream{" +
+      ", bytesWritten=" + bytesWritten +
       ", maxBytesPerSec=" + maxBytesPerSec +
       ", bytesPerSec=" + getBytesPerSec +
       ", totalSleepTime=" + totalSleepTime +
@@ -130,7 +125,7 @@ private[varys] class VarysInputStream(
   }
 }
 
-private[client] object VarysInputStream extends Logging {
+private[client] object VarysOutputStream extends Logging {
   var actorSystem: ActorSystem = null
   var clientActor: ActorRef = null
 
@@ -145,12 +140,12 @@ private[client] object VarysInputStream extends Logging {
   var slaveClientId: String = null
 
   val curVISId = new AtomicInteger(0)
-  val activeStreams = new ConcurrentHashMap[Int, VarysInputStream]()
+  val activeStreams = new ConcurrentHashMap[Int, VarysOutputStream]()
 
-  private val receivedSoFar = new AtomicLong(0)
+  private val sentSoFar = new AtomicLong(0)
 
-  def updateReceivedSoFar(delta: Long) {
-    receivedSoFar.addAndGet(delta)
+  def updateSentSoFar(delta: Long) {
+    sentSoFar.addAndGet(delta)
   }
 
   private def init(coflowId: String) {
@@ -160,11 +155,11 @@ private[client] object VarysInputStream extends Logging {
       // Just launch an actor; it will call back into the listener.
       val (actorSystem_, _) = AkkaUtils.createActorSystem(clientName, Utils.localIpAddress, 0)
       actorSystem = actorSystem_
-      clientActor = actorSystem.actorOf(Props(new VarysInputStreamActor))
+      clientActor = actorSystem.actorOf(Props(new VarysOutputStreamActor))
     }
   }
 
-  def register(vis: VarysInputStream, coflowId: String): Int = {
+  def register(vis: VarysOutputStream, coflowId: String): Int = {
     init(coflowId)
     val visId = curVISId.getAndIncrement()
     activeStreams(visId) = vis
@@ -185,7 +180,7 @@ private[client] object VarysInputStream extends Logging {
     }
   }
 
-  class VarysInputStreamActor extends Actor with Logging {
+  class VarysOutputStreamActor extends Actor with Logging {
     var slaveUrl: String = "varys://" + Utils.localHostName + ":1607"
     var slaveAddress: Address = null
     var slaveRegStartTime = 0L
@@ -233,7 +228,7 @@ private[client] object VarysInputStream extends Logging {
 
     // TODO: It would be nice to try to reconnect to the slave, but just shut down for now.
     def slaveDisconnected() {
-      val connToSlaveFailedMsg = "Connection to local slave failed. Stopping VarysInputStreamActor."
+      val connToSlaveFailedMsg = "Connection to local slave failed. Stopping VarysOutputStreamActor."
       logWarning(connToSlaveFailedMsg)
       context.stop(self)
     }
