@@ -23,14 +23,17 @@ import varys.util._
 /**
  * The VarysInputStream enables Varys on InputStream. 
  * It is implemented as a wrapper on top of another InputStream instance.
+ * Currently, works only directly on sockets.
  */
 private[varys] class VarysInputStream(
-    val rawStream: InputStream,
+    val sock: Socket,
     val coflowId: String)
   extends InputStream() with Logging {
 
   // Register with the shared VarysInputStream object
   val visId = VarysInputStream.register(this, coflowId)
+
+  val rawStream = sock.getInputStream
 
   val startTime = System.currentTimeMillis()
 
@@ -51,7 +54,7 @@ private[varys] class VarysInputStream(
     val data = rawStream.read()
     if (data != -1) {
       bytesRead += 1
-      VarysInputStream.updateReceivedSoFar(bytesRead)
+      VarysInputStream.updateReceivedSoFar(1)
     }
     data
   }
@@ -61,7 +64,7 @@ private[varys] class VarysInputStream(
     val readLen = rawStream.read(b)
     if (readLen != -1) {
       bytesRead += readLen
-      VarysInputStream.updateReceivedSoFar(bytesRead)
+      VarysInputStream.updateReceivedSoFar(readLen)
     }
     readLen
   }
@@ -71,7 +74,7 @@ private[varys] class VarysInputStream(
     val readLen = rawStream.read(b, off, len)
     if (readLen != -1) {
       bytesRead += readLen
-      VarysInputStream.updateReceivedSoFar(bytesRead)
+      VarysInputStream.updateReceivedSoFar(readLen)
     }
     readLen
   }
@@ -140,10 +143,9 @@ private[client] object VarysInputStream extends Logging {
   var coflowId: String = "UNKNOWN"
   var clientName: String = ""
 
-  var slaveUrl: String = "varys://" + Utils.localHostName + ":1607"
   var slaveActor: ActorRef = null
   val slaveClientRegisterLock = new Object
-  var slaveRegStartTime = 0L
+  
   var slaveClientId: String = null
 
   val curVISId = new AtomicInteger(0)
@@ -188,7 +190,9 @@ private[client] object VarysInputStream extends Logging {
   }
 
   class VarysInputStreamActor extends Actor with Logging {
+    var slaveUrl: String = "varys://" + Utils.localHostName + ":1607"
     var slaveAddress: Address = null
+    var slaveRegStartTime = 0L
 
     override def preStart() {
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
