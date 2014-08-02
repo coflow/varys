@@ -365,8 +365,10 @@ private[varys] object BroadcastReceiver extends Logging {
       logInfo("Got " + blockName + " of " + bArr.length + " bytes. Writing to " + localPathToFile + 
         " at " + offset)
 
-      FILE.seek(offset)
-      FILE.write(bArr)
+      FILE.synchronized {
+        FILE.seek(offset)
+        FILE.write(bArr)
+      }
     })
 
     Await.result(futureList, Duration.Inf)
