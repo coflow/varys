@@ -37,7 +37,6 @@ private[varys] class SlaveActor(
   val SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.syncPeriod", "80").toInt
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
-  var dataServer: DataServer = null
 
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For slave IDs
 
@@ -88,10 +87,8 @@ private[varys] class SlaveActor(
     logInfo("Varys home: " + varysHome)
     createWorkDir()
     webUi = new SlaveWebUI(this, workDir, Some(webUiPort))
-    dataServer = new DataServer(commPort, serverThreadName)
 
     webUi.start()
-    dataServer.start()
     connectToMaster()
   }
 
