@@ -104,7 +104,6 @@ private[varys] object AkkaUtils {
               "varys.framework.UnregisteredCoflow",
               "varys.framework.BestRxMachines",
               "varys.framework.BestTxMachines",
-              "varys.framework.UpdatedRates",
               "varys.framework.StartedFlow",
               "varys.framework.CompletedFlow",
               "varys.framework.CoflowDescription",

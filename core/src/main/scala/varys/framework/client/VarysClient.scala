@@ -165,9 +165,6 @@ class VarysClient(
         sender ! true
         context.stop(self)
         
-      case UpdatedRates(newRates) => 
-        logInfo("Received updated shares, which shouldn't have happened!. Ignoring.")
-
       case RejectedCoflow(coflowId, rejectMessage) =>
         logDebug("Coflow " + coflowId + " has been rejected! " + rejectMessage)
 

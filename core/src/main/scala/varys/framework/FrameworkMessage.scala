@@ -128,10 +128,6 @@ private[varys] case class BestTxMachines(
     bestTxMachines: Array[String]) 
   extends FrameworkMessage
 
-private[varys] case class UpdatedRates(
-    newRates: Map[DataIdentifier, Double]) 
-  extends FrameworkMessage
-
 // Internal message in Client/Slave
 private[varys] case object StopClient
 
