@@ -67,25 +67,10 @@ private[varys] class SlaveActor(
 
   private def now() = System.currentTimeMillis
 
-  def createWorkDir() {
-    workDir = Option(workDirPath).map(new File(_)).getOrElse(new File(varysHome, "work"))
-    try {
-      if (!workDir.exists() && !workDir.mkdirs()) {
-        logError("Failed to create work directory " + workDir)
-        System.exit(1)
-      }
-    } catch {
-      case e: Exception =>
-        logError("Failed to create work directory " + workDir, e)
-        System.exit(1)
-    }
-  }
-
   override def preStart() {
     logInfo("Starting Varys slave %s:%d".format(ip, port))
     varysHome = new File(Option(System.getenv("VARYS_HOME")).getOrElse("."))
     logInfo("Varys home: " + varysHome)
-    createWorkDir()
     webUi = new SlaveWebUI(this, workDir, Some(webUiPort))
 
     webUi.start()
