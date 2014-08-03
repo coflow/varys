@@ -1,7 +1,7 @@
 package varys.framework.client
 
 import akka.actor._
-import akka.actor.Terminated
+import akka.util.duration._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
 
 import java.io._
@@ -26,6 +26,9 @@ class VarysInputStream(
     val coflowId: String)
   extends InputStream() with Logging {
 
+  val MIN_NOTIFICATION_THRESHOLD: Long = 
+    System.getProperty("varys.client.minNotificationMB", "10").toLong * 1048576L
+
   // Register with the shared VarysInputStream object
   val visId = VarysInputStream.register(this, coflowId)
 
@@ -49,8 +52,7 @@ class VarysInputStream(
     throttle()
     val data = rawStream.read()
     if (data != -1) {
-      bytesRead += 1
-      VarysInputStream.updateReceivedSoFar(1)
+      postRead(1)
     }
     data
   }
@@ -59,8 +61,7 @@ class VarysInputStream(
     throttle()
     val readLen = rawStream.read(b)
     if (readLen != -1) {
-      bytesRead += readLen
-      VarysInputStream.updateReceivedSoFar(readLen)
+      postRead(readLen)
     }
     readLen
   }
@@ -69,8 +70,7 @@ class VarysInputStream(
     throttle()
     val readLen = rawStream.read(b, off, len)
     if (readLen != -1) {
-      bytesRead += readLen
-      VarysInputStream.updateReceivedSoFar(readLen)
+      postRead(readLen)
     }
     readLen
   }
@@ -78,6 +78,13 @@ class VarysInputStream(
   override def close() {
     VarysInputStream.unregister(visId)
     rawStream.close()
+  }
+
+  private def postRead(readLen: Int) {
+    bytesRead += readLen
+    if (bytesRead > MIN_NOTIFICATION_THRESHOLD) {
+      VarysInputStream.updateReceivedSoFar(readLen)
+    }
   }
 
   private def throttle() {
@@ -131,6 +138,8 @@ class VarysInputStream(
 }
 
 private[client] object VarysInputStream extends Logging {
+  val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt
+
   var actorSystem: ActorSystem = null
   var clientActor: ActorRef = null
 
@@ -190,6 +199,8 @@ private[client] object VarysInputStream extends Logging {
     var slaveAddress: Address = null
     var slaveRegStartTime = 0L
 
+    var lastSent = 0L
+
     override def preStart() {
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
 
@@ -207,13 +218,21 @@ private[client] object VarysInputStream extends Logging {
     }
 
     override def receive = {
-      case RegisteredSlaveClient(clientId_) =>
+      case RegisteredSlaveClient(clientId_) => 
         slaveClientId = clientId_
         slaveClientRegisterLock.synchronized { 
           slaveClientRegisterLock.notifyAll() 
         }
         logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
           " milliseconds.")
+
+        // Thread to periodically update coflow sizes to master from iptables info
+        context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
+          if (receivedSoFar.get > lastSent) {
+            slaveActor ! UpdateCoflowSize(coflowId, receivedSoFar.get)
+            lastSent = receivedSoFar.get
+          }
+        }       
 
       case Terminated(actor_) => 
         if (actor_ == slaveActor) {

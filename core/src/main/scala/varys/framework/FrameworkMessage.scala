@@ -83,6 +83,12 @@ private[varys] case class CompletedFlow(
     dPort: Int)
   extends FrameworkMessage
 
+private[varys] case class UpdateCoflowSize(
+    coflowId: String,
+    curSize: Long)
+  extends FrameworkMessage
+
+
 // Master/Client to Client/Slave
 private[varys] case class RegisteredMasterClient(
     clientId: String, 

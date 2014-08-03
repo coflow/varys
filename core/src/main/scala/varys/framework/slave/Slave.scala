@@ -15,7 +15,7 @@ import java.net._
 
 import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
 
 import varys.framework._
@@ -33,8 +33,23 @@ private[varys] class SlaveActor(
     workDirPath: String = null)
   extends Actor with Logging {
   
+  case class CoflowInfo(
+      val coflowId: String,
+      var curSize: Long) {
+
+    val flows = new HashSet[Int]()
+    
+    var lastUpdatedTime = System.currentTimeMillis
+
+    def updateSize(curSize_ : Long) {
+      curSize = curSize_
+      lastUpdatedTime = System.currentTimeMillis
+    }
+  }
+
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
+  val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.coflowReapSec", "60").toInt * 1000
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
 
@@ -58,6 +73,8 @@ private[varys] class SlaveActor(
   val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]
   val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
 
+  val coflows = new ConcurrentHashMap[String, CoflowInfo]
+
   var sigar = new Sigar()
   var lastRxBytes = -1.0
   var lastTxBytes = -1.0
@@ -75,6 +92,17 @@ private[varys] class SlaveActor(
 
     webUi.start()
     connectToMaster()
+
+    // Thread for periodically removing dead coflows every CLEANUP_INTERVAL_MS of inactivity    
+    context.system.scheduler.schedule(CLEANUP_INTERVAL_MS millis, CLEANUP_INTERVAL_MS millis) {
+      logTrace("Cleaning up dead coflows")
+      val allCoflows = coflows.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]]
+      val toRemove = allCoflows.filter(x => 
+        (System.currentTimeMillis - x.lastUpdatedTime) >= CLEANUP_INTERVAL_MS)
+      val numToRemove = toRemove.size
+      toRemove.foreach(c => coflows -= c.coflowId)
+      logTrace("Removed %d dead coflows %s".format(numToRemove, toRemove))
+    } 
   }
 
   override def postStop() {
@@ -123,11 +151,11 @@ private[varys] class SlaveActor(
         }
       }
 
-      // Thread to periodically update coflow sizes to master from iptables info
+      // Thread for periodically updating coflow sizes to master
       context.system.scheduler.schedule(REMOTE_SYNC_PERIOD_MILLIS millis, REMOTE_SYNC_PERIOD_MILLIS millis) {
-        val curCoflows = IPTablesClient.getActiveCoflowSizes()
-        if (curCoflows.size > 0) {
-          AkkaUtils.tellActor(master, LocalCoflows(slaveId, curCoflows))
+        if (coflows.size > 0) {
+          AkkaUtils.tellActor(master, 
+            LocalCoflows(slaveId, coflows.map(c => (c._2.coflowId, c._2.curSize)).toArray))
         }
       } 
     }
@@ -171,16 +199,25 @@ private[varys] class SlaveActor(
     
     case StartedFlow(coflowId, dPort) => {
       val currentSender = sender
-      logInfo("Received StartedFlow for " + dPort + " of coflow " + coflowId)
-      IPTablesClient.addFlow(coflowId, dPort)
+      logDebug("Received StartedFlow for " + dPort + " of coflow " + coflowId)
+      // TODO: 
       currentSender ! true
     }
 
     case CompletedFlow(coflowId, dPort) => {
       val currentSender = sender
-      logInfo("Received CompletedFlow for " + dPort + " of coflow " + coflowId)
-      IPTablesClient.deleteFlow(coflowId, dPort)
+      logDebug("Received CompletedFlow for " + dPort + " of coflow " + coflowId)
+      // TODO: 
       currentSender ! true
+    }
+
+    case UpdateCoflowSize(coflowId, curSize_) => {
+      logDebug("Received UpdateCoflowSize for " + coflowId + " of size " + curSize_)
+      if (coflows.containsKey(coflowId)) {
+        coflows(coflowId).updateSize(curSize_)
+      } else {
+        coflows(coflowId) = CoflowInfo(coflowId, curSize_)
+      }
     }
   }
 
