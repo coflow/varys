@@ -34,7 +34,7 @@ private[varys] class Master(
   
   val CONSIDER_DEADLINE = System.getProperty("varys.master.considerDeadline", "false").toBoolean
 
-  val SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.syncPeriod", "80").toInt
+  val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
@@ -95,7 +95,7 @@ private[varys] class Master(
       // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
 
       // Thread to periodically update global coflow sizes to all slaves
-      context.system.scheduler.schedule(0 millis, SYNC_PERIOD_MILLIS millis, self, SyncSlaves)
+      context.system.scheduler.schedule(0 millis, REMOTE_SYNC_PERIOD_MILLIS millis, self, SyncSlaves)
 
     }
 

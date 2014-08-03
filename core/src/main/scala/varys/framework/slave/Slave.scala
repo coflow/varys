@@ -34,7 +34,7 @@ private[varys] class SlaveActor(
   extends Actor with Logging {
   
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
-  val SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.syncPeriod", "80").toInt
+  val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
 
@@ -139,7 +139,7 @@ private[varys] class SlaveActor(
       }
 
       // Thread to periodically update coflow sizes to master from iptables info
-      context.system.scheduler.schedule(SYNC_PERIOD_MILLIS millis, SYNC_PERIOD_MILLIS millis) {
+      context.system.scheduler.schedule(REMOTE_SYNC_PERIOD_MILLIS millis, REMOTE_SYNC_PERIOD_MILLIS millis) {
         val curCoflows = IPTablesClient.getActiveCoflowSizes()
         if (curCoflows.size > 0) {
           AkkaUtils.tellActor(master, LocalCoflows(slaveId, curCoflows))
