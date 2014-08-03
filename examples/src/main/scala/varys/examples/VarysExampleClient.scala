@@ -39,8 +39,10 @@ private[examples] object VarysExampleClient {
     oos.writeLong(MBToRecv)
     oos.flush
     
-    readBytes(new VarysInputStream(sock, coflowId), MBToRecv * 1048576)
+    val vis = new VarysInputStream(sock, coflowId)
+    readBytes(vis, MBToRecv * 1048576)
     
+    vis.close
     sock.close
   }
 }

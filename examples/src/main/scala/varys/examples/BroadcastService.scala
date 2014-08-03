@@ -141,6 +141,7 @@ private[varys] object BroadcastSender extends Logging {
                       logWarning (serverThreadName + " had a " + e)
                     }
                   } finally {
+                    oos.close
                     clientSocket.close
                   }
                 }
@@ -384,7 +385,8 @@ private[varys] object BroadcastReceiver extends Logging {
         FILE.write(bArr)
       }
 
-      // Close socket
+      // Close socket and streams
+      pois.close
       pieceSock.close
     })
 

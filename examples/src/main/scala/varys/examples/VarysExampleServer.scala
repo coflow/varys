@@ -42,12 +42,11 @@ private[examples] object VarysExampleServer {
     
     System.out.println("Serving client " + clientSocket)
     val ois = new ObjectInputStream(clientSocket.getInputStream)
-
+    val out = new VarysOutputStream(clientSocket, coflowId)
+    
     try {
       val reqSizeMB = ois.readLong
-      val totBytes = reqSizeMB * 1048576
-
-      val out = new VarysOutputStream(clientSocket, coflowId)
+      val totBytes = reqSizeMB * 1048576       
       val buf = new Array[Byte](65535)
       var bytesSent = 0L
       while (bytesSent < totBytes) {
@@ -62,6 +61,7 @@ private[examples] object VarysExampleServer {
         System.out.println("Server had a " + e)
       }
     } finally {
+      out.close
       clientSocket.close
     }
     serverSocket.close
