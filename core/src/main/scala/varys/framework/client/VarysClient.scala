@@ -239,28 +239,20 @@ class VarysClient(
   }
 
   def registerCoflow(coflowDesc: CoflowDescription): String = {
-    waitForSlaveRegistration
     waitForMasterRegistration
 
     // Register with the master
     val RegisteredCoflow(coflowId) = AkkaUtils.askActorWithReply[RegisteredCoflow](masterActor, 
       RegisterCoflow(masterClientId, coflowDesc))
       
-    // Let the local slave know
-    AkkaUtils.tellActor(slaveActor, RegisteredCoflow(coflowId))
-    
     coflowId
   }
   
   def unregisterCoflow(coflowId: String) {
-    waitForSlaveRegistration
     waitForMasterRegistration
     
     // Let the master know
     AkkaUtils.tellActor(masterActor, UnregisterCoflow(coflowId))
-    
-    // Update local slave
-    AkkaUtils.tellActor(slaveActor, UnregisterCoflow(coflowId))
     
     // Free local resources
     freeLocalResources(coflowId)

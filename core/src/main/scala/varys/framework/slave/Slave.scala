@@ -184,20 +184,6 @@ private[varys] class SlaveActor(
       sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
     
-    case RegisteredCoflow(coflowId) => {
-      val currentSender = sender
-      logInfo("Received RegisteredCoflow for coflow " + coflowId)
-      IPTablesClient.addCoflow(coflowId)
-      currentSender ! true
-    }
-    
-    case UnregisterCoflow(coflowId) => {
-      val currentSender = sender
-      logInfo("Received UnregisterCoflow for coflow " + coflowId)
-      IPTablesClient.deleteCoflow(coflowId)
-      currentSender ! true
-    }
-    
     case StartedFlow(coflowId, dPort) => {
       val currentSender = sender
       logInfo("Received StartedFlow for " + dPort + " of coflow " + coflowId)
