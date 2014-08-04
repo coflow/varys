@@ -252,7 +252,7 @@ private[client] object VarysInputStream extends Logging {
 
           // TODO: Optimize by ignoring coupled Started/Completed messages
           for (m <- messages) {
-            AkkaUtils.askActorWithReply(slaveActor, m)
+            slaveActor ! m
           }
         }
 
