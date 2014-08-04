@@ -6,9 +6,10 @@ import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, Remote
 
 import java.io._
 import java.net._
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, LinkedBlockingQueue}
 import java.util.concurrent.atomic._
 
+import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConversions._
 
 import varys.{Logging, Utils, VarysException}
@@ -28,6 +29,10 @@ class VarysInputStream(
 
   val MIN_NOTIFICATION_THRESHOLD: Long = 
     System.getProperty("varys.client.minNotificationMB", "10").toLong * 1048576L
+
+  // For InputStream, remote is stored as flow source
+  val sIPPort = Utils.getIPPortOfSocketAddress(sock.getRemoteSocketAddress)
+  val dIPPort = Utils.getIPPortOfSocketAddress(sock.getLocalSocketAddress)
 
   // Register with the shared VarysInputStream object
   val visId = VarysInputStream.register(this, coflowId)
@@ -156,6 +161,8 @@ private[client] object VarysInputStream extends Logging {
   val curVISId = new AtomicInteger(0)
   val activeStreams = new ConcurrentHashMap[Int, VarysInputStream]()
 
+  val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
+
   private val receivedSoFar = new AtomicLong(0)
 
   def updateReceivedSoFar(delta: Long) {
@@ -177,10 +184,13 @@ private[client] object VarysInputStream extends Logging {
     init(coflowId)
     val visId = curVISId.getAndIncrement()
     activeStreams(visId) = vis
+    messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vis.sIPPort, vis.dIPPort))
     visId
   }
 
   def unregister(visId: Int) {
+    val vis = activeStreams(visId)
+    messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, vis.sIPPort, vis.dIPPort))
     activeStreams -= visId
   }
 
@@ -226,13 +236,24 @@ private[client] object VarysInputStream extends Logging {
         logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
           " milliseconds.")
 
-        // Thread to periodically update coflow sizes to master from iptables info
+        // Thread to periodically update coflow sizes to local slave
         context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
           if (receivedSoFar.get > lastSent) {
             slaveActor ! UpdateCoflowSize(coflowId, receivedSoFar.get)
             lastSent = receivedSoFar.get
           }
-        }       
+        }
+
+        // Thread to periodically update flows to local slave
+        context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
+          val messages = new ListBuffer[FrameworkMessage]()
+          messagesBeforeSlaveConnection.drainTo(messages)
+
+          // TODO: Optimize by ignoring coupled Started/Completed messages
+          for (m <- messages) {
+            AkkaUtils.askActorWithReply(slaveActor, m)
+          }
+        }
 
       case Terminated(actor_) => 
         if (actor_ == slaveActor) {

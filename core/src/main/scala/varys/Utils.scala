@@ -132,6 +132,14 @@ private object Utils extends Logging {
     customHostname.getOrElse(InetAddress.getLocalHost.getHostName)
   }
 
+  /**
+   * Get only the ip and port of a SocketAddress
+   */
+  def getIPPortOfSocketAddress(sockAdd: SocketAddress): String = {
+    val host_ip_port = sockAdd.toString
+    host_ip_port.slice(host_ip_port.indexOf("/") + 1, 100)
+  }
+
   private[varys] val daemonThreadFactory: ThreadFactory =
     new ThreadFactoryBuilder().setDaemon(true).build()
 

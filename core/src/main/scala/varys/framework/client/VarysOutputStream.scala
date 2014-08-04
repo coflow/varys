@@ -1,14 +1,15 @@
 package varys.framework.client
 
 import akka.actor._
-import akka.actor.Terminated
+import akka.util.duration._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
 
 import java.io._
 import java.net._
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, LinkedBlockingQueue}
 import java.util.concurrent.atomic._
 
+import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConversions._
 
 import varys.{Logging, Utils, VarysException}
@@ -25,6 +26,10 @@ class VarysOutputStream(
     val sock: Socket,
     val coflowId: String)
   extends OutputStream() with Logging {
+
+  // For OutputStream, local is stored as flow source
+  val sIPPort = Utils.getIPPortOfSocketAddress(sock.getLocalSocketAddress)
+  val dIPPort = Utils.getIPPortOfSocketAddress(sock.getRemoteSocketAddress)
 
   // Register with the shared VarysOutputStream object
   val visId = VarysOutputStream.register(this, coflowId)
@@ -126,6 +131,8 @@ class VarysOutputStream(
 }
 
 private[client] object VarysOutputStream extends Logging {
+  val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt
+
   var actorSystem: ActorSystem = null
   var clientActor: ActorRef = null
 
@@ -141,6 +148,8 @@ private[client] object VarysOutputStream extends Logging {
 
   val curVISId = new AtomicInteger(0)
   val activeStreams = new ConcurrentHashMap[Int, VarysOutputStream]()
+
+  val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
   private val sentSoFar = new AtomicLong(0)
 
@@ -163,10 +172,13 @@ private[client] object VarysOutputStream extends Logging {
     init(coflowId)
     val visId = curVISId.getAndIncrement()
     activeStreams(visId) = vis
+    messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vis.sIPPort, vis.dIPPort))
     visId
   }
 
   def unregister(visId: Int) {
+    val vis = activeStreams(visId)
+    messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, vis.sIPPort, vis.dIPPort))
     activeStreams -= visId
   }
 
@@ -209,6 +221,17 @@ private[client] object VarysOutputStream extends Logging {
         }
         logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
           " milliseconds.")
+
+        // Thread to periodically update flows to local slave
+        context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
+          val messages = new ListBuffer[FrameworkMessage]()
+          messagesBeforeSlaveConnection.drainTo(messages)
+
+          // TODO: Optimize by ignoring coupled Started/Completed messages
+          for (m <- messages) {
+            AkkaUtils.askActorWithReply(slaveActor, m)
+          }
+        }
 
       case Terminated(actor_) => 
         if (actor_ == slaveActor) {

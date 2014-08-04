@@ -75,12 +75,14 @@ private[varys] case class RegisterSlaveClient(
 
 private[varys] case class StartedFlow(
     coflowId: String,
-    dPort: Int)
+    sIPPort: String,
+    dIPPort: String)
   extends FrameworkMessage
 
 private[varys] case class CompletedFlow(
     coflowId: String,
-    dPort: Int)
+    sIPPort: String,
+    dIPPort: String)
   extends FrameworkMessage
 
 private[varys] case class UpdateCoflowSize(

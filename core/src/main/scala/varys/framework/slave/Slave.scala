@@ -37,13 +37,21 @@ private[varys] class SlaveActor(
       val coflowId: String,
       var curSize: Long) {
 
-    val flows = new HashSet[Int]()
+    val flows = new HashSet[(String, String)]()
     
     var lastUpdatedTime = System.currentTimeMillis
 
     def updateSize(curSize_ : Long) {
       curSize = curSize_
       lastUpdatedTime = System.currentTimeMillis
+    }
+
+    def addFlow(sIPPort: String, dIPPort: String) {
+      flows += ((sIPPort, dIPPort))
+    }
+
+    def deleteFlow(sIPPort: String, dIPPort: String) {
+      flows -= ((sIPPort, dIPPort))
     }
   }
 
@@ -197,22 +205,28 @@ private[varys] class SlaveActor(
       sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
     
-    case StartedFlow(coflowId, dPort) => {
+    case StartedFlow(coflowId, sIPPort, dIPPort) => {
       val currentSender = sender
-      logDebug("Received StartedFlow for " + dPort + " of coflow " + coflowId)
-      // TODO: 
+      logDebug("Received StartedFlow for " + sIPPort + "-->" + dIPPort + " of coflow " + coflowId)
+      if (!coflows.containsKey(coflowId)) {
+        coflows(coflowId) = CoflowInfo(coflowId, 0)
+      }
+      coflows(coflowId).addFlow(sIPPort, dIPPort)
       currentSender ! true
     }
 
-    case CompletedFlow(coflowId, dPort) => {
+    case CompletedFlow(coflowId, sIPPort, dIPPort) => {
       val currentSender = sender
-      logDebug("Received CompletedFlow for " + dPort + " of coflow " + coflowId)
-      // TODO: 
+      logDebug("Received CompletedFlow for " + sIPPort + "-->" + dIPPort + " of coflow " + coflowId)
+      if (!coflows.containsKey(coflowId)) {
+        coflows(coflowId) = CoflowInfo(coflowId, 0)
+      }
+      coflows(coflowId).deleteFlow(sIPPort, dIPPort)
       currentSender ! true
     }
 
     case UpdateCoflowSize(coflowId, curSize_) => {
-      logDebug("Received UpdateCoflowSize for " + coflowId + " of size " + curSize_)
+      logDebug("Received UpdateCoflowSize for coflow " + coflowId + " of size " + curSize_)
       if (coflows.containsKey(coflowId)) {
         coflows(coflowId).updateSize(curSize_)
       } else {
