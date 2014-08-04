@@ -157,8 +157,9 @@ private[client] object VarysOutputStream extends Logging {
     sentSoFar.addAndGet(delta)
   }
 
-  private def init(coflowId: String) {
+  private def init(coflowId_ : String) {
     if (!initCalled.getAndSet(true)) {
+      coflowId = coflowId_
       clientName = (coflowId + "@" + Utils.localHostName).replaceAll("[^a-zA-Z0-9\\-]+", "")
   
       // Just launch an actor; it will call back into the listener.
@@ -168,7 +169,7 @@ private[client] object VarysOutputStream extends Logging {
     }
   }
 
-  def register(vis: VarysOutputStream, coflowId: String): Int = {
+  def register(vis: VarysOutputStream, coflowId_ : String): Int = {
     init(coflowId)
     val visId = curVISId.getAndIncrement()
     activeStreams(visId) = vis
