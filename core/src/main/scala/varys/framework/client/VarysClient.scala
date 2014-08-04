@@ -17,7 +17,6 @@ import scala.collection.JavaConversions._
 import varys.{Logging, Utils, VarysException}
 import varys.framework._
 import varys.framework.master.{Master, CoflowInfo}
-import varys.framework.slave.Slave
 import varys.util._
 
 class VarysClient(
@@ -35,14 +34,8 @@ class VarysClient(
   
   var masterActor: ActorRef = null
   val masterClientRegisterLock = new Object
-  
-  var slaveUrl: String = "varys://" + Utils.localHostName + ":1607"
-  
-  var slaveActor: ActorRef = null
-  val slaveClientRegisterLock = new Object
-  
+    
   var masterClientId: String = null
-  var slaveClientId: String = null
 
   var clientActor: ActorRef = null
 
@@ -50,7 +43,6 @@ class VarysClient(
   implicit val futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
 
   var masterRegStartTime = 0L
-  var slaveRegStartTime = 0L
 
   val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
 
@@ -68,19 +60,6 @@ class VarysClient(
 
     override def preStart() {
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-
-      logInfo("Connecting to local slave " + slaveUrl)
-      slaveRegStartTime = now
-      try {
-        slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
-        slaveAddress = slaveActor.path.address
-        slaveActor ! RegisterSlaveClient(clientName, clientHost, clientCommPort)
-      } catch {
-        case e: Exception =>
-          logError("Failed to connect to local slave", e)
-          markDisconnected()
-          context.stop(self)
-      }
     }
 
     @throws(classOf[VarysException])
@@ -92,17 +71,6 @@ class VarysClient(
       markDisconnected()
       context.stop(self)
       throw new VarysException(connToMasterFailedMsg)
-    }
-
-    @throws(classOf[VarysException])
-    def slaveDisconnected() {
-      // TODO: It would be nice to try to reconnect to the slave, but just shut down for now.
-      // (Note that if reconnecting we would also need to assign IDs differently.)
-      val connToSlaveFailedMsg = "Connection to local slave failed; stopping client"
-      logWarning(connToSlaveFailedMsg)
-      markDisconnected()
-      context.stop(self)
-      throw new VarysException(connToSlaveFailedMsg)
     }
 
     override def receive = {
@@ -132,33 +100,20 @@ class VarysClient(
         }
         logInfo("Registered to master in " +  (now - masterRegStartTime) + " milliseconds.")
 
-      case RegisteredSlaveClient(clientId_) =>
-        slaveClientId = clientId_
-        slaveClientRegisterLock.synchronized { 
-          slaveClientRegisterLock.notifyAll() 
-        }
-        logInfo("Registered to local slave in " +  (now - slaveRegStartTime) + " milliseconds.")
-
       case Terminated(actor_) => 
         if (actor_ == masterActor) {
           masterDisconnected()
-        } else if (actor_ == slaveActor) {
-          slaveDisconnected()
-        }
+        } 
 
       case RemoteClientDisconnected(_, address) => 
         if (address == masterAddress) {
           masterDisconnected()
-        } else if (address == slaveAddress) {
-          slaveDisconnected()
-        }
+        } 
 
       case RemoteClientShutdown(_, address) => 
         if (address == masterAddress) {
           masterDisconnected()
-        } else if (address == slaveAddress) {
-          slaveDisconnected()
-        }
+        } 
 
       case StopClient =>
         markDisconnected()
@@ -228,16 +183,6 @@ class VarysClient(
     }
   }
   
-  // Wait until the client has been registered with the master
-  private def waitForSlaveRegistration = {
-    while (slaveClientId == null) {
-      slaveClientRegisterLock.synchronized { 
-        slaveClientRegisterLock.wait()
-        slaveClientRegisterLock.notifyAll()
-      }
-    }
-  }
-
   def registerCoflow(coflowDesc: CoflowDescription): String = {
     waitForMasterRegistration
 
