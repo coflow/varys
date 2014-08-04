@@ -8,7 +8,7 @@ import com.google.common.io.Files
 
 import java.io.{File, ObjectInputStream, ObjectOutputStream, IOException}
 import java.text.SimpleDateFormat
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic._
 import java.util.concurrent.ConcurrentHashMap
 import java.util.Date
 import java.net._
@@ -82,6 +82,7 @@ private[varys] class SlaveActor(
   val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
 
   val coflows = new ConcurrentHashMap[String, CoflowInfo]
+  val coflowSizeUpdated = new AtomicBoolean(false)
 
   var sigar = new Sigar()
   var lastRxBytes = -1.0
@@ -161,7 +162,7 @@ private[varys] class SlaveActor(
 
       // Thread for periodically updating coflow sizes to master
       context.system.scheduler.schedule(REMOTE_SYNC_PERIOD_MILLIS millis, REMOTE_SYNC_PERIOD_MILLIS millis) {
-        if (coflows.size > 0) {
+        if (coflows.size > 0 && coflowSizeUpdated.getAndSet(false)) {
           AkkaUtils.tellActor(master, 
             LocalCoflows(slaveId, coflows.map(c => (c._2.coflowId, c._2.curSize)).toArray))
         }
@@ -232,6 +233,7 @@ private[varys] class SlaveActor(
       } else {
         coflows(coflowId) = CoflowInfo(coflowId, curSize_)
       }
+      coflowSizeUpdated.set(true)
     }
   }
 
