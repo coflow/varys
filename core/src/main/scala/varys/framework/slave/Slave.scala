@@ -83,6 +83,7 @@ private[varys] class SlaveActor(
 
   val coflows = new ConcurrentHashMap[String, CoflowInfo]
   val coflowSizeUpdated = new AtomicBoolean(false)
+  val coflowOrder = new ArrayBuffer[CoflowInfo]()
 
   var sigar = new Sigar()
   var lastRxBytes = -1.0
@@ -175,7 +176,12 @@ private[varys] class SlaveActor(
     }
 
     case GlobalCoflows(coflowSizes) => {
-      // TODO: Use tc to update rates
+      coflowOrder.clear
+      for ((cf, _) <- coflowSizes) {
+        if (coflows.containsKey(cf)) {
+          coflowOrder += coflows(cf)
+        }
+      }
     }
 
     case Terminated(actor) => {
