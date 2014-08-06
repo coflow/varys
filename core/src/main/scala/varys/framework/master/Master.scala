@@ -306,9 +306,6 @@ private[varys] class Master(
         actorToClient -= client.actor
         addressToClient -= client.actor.path.address
         client.markFinished()
-
-        // Remove child coflows as well
-        client.coflows.foreach(removeCoflow)  
       }
     }
 
