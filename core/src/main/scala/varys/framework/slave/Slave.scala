@@ -81,12 +81,13 @@ private[varys] class SlaveActor(
 
   var nextClientNumber = new AtomicInteger()
   val idToClient = new ConcurrentHashMap[String, ClientInfo]()
-  val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]
-  val addressToClient = new ConcurrentHashMap[Address, ClientInfo]
+  val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]()
+  val addressToClient = new ConcurrentHashMap[Address, ClientInfo]()
+  val idToActor = new ConcurrentHashMap[String, ActorRef]()
 
-  val coflows = new ConcurrentHashMap[String, CoflowInfo]
+  val coflows = new ConcurrentHashMap[String, CoflowInfo]()
   val coflowSizeUpdated = new AtomicBoolean(false)
-  val coflowOrder = new ArrayBuffer[CoflowInfo]()
+  val coflowOrder = new ArrayBuffer[String]()
 
   var sigar = new Sigar()
   var lastRxBytes = -1.0
@@ -181,9 +182,7 @@ private[varys] class SlaveActor(
     case GlobalCoflows(coflowSizes) => {
       coflowOrder.clear
       for ((cf, _) <- coflowSizes) {
-        if (coflows.containsKey(cf)) {
-          coflowOrder += coflows(cf)
-        }
+        coflowOrder += cf
       }
     }
 
@@ -218,25 +217,27 @@ private[varys] class SlaveActor(
     case StartedFlow(coflowId, sIPPort, dIPPort) => {
       val currentSender = sender
       logDebug("Received StartedFlow for " + sIPPort + "-->" + dIPPort + " of coflow " + coflowId)
+      
       if (!coflows.containsKey(coflowId)) {
         coflows(coflowId) = CoflowInfo(coflowId, 0)
       }
       coflows(coflowId).addFlow(sIPPort, dIPPort)
-      currentSender ! true
     }
 
     case CompletedFlow(coflowId, sIPPort, dIPPort) => {
       val currentSender = sender
       logDebug("Received CompletedFlow for " + sIPPort + "-->" + dIPPort + " of coflow " + coflowId)
+      
       if (!coflows.containsKey(coflowId)) {
         coflows(coflowId) = CoflowInfo(coflowId, 0)
       }
       coflows(coflowId).deleteFlow(sIPPort, dIPPort)
-      currentSender ! true
     }
 
     case UpdateCoflowSize(coflowId, curSize_) => {
+      val currentSender = sender
       logDebug("Received UpdateCoflowSize for coflow " + coflowId + " of size " + curSize_)
+      
       if (coflows.containsKey(coflowId)) {
         coflows(coflowId).updateSize(curSize_)
       } else {
@@ -245,23 +246,28 @@ private[varys] class SlaveActor(
       coflowSizeUpdated.set(true)
     }
 
-    case GetWriteToken(coflowId, tokenLen) => {
-      // Remember actor that asked for token
+    case GetWriteToken(clientId, coflowId, tokenLen) => {
+      val currentSender = sender
+      logDebug("Received GetWriteToken for coflow " + coflowId + " of write length " + tokenLen)
+      
       if (coflows.containsKey(coflowId)) {
-        coflows(coflowId).tokenRequests.put(sender)
+        coflows(coflowId).tokenRequests.put(idToActor(clientId))
+        self ! ProcessWriteToken
+      } else {
+        idToActor(clientId) ! WriteToken
       }
-      // Schedule write token
-      self ! ProcessWriteToken
     }
 
     case ProcessWriteToken => {
-      var cf: CoflowInfo = null
       breakable {
         coflowOrder.foreach(c => {
-          val requester = c.tokenRequests.poll()
-          if (requester != null) {
-            requester ! true
-            break
+          if (coflows.containsKey(c)) {
+            val cf = coflows(c)
+            val requester = cf.tokenRequests.poll()
+            if (requester != null) {
+              requester ! WriteToken
+              break
+            }
           }
         })
       }
@@ -281,6 +287,7 @@ private[varys] class SlaveActor(
     idToClient.put(client.id, client)
     actorToClient(actor) = client
     addressToClient(actor.path.address) = client
+    idToActor(client.id) = actor
     client
   }
 
@@ -290,6 +297,7 @@ private[varys] class SlaveActor(
       idToClient.remove(client.id)
       actorToClient -= client.actor
       addressToClient -= client.actor.path.address
+      idToActor -= client.id
       client.markFinished()
     }
   }

@@ -100,6 +100,8 @@ private[client] object VarysOutputStream extends Logging {
 
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
+  val tokenQueue = new LinkedBlockingQueue[Int]()
+
   private val sentSoFar = new AtomicLong(0)
 
   def updateSentSoFar(delta: Long) {
@@ -108,9 +110,13 @@ private[client] object VarysOutputStream extends Logging {
 
   /**
    * Blocks until receiving a token to send from local slave
+   * FIXME: Does it need to be synchronized? 
    */
   def getWriteToken(flowDst: String, writeLen: Long) {
-    AkkaUtils.askActorWithReply[Boolean](slaveActor, GetWriteToken(coflowId, writeLen))
+    if (slaveClientId != null) {
+      slaveActor ! GetWriteToken(slaveClientId, coflowId, writeLen)
+      tokenQueue.take()
+    }
   }
 
   private def init(coflowId_ : String) {
@@ -171,7 +177,7 @@ private[client] object VarysOutputStream extends Logging {
     }
 
     override def receive = {
-      case RegisteredSlaveClient(clientId_) =>
+      case RegisteredSlaveClient(clientId_) => {
         slaveClientId = clientId_
         slaveClientRegisterLock.synchronized { 
           slaveClientRegisterLock.notifyAll() 
@@ -189,21 +195,29 @@ private[client] object VarysOutputStream extends Logging {
             slaveActor ! m
           }
         }
+      }
 
-      case Terminated(actor_) => 
+      case Terminated(actor_) => {
         if (actor_ == slaveActor) {
           slaveDisconnected()
         }
+      }
 
-      case RemoteClientDisconnected(_, address) => 
+      case RemoteClientDisconnected(_, address) => {
         if (address == slaveAddress) {
           slaveDisconnected()
         }
+      }
 
-      case RemoteClientShutdown(_, address) => 
+      case RemoteClientShutdown(_, address) => {
         if (address == slaveAddress) {
           slaveDisconnected()
         }
+      }
+
+      case WriteToken => {
+        tokenQueue.put(0)
+      }
     }
 
     // TODO: It would be nice to try to reconnect to the slave, but just shut down for now.

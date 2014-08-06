@@ -91,6 +91,7 @@ private[varys] case class UpdateCoflowSize(
   extends FrameworkMessage
 
 private[varys] case class GetWriteToken(
+    clientId: String,
     coflowId: String,
     tokenLen: Long)
   extends FrameworkMessage
@@ -184,3 +185,6 @@ private[varys] case class SlaveState(
     rxBps: Double,
     txBps: Double,
     masterWebUiUrl: String)
+
+// Slave to client
+private[varys] case object WriteToken
