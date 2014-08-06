@@ -90,6 +90,10 @@ private[varys] case class UpdateCoflowSize(
     curSize: Long)
   extends FrameworkMessage
 
+private[varys] case class GetWriteToken(
+    coflowId: String,
+    tokenLen: Long)
+  extends FrameworkMessage
 
 // Master/Client to Client/Slave
 private[varys] case class RegisteredMasterClient(
@@ -136,19 +140,13 @@ private[varys] case class BestTxMachines(
     bestTxMachines: Array[String]) 
   extends FrameworkMessage
 
-// Internal message in Client/Slave
+// Internal message in Client
 private[varys] case object StopClient
 
 private[varys] case object RegisterWithMaster
 
-private[varys] case class GetRequest(
-    flowDesc: FlowDescription, 
-    targetHost: String = null,
-    targetCommPort: Int = 0) {
-    
-  // Not extending FrameworkMessage because it is NOT going through akka serialization
-  // override def toString: String = "GetRequest(" + flowDesc.id+ ":" + flowDesc.coflowId + ")"
-} 
+// Internal message in Slave
+private[varys] case object ProcessWriteToken
 
 // Internal message in Master
 private[varys] case object CheckForSlaveTimeOut

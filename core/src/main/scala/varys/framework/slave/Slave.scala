@@ -9,7 +9,7 @@ import com.google.common.io.Files
 import java.io.{File, ObjectInputStream, ObjectOutputStream, IOException}
 import java.text.SimpleDateFormat
 import java.util.concurrent.atomic._
-import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.{ConcurrentHashMap, LinkedBlockingQueue}
 import java.util.Date
 import java.net._
 
@@ -17,6 +17,7 @@ import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
+import scala.util.control.Breaks._
 
 import varys.framework._
 import varys.framework.master.Master
@@ -40,6 +41,8 @@ private[varys] class SlaveActor(
     val flows = new HashSet[(String, String)]()
     
     var lastUpdatedTime = System.currentTimeMillis
+
+    val tokenRequests = new LinkedBlockingQueue[ActorRef]()
 
     def updateSize(curSize_ : Long) {
       curSize = curSize_
@@ -240,6 +243,28 @@ private[varys] class SlaveActor(
         coflows(coflowId) = CoflowInfo(coflowId, curSize_)
       }
       coflowSizeUpdated.set(true)
+    }
+
+    case GetWriteToken(coflowId, tokenLen) => {
+      // Remember actor that asked for token
+      if (coflows.containsKey(coflowId)) {
+        coflows(coflowId).tokenRequests.put(sender)
+      }
+      // Schedule write token
+      self ! ProcessWriteToken
+    }
+
+    case ProcessWriteToken => {
+      var cf: CoflowInfo = null
+      breakable {
+        coflowOrder.foreach(c => {
+          val requester = c.tokenRequests.poll()
+          if (requester != null) {
+            requester ! true
+            break
+          }
+        })
+      }
     }
   }
 

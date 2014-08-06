@@ -36,36 +36,24 @@ class VarysOutputStream(
 
   val rawStream = sock.getOutputStream
 
-  val startTime = System.currentTimeMillis()
-
-  val mBPSLock = new Object
-
-  var maxBytesPerSec: Long = 1048576 * 128
   var bytesWritten = 0L
-  var totalSleepTime = 0L
 
-  val SLEEP_DURATION_MS = 50L
-
-  if (maxBytesPerSec < 0) {
-    throw new IOException("Bandwidth " + maxBytesPerSec + " is invalid")
-  }
-  
   override def write(b: Int) = synchronized {
-    throttle()
+    preWrite(1)
     rawStream.write(b)
     bytesWritten += 1
     VarysOutputStream.updateSentSoFar(1)
   }
 
   override def write(b: Array[Byte]) = synchronized {
-    throttle()
+    preWrite(b.length)
     rawStream.write(b)
     bytesWritten += b.length
     VarysOutputStream.updateSentSoFar(b.length)
   }
 
   override def write(b: Array[Byte], off: Int, len: Int) = synchronized {
-    throttle()
+    preWrite(len)
     rawStream.write(b, off, len)
     bytesWritten += len
     VarysOutputStream.updateSentSoFar(len)
@@ -80,52 +68,13 @@ class VarysOutputStream(
     rawStream.close()
   }
 
-  private def throttle() {
-    while (maxBytesPerSec <= 0.0) {
-      mBPSLock.synchronized {
-        logTrace(this + " maxBytesPerSec <= 0.0. Sleeping.")
-        mBPSLock.wait()
-      }
-    }
-
-    // NEVER exceed the specified rate
-    while (getBytesPerSec > maxBytesPerSec) {
-      try {
-        Thread.sleep(SLEEP_DURATION_MS)
-        totalSleepTime += SLEEP_DURATION_MS
-      } catch {
-        case ie: InterruptedException => throw new IOException("Thread aborted", ie)
-      }
-    }
+  private def preWrite(writeLen: Long) {
+    VarysOutputStream.getWriteToken(dIPPort, writeLen)
   }
-
-  def setNewRate(newMaxBitPerSec: Double) {
-    maxBytesPerSec = (newMaxBitPerSec / 8).toLong
-    mBPSLock.synchronized {
-      logTrace(this + " newMaxBitPerSec = " + newMaxBitPerSec)
-      mBPSLock.notifyAll()
-    }
-  }
-
-  def getTotalBytesWritten() = bytesWritten
-
-  def getBytesPerSec(): Long = {
-    val elapsed = (System.currentTimeMillis() - startTime) / 1000
-    if (elapsed == 0) {
-      bytesWritten 
-    } else {
-      bytesWritten / elapsed
-    }
-  }
-
-  def getTotalSleepTime() = totalSleepTime
 
   override def toString(): String = {
     "VarysOutputStream{" +
       ", bytesWritten=" + bytesWritten +
-      ", maxBytesPerSec=" + maxBytesPerSec +
-      ", bytesPerSec=" + getBytesPerSec +
-      ", totalSleepTime=" + totalSleepTime +
       "}";
   }
 }
@@ -155,6 +104,13 @@ private[client] object VarysOutputStream extends Logging {
 
   def updateSentSoFar(delta: Long) {
     sentSoFar.addAndGet(delta)
+  }
+
+  /**
+   * Blocks until receiving a token to send from local slave
+   */
+  def getWriteToken(flowDst: String, writeLen: Long) {
+    AkkaUtils.askActorWithReply[Boolean](slaveActor, GetWriteToken(coflowId, writeLen))
   }
 
   private def init(coflowId_ : String) {
