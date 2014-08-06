@@ -126,7 +126,7 @@ private[client] object VarysOutputStream extends Logging {
   }
 
   def register(vis: VarysOutputStream, coflowId_ : String): Int = {
-    init(coflowId)
+    init(coflowId_)
     val visId = curVISId.getAndIncrement()
     activeStreams(visId) = vis
     messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vis.sIPPort, vis.dIPPort))
