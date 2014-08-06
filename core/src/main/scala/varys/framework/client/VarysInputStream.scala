@@ -28,7 +28,8 @@ class VarysInputStream(
   extends InputStream() with Logging {
 
   val MIN_NOTIFICATION_THRESHOLD: Long = 
-    System.getProperty("varys.client.minNotificationMB", "10").toLong * 1048576L
+    System.getProperty("varys.client.minNotificationMB", "1").toLong * 1048576L
+  var firstNotification = true
 
   // For InputStream, remote is stored as flow source
   val sIPPort = Utils.getIPPortOfSocketAddress(sock.getRemoteSocketAddress)
@@ -54,7 +55,7 @@ class VarysInputStream(
   }
   
   override def read(): Int = {
-    throttle()
+    preRead()
     val data = rawStream.read()
     if (data != -1) {
       postRead(1)
@@ -63,7 +64,7 @@ class VarysInputStream(
   }
 
   override def read(b: Array[Byte]): Int = {
-    throttle()
+    preRead()
     val readLen = rawStream.read(b)
     if (readLen != -1) {
       postRead(readLen)
@@ -72,7 +73,7 @@ class VarysInputStream(
   }
 
   override def read(b: Array[Byte], off: Int, len: Int): Int = {
-    throttle()
+    preRead()
     val readLen = rawStream.read(b, off, len)
     if (readLen != -1) {
       postRead(readLen)
@@ -88,11 +89,16 @@ class VarysInputStream(
   private def postRead(readLen: Int) {
     bytesRead += readLen
     if (bytesRead > MIN_NOTIFICATION_THRESHOLD) {
-      VarysInputStream.updateReceivedSoFar(readLen)
+      if (firstNotification) {
+        VarysInputStream.updateReceivedSoFar(bytesRead)
+        firstNotification = false
+      } else {
+        VarysInputStream.updateReceivedSoFar(readLen)
+      }
     }
   }
 
-  private def throttle() {
+  private def preRead() {
     while (maxBytesPerSec <= 0.0) {
       mBPSLock.synchronized {
         logTrace(this + " maxBytesPerSec <= 0.0. Sleeping.")
@@ -144,6 +150,7 @@ class VarysInputStream(
 
 private[client] object VarysInputStream extends Logging {
   val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt
+  val MIN_LOCAL_UPDATE_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
 
   var actorSystem: ActorSystem = null
   var clientActor: ActorRef = null
@@ -163,10 +170,14 @@ private[client] object VarysInputStream extends Logging {
 
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
+  private var lastSent = new AtomicLong(0)
   private val receivedSoFar = new AtomicLong(0)
-
-  def updateReceivedSoFar(delta: Long) {
-    receivedSoFar.addAndGet(delta)
+  def updateReceivedSoFar(delta: Long) = synchronized {
+    val recvdSoFar = receivedSoFar.addAndGet(delta)
+    if (slaveClientId != null && recvdSoFar - lastSent.get > MIN_LOCAL_UPDATE_BYTES) {
+      slaveActor ! UpdateCoflowSize(coflowId, recvdSoFar)
+      lastSent.set(recvdSoFar)
+    }
   }
 
   private def init(coflowId_ : String) {
@@ -210,8 +221,6 @@ private[client] object VarysInputStream extends Logging {
     var slaveAddress: Address = null
     var slaveRegStartTime = 0L
 
-    var lastSent = 0L
-
     override def preStart() {
       context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
 
@@ -236,14 +245,6 @@ private[client] object VarysInputStream extends Logging {
         }
         logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
           " milliseconds.")
-
-        // Thread to periodically update coflow sizes to local slave
-        context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
-          if (receivedSoFar.get > lastSent) {
-            slaveActor ! UpdateCoflowSize(coflowId, receivedSoFar.get)
-            lastSent = receivedSoFar.get
-          }
-        }
 
         // Thread to periodically update flows to local slave
         context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
