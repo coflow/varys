@@ -245,7 +245,6 @@ private[varys] class Master(
 
       case LocalCoflows(slaveId, coflowSizes) => {
         localCoflowSizes(slaveId) = coflowSizes
-        sender ! true
       }
 
       case RequestBestRxMachines(howMany, bytes) => {

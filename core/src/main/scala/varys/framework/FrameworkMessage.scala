@@ -90,10 +90,16 @@ private[varys] case class UpdateCoflowSize(
     curSize: Long)
   extends FrameworkMessage
 
+private[varys] case class GetReadToken(
+    clientId: String,
+    coflowId: String,
+    readLen: Long)
+  extends FrameworkMessage
+
 private[varys] case class GetWriteToken(
     clientId: String,
     coflowId: String,
-    tokenLen: Long)
+    writeLen: Long)
   extends FrameworkMessage
 
 // Master/Client to Client/Slave
@@ -147,6 +153,7 @@ private[varys] case object StopClient
 private[varys] case object RegisterWithMaster
 
 // Internal message in Slave
+private[varys] case object ProcessReadToken
 private[varys] case object ProcessWriteToken
 
 // Internal message in Master
@@ -187,4 +194,5 @@ private[varys] case class SlaveState(
     masterWebUiUrl: String)
 
 // Slave to client
+private[varys] case object ReadToken
 private[varys] case object WriteToken

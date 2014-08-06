@@ -69,7 +69,7 @@ class VarysOutputStream(
   }
 
   private def preWrite(writeLen: Long) {
-    VarysOutputStream.getWriteToken(dIPPort, writeLen)
+    VarysOutputStream.getWriteToken(writeLen)
   }
 
   override def toString(): String = {
@@ -112,7 +112,7 @@ private[client] object VarysOutputStream extends Logging {
    * Blocks until receiving a token to send from local slave
    * FIXME: Does it need to be synchronized? 
    */
-  def getWriteToken(flowDst: String, writeLen: Long) {
+  def getWriteToken(writeLen: Long) {
     if (slaveClientId != null) {
       slaveActor ! GetWriteToken(slaveClientId, coflowId, writeLen)
       tokenQueue.take()

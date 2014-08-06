@@ -40,22 +40,10 @@ class VarysInputStream(
 
   val rawStream = sock.getInputStream
 
-  val startTime = System.currentTimeMillis()
-
-  val mBPSLock = new Object
-
-  var maxBytesPerSec: Long = 1048576 * 128
   var bytesRead = 0L
-  var totalSleepTime = 0L
-
-  val SLEEP_DURATION_MS = 50L
-
-  if (maxBytesPerSec < 0) {
-    throw new IOException("Bandwidth " + maxBytesPerSec + " is invalid")
-  }
   
   override def read(): Int = {
-    preRead()
+    preRead(1)
     val data = rawStream.read()
     if (data != -1) {
       postRead(1)
@@ -64,7 +52,7 @@ class VarysInputStream(
   }
 
   override def read(b: Array[Byte]): Int = {
-    preRead()
+    preRead(b.length)
     val readLen = rawStream.read(b)
     if (readLen != -1) {
       postRead(readLen)
@@ -73,7 +61,7 @@ class VarysInputStream(
   }
 
   override def read(b: Array[Byte], off: Int, len: Int): Int = {
-    preRead()
+    preRead(len)
     val readLen = rawStream.read(b, off, len)
     if (readLen != -1) {
       postRead(readLen)
@@ -98,52 +86,13 @@ class VarysInputStream(
     }
   }
 
-  private def preRead() {
-    while (maxBytesPerSec <= 0.0) {
-      mBPSLock.synchronized {
-        logTrace(this + " maxBytesPerSec <= 0.0. Sleeping.")
-        mBPSLock.wait()
-      }
-    }
-
-    // NEVER exceed the specified rate
-    while (getBytesPerSec > maxBytesPerSec) {
-      try {
-        Thread.sleep(SLEEP_DURATION_MS)
-        totalSleepTime += SLEEP_DURATION_MS
-      } catch {
-        case ie: InterruptedException => throw new IOException("Thread aborted", ie)
-      }
-    }
+  private def preRead(readLen: Long) {
+    VarysInputStream.getReadToken(readLen)
   }
-
-  def setNewRate(newMaxBitPerSec: Double) {
-    maxBytesPerSec = (newMaxBitPerSec / 8).toLong
-    mBPSLock.synchronized {
-      logTrace(this + " newMaxBitPerSec = " + newMaxBitPerSec)
-      mBPSLock.notifyAll()
-    }
-  }
-
-  def getTotalBytesRead() = bytesRead
-
-  def getBytesPerSec(): Long = {
-    val elapsed = (System.currentTimeMillis() - startTime) / 1000
-    if (elapsed == 0) {
-      bytesRead 
-    } else {
-      bytesRead / elapsed
-    }
-  }
-
-  def getTotalSleepTime() = totalSleepTime
 
   override def toString(): String = {
     "VarysInputStream{" +
       ", bytesRead=" + bytesRead +
-      ", maxBytesPerSec=" + maxBytesPerSec +
-      ", bytesPerSec=" + getBytesPerSec +
-      ", totalSleepTime=" + totalSleepTime +
       "}";
   }
 }
@@ -170,6 +119,8 @@ private[client] object VarysInputStream extends Logging {
 
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
+  val tokenQueue = new LinkedBlockingQueue[Int]()
+
   private var lastSent = new AtomicLong(0)
   private val receivedSoFar = new AtomicLong(0)
   def updateReceivedSoFar(delta: Long) = synchronized {
@@ -177,6 +128,17 @@ private[client] object VarysInputStream extends Logging {
     if (slaveClientId != null && recvdSoFar - lastSent.get > MIN_LOCAL_UPDATE_BYTES) {
       slaveActor ! UpdateCoflowSize(coflowId, recvdSoFar)
       lastSent.set(recvdSoFar)
+    }
+  }
+
+  /**
+   * Blocks until receiving a token to send from local slave
+   * FIXME: Does it need to be synchronized? 
+   */
+  def getReadToken(readLen: Long) {
+    if (slaveClientId != null) {
+      slaveActor ! GetReadToken(slaveClientId, coflowId, readLen)
+      tokenQueue.take()
     }
   }
 
@@ -238,7 +200,7 @@ private[client] object VarysInputStream extends Logging {
     }
 
     override def receive = {
-      case RegisteredSlaveClient(clientId_) => 
+      case RegisteredSlaveClient(clientId_) => {
         slaveClientId = clientId_
         slaveClientRegisterLock.synchronized { 
           slaveClientRegisterLock.notifyAll() 
@@ -256,21 +218,29 @@ private[client] object VarysInputStream extends Logging {
             slaveActor ! m
           }
         }
+      }
 
-      case Terminated(actor_) => 
+      case Terminated(actor_) => {
         if (actor_ == slaveActor) {
           slaveDisconnected()
         }
+      }
 
-      case RemoteClientDisconnected(_, address) => 
+      case RemoteClientDisconnected(_, address) => {
         if (address == slaveAddress) {
           slaveDisconnected()
         }
+      }
 
-      case RemoteClientShutdown(_, address) => 
+      case RemoteClientShutdown(_, address) => {
         if (address == slaveAddress) {
           slaveDisconnected()
         }
+      }
+
+      case ReadToken => {
+        tokenQueue.put(0)
+      }
     }
 
     // TODO: It would be nice to try to reconnect to the slave, but just shut down for now.

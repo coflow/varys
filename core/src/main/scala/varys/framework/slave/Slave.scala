@@ -42,7 +42,8 @@ private[varys] class SlaveActor(
     
     var lastUpdatedTime = System.currentTimeMillis
 
-    val tokenRequests = new LinkedBlockingQueue[ActorRef]()
+    val readTokenRequests = new LinkedBlockingQueue[ActorRef]()
+    val writeTokenRequests = new LinkedBlockingQueue[ActorRef]()
 
     def updateSize(curSize_ : Long) {
       curSize = curSize_
@@ -168,8 +169,7 @@ private[varys] class SlaveActor(
       // Thread for periodically updating coflow sizes to master
       context.system.scheduler.schedule(REMOTE_SYNC_PERIOD_MILLIS millis, REMOTE_SYNC_PERIOD_MILLIS millis) {
         if (coflows.size > 0 && coflowSizeUpdated.getAndSet(false)) {
-          AkkaUtils.tellActor(master, 
-            LocalCoflows(slaveId, coflows.map(c => (c._2.coflowId, c._2.curSize)).toArray))
+          master ! LocalCoflows(slaveId, coflows.map(c => (c._2.coflowId, c._2.curSize)).toArray)
         }
       } 
     }
@@ -180,6 +180,7 @@ private[varys] class SlaveActor(
     }
 
     case GlobalCoflows(coflowSizes) => {
+      logTrace("Received GlobalCoflows of size " + coflowSizes.length)
       coflowOrder.clear
       for ((cf, _) <- coflowSizes) {
         coflowOrder += cf
@@ -246,12 +247,41 @@ private[varys] class SlaveActor(
       coflowSizeUpdated.set(true)
     }
 
-    case GetWriteToken(clientId, coflowId, tokenLen) => {
+    case GetReadToken(clientId, coflowId, readLen) => {
       val currentSender = sender
-      logDebug("Received GetWriteToken for coflow " + coflowId + " of write length " + tokenLen)
+      logDebug("Received GetReadToken for coflow " + coflowId + " of read length " + readLen + 
+        " for client " + clientId)
       
       if (coflows.containsKey(coflowId)) {
-        coflows(coflowId).tokenRequests.put(idToActor(clientId))
+        coflows(coflowId).readTokenRequests.put(idToActor(clientId))
+        self ! ProcessReadToken
+      } else {
+        idToActor(clientId) ! ReadToken
+      }
+    }
+
+    case ProcessReadToken => {
+      breakable {
+        coflowOrder.foreach(c => {
+          if (coflows.containsKey(c)) {
+            val cf = coflows(c)
+            val requester = cf.readTokenRequests.poll()
+            if (requester != null) {
+              requester ! ReadToken
+              break
+            }
+          }
+        })
+      }
+    }
+
+    case GetWriteToken(clientId, coflowId, writeLen) => {
+      val currentSender = sender
+      logDebug("Received GetWriteToken for coflow " + coflowId + " of write length " + writeLen + 
+        " for client " + clientId)
+      
+      if (coflows.containsKey(coflowId)) {
+        coflows(coflowId).writeTokenRequests.put(idToActor(clientId))
         self ! ProcessWriteToken
       } else {
         idToActor(clientId) ! WriteToken
@@ -263,7 +293,7 @@ private[varys] class SlaveActor(
         coflowOrder.foreach(c => {
           if (coflows.containsKey(c)) {
             val cf = coflows(c)
-            val requester = cf.tokenRequests.poll()
+            val requester = cf.writeTokenRequests.poll()
             if (requester != null) {
               requester ! WriteToken
               break
