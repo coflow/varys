@@ -42,7 +42,7 @@ private[varys] class SlaveActor(
     
     var lastUpdatedTime = System.currentTimeMillis
 
-    val readTokenRequests = new LinkedBlockingQueue[ActorRef]()
+    val readTokenRequests = new LinkedBlockingQueue[GetReadToken]()
     val writeTokenRequests = new LinkedBlockingQueue[GetWriteToken]()
 
     def updateSize(curSize_ : Long) {
@@ -64,6 +64,7 @@ private[varys] class SlaveActor(
   val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.coflowReapSec", "60").toInt * 1000
 
   val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt  
+  val MIN_READ_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
   val MIN_WRITE_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
@@ -176,6 +177,29 @@ private[varys] class SlaveActor(
         }
       } 
 
+      // Thread for periodically processing ReadTokens
+      context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
+        var bytesProcessedThisCycle = 0L
+        breakable {
+          coflowOrder.synchronized {
+            coflowOrder.foreach(c => {
+              if (coflows.containsKey(c)) {
+                val cf = coflows(c)
+                var request = cf.readTokenRequests.poll()
+                while(request != null) {
+                  idToActor(request.clientId) ! ReadToken
+                  bytesProcessedThisCycle += request.readLen
+                  if (bytesProcessedThisCycle >= MIN_READ_BYTES) {
+                    break
+                  }
+                  request = cf.readTokenRequests.poll()
+                }
+              }
+            })
+          }
+        }
+      } 
+
       // Thread for periodically processing WriteTokens
       context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
         var bytesProcessedThisCycle = 0L
@@ -282,25 +306,9 @@ private[varys] class SlaveActor(
         " for client " + clientId)
       
       if (coflows.containsKey(coflowId)) {
-        coflows(coflowId).readTokenRequests.put(idToActor(clientId))
-        self ! ProcessReadToken
+        coflows(coflowId).readTokenRequests.put(GetReadToken(clientId, coflowId, readLen))
       } else {
         idToActor(clientId) ! ReadToken
-      }
-    }
-
-    case ProcessReadToken => {
-      breakable {
-        coflowOrder.foreach(c => {
-          if (coflows.containsKey(c)) {
-            val cf = coflows(c)
-            val requester = cf.readTokenRequests.poll()
-            if (requester != null) {
-              requester ! ReadToken
-              break
-            }
-          }
-        })
       }
     }
 

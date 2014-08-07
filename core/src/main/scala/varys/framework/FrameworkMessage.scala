@@ -153,7 +153,6 @@ private[varys] case object StopClient
 private[varys] case object RegisterWithMaster
 
 // Internal message in Slave
-private[varys] case object ProcessReadToken
 
 // Internal message in Master
 private[varys] case object CheckForSlaveTimeOut
