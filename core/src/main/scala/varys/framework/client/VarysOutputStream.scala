@@ -27,6 +27,9 @@ class VarysOutputStream(
     val coflowId: String)
   extends OutputStream() with Logging {
 
+  val MIN_NOTIFICATION_THRESHOLD: Long = 
+    System.getProperty("varys.client.minNotificationMB", "1").toLong * 1048576L
+
   // For OutputStream, local is stored as flow source
   val sIPPort = Utils.getIPPortOfSocketAddress(sock.getLocalSocketAddress)
   val dIPPort = Utils.getIPPortOfSocketAddress(sock.getRemoteSocketAddress)
@@ -41,22 +44,19 @@ class VarysOutputStream(
   override def write(b: Int) = synchronized {
     preWrite(1)
     rawStream.write(b)
-    bytesWritten += 1
-    VarysOutputStream.updateSentSoFar(1)
+    postWrite(1)
   }
 
   override def write(b: Array[Byte]) = synchronized {
     preWrite(b.length)
     rawStream.write(b)
-    bytesWritten += b.length
-    VarysOutputStream.updateSentSoFar(b.length)
+    postWrite(b.length)
   }
 
   override def write(b: Array[Byte], off: Int, len: Int) = synchronized {
     preWrite(len)
     rawStream.write(b, off, len)
-    bytesWritten += len
-    VarysOutputStream.updateSentSoFar(len)
+    postWrite(len)
   }
 
   override def flush() {
@@ -69,7 +69,14 @@ class VarysOutputStream(
   }
 
   private def preWrite(writeLen: Long) {
-    VarysOutputStream.getWriteToken(writeLen)
+    if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD) {
+      VarysOutputStream.getWriteToken(writeLen)
+    }
+  }
+
+  private def postWrite(writeLen: Long) {
+    bytesWritten += writeLen
+    VarysOutputStream.updateSentSoFar(writeLen)
   }
 
   override def toString(): String = {

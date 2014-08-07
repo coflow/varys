@@ -74,6 +74,12 @@ class VarysInputStream(
     rawStream.close()
   }
 
+  private def preRead(readLen: Long) {
+    if (bytesRead >= MIN_NOTIFICATION_THRESHOLD) {
+      VarysInputStream.getReadToken(readLen)
+    }
+  }
+
   private def postRead(readLen: Int) {
     bytesRead += readLen
     if (bytesRead > MIN_NOTIFICATION_THRESHOLD) {
@@ -84,10 +90,6 @@ class VarysInputStream(
         VarysInputStream.updateReceivedSoFar(readLen)
       }
     }
-  }
-
-  private def preRead(readLen: Long) {
-    VarysInputStream.getReadToken(readLen)
   }
 
   override def toString(): String = {
