@@ -43,7 +43,7 @@ private[varys] class SlaveActor(
     var lastUpdatedTime = System.currentTimeMillis
 
     val readTokenRequests = new LinkedBlockingQueue[ActorRef]()
-    val writeTokenRequests = new LinkedBlockingQueue[ActorRef]()
+    val writeTokenRequests = new LinkedBlockingQueue[GetWriteToken]()
 
     def updateSize(curSize_ : Long) {
       curSize = curSize_
@@ -62,6 +62,9 @@ private[varys] class SlaveActor(
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
   val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.coflowReapSec", "60").toInt * 1000
+
+  val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt  
+  val MIN_WRITE_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
 
@@ -172,6 +175,30 @@ private[varys] class SlaveActor(
           master ! LocalCoflows(slaveId, coflows.map(c => (c._2.coflowId, c._2.curSize)).toArray)
         }
       } 
+
+      // Thread for periodically processing WriteTokens
+      context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
+        var bytesProcessedThisCycle = 0L
+        breakable {
+          coflowOrder.synchronized {
+            coflowOrder.foreach(c => {
+              if (coflows.containsKey(c)) {
+                val cf = coflows(c)
+                var request = cf.writeTokenRequests.poll()
+                while(request != null) {
+                  idToActor(request.clientId) ! WriteToken
+                  bytesProcessedThisCycle += request.writeLen
+                  if (bytesProcessedThisCycle >= MIN_WRITE_BYTES) {
+                    break
+                  }
+                  request = cf.writeTokenRequests.poll()
+                }
+              }
+            })
+          }
+        }
+      } 
+
     }
 
     case RegisterSlaveFailed(message) => {
@@ -181,9 +208,11 @@ private[varys] class SlaveActor(
 
     case GlobalCoflows(coflowSizes) => {
       logTrace("Received GlobalCoflows of size " + coflowSizes.length)
-      coflowOrder.clear
-      for ((cf, _) <- coflowSizes) {
-        coflowOrder += cf
+      coflowOrder.synchronized {
+        coflowOrder.clear
+        for ((cf, _) <- coflowSizes) {
+          coflowOrder += cf
+        }
       }
     }
 
@@ -281,25 +310,9 @@ private[varys] class SlaveActor(
         " for client " + clientId)
       
       if (coflows.containsKey(coflowId)) {
-        coflows(coflowId).writeTokenRequests.put(idToActor(clientId))
-        self ! ProcessWriteToken
+        coflows(coflowId).writeTokenRequests.put(GetWriteToken(clientId, coflowId, writeLen))
       } else {
         idToActor(clientId) ! WriteToken
-      }
-    }
-
-    case ProcessWriteToken => {
-      breakable {
-        coflowOrder.foreach(c => {
-          if (coflows.containsKey(c)) {
-            val cf = coflows(c)
-            val requester = cf.writeTokenRequests.poll()
-            if (requester != null) {
-              requester ! WriteToken
-              break
-            }
-          }
-        })
       }
     }
   }

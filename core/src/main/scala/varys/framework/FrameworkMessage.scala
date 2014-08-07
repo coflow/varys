@@ -154,7 +154,6 @@ private[varys] case object RegisterWithMaster
 
 // Internal message in Slave
 private[varys] case object ProcessReadToken
-private[varys] case object ProcessWriteToken
 
 // Internal message in Master
 private[varys] case object CheckForSlaveTimeOut
