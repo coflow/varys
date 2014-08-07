@@ -6,7 +6,7 @@ import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, Remote
 
 import java.io._
 import java.net._
-import java.util.concurrent.{ConcurrentHashMap, LinkedBlockingQueue}
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap, LinkedBlockingQueue}
 import java.util.concurrent.atomic._
 
 import scala.collection.mutable.ListBuffer
@@ -37,25 +37,31 @@ class VarysOutputStream(
   // Register with the shared VarysOutputStream object
   val visId = VarysOutputStream.register(this, coflowId)
 
+  val writesInProgress = new AtomicInteger(0)
+  val writeCompletionLock = new Object
+
   val rawStream = sock.getOutputStream
 
   var bytesWritten = 0L
 
   override def write(b: Int) = synchronized {
-    preWrite(1)
-    rawStream.write(b)
+    if (preWrite(Array(b.toByte), 0, 1)) {
+      rawStream.write(b) 
+    } 
     postWrite(1)
   }
 
   override def write(b: Array[Byte]) = synchronized {
-    preWrite(b.length)
-    rawStream.write(b)
+    if (preWrite(b, 0, b.length)) {
+      rawStream.write(b)
+    }
     postWrite(b.length)
   }
 
   override def write(b: Array[Byte], off: Int, len: Int) = synchronized {
-    preWrite(len)
-    rawStream.write(b, off, len)
+    if (preWrite(b, off, len)) {
+      rawStream.write(b, off, len)
+    }
     postWrite(len)
   }
 
@@ -64,19 +70,28 @@ class VarysOutputStream(
   }
 
   override def close() {
+    // Block until all writes have completed
+    writeCompletionLock.synchronized {
+      writeCompletionLock.wait()
+    }
     VarysOutputStream.unregister(visId)
     rawStream.close()
   }
 
-  private def preWrite(writeLen: Long) {
+  /**
+   * Returns true if this write should be handled locally
+   */
+  private def preWrite(b: Array[Byte], off: Int, len: Int): Boolean = {
     if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD) {
-      VarysOutputStream.getWriteToken(writeLen)
+      VarysOutputStream.getWriteToken(this, b, off, len)
+      false
+    } else {
+      true
     }
   }
 
   private def postWrite(writeLen: Long) {
     bytesWritten += writeLen
-    VarysOutputStream.updateSentSoFar(writeLen)
   }
 
   override def toString(): String = {
@@ -107,22 +122,25 @@ private[client] object VarysOutputStream extends Logging {
 
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
-  val tokenQueue = new LinkedBlockingQueue[Int]()
-
-  private val sentSoFar = new AtomicLong(0)
-
-  def updateSentSoFar(delta: Long) {
-    sentSoFar.addAndGet(delta)
-  }
+  val WRITE_QUEUE_SIZE = System.getProperty("varys.framework.txQueueSize", "16").toInt
+  val writeQueue = new ArrayBlockingQueue[(VarysOutputStream, Array[Byte])](WRITE_QUEUE_SIZE)
 
   /**
    * Blocks until receiving a token to send from local slave
    * FIXME: Does it need to be synchronized? 
    */
-  def getWriteToken(writeLen: Long) {
+  def getWriteToken(vos: VarysOutputStream, srcBytes: Array[Byte], off: Int, len: Int) {
     if (slaveClientId != null) {
-      slaveActor ! GetWriteToken(slaveClientId, coflowId, writeLen)
-      tokenQueue.take()
+      // Ask for token
+      slaveActor ! GetWriteToken(slaveClientId, coflowId, len)
+      
+      // Store to be processed later
+      val dstBytes = Array.ofDim[Byte](len)
+      System.arraycopy(srcBytes, off, dstBytes, 0, len)
+      writeQueue.put((vos, dstBytes))
+
+      // Remember how many writes are yet to be processed
+      vos.writesInProgress.incrementAndGet()
     }
   }
 
@@ -223,7 +241,13 @@ private[client] object VarysOutputStream extends Logging {
       }
 
       case WriteToken => {
-        tokenQueue.put(0)
+        val (vos, bytes) = writeQueue.take()
+        vos.rawStream.write(bytes)
+        val numWriters = vos.writesInProgress.decrementAndGet()
+        if (numWriters == 0)
+          vos.writeCompletionLock.synchronized {
+            vos.writeCompletionLock.notifyAll()
+          }
       }
     }
 
