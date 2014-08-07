@@ -36,6 +36,7 @@ object VarysBuild extends Build {
     )
   )
 
+  val akkaVersion = "2.0.5"
   val jettyVersion = "8.1.14.v20131031"
   val slf4jVersion = "1.6.1"
   val sigarVersion = "1.6.4"
@@ -57,9 +58,9 @@ object VarysBuild extends Build {
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "org.slf4j" % "slf4j-log4j12" % slf4jVersion,
       "com.google.protobuf" % "protobuf-java" % "2.4.1",
-      "com.typesafe.akka" % "akka-actor" % "2.0.3" excludeAll(excludeNetty),
-      "com.typesafe.akka" % "akka-remote" % "2.0.3" excludeAll(excludeNetty),
-      "com.typesafe.akka" % "akka-slf4j" % "2.0.3" excludeAll(excludeNetty),
+      "com.typesafe.akka" % "akka-actor" % akkaVersion excludeAll(excludeNetty),
+      "com.typesafe.akka" % "akka-remote" % akkaVersion excludeAll(excludeNetty),
+      "com.typesafe.akka" % "akka-slf4j" % akkaVersion excludeAll(excludeNetty),
       "net.liftweb" % "lift-json_2.9.2" % "2.5",
       "org.apache.thrift" % "libthrift" % "0.8.0",
       "io.netty" % "netty-all" % "4.0.0.Beta2",
