@@ -1,7 +1,6 @@
 package varys.framework.slave
 
 import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
-import akka.util.duration._
 import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
 
 import com.google.common.io.Files
@@ -113,7 +112,7 @@ private[varys] class SlaveActor(
     connectToMaster()
 
     // Thread for periodically removing dead coflows every CLEANUP_INTERVAL_MS of inactivity    
-    context.system.scheduler.schedule(CLEANUP_INTERVAL_MS millis, CLEANUP_INTERVAL_MS millis) {
+    Utils.scheduleDaemonAtFixedRate(CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS) {
       logTrace("Cleaning up dead coflows")
       val allCoflows = coflows.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]]
       val toRemove = allCoflows.filter(x => 
@@ -164,24 +163,24 @@ private[varys] class SlaveActor(
       val sendStats = System.getProperty("varys.slave.sendStats", "false").toBoolean
       if (sendStats) {
         // Thread to periodically update last{Rx|Tx}Bytes
-        context.system.scheduler.schedule(0 millis, HEARTBEAT_SEC * 1000 millis) {
+        Utils.scheduleDaemonAtFixedRate(0, HEARTBEAT_SEC * 1000) {
           updateNetStats()
           master ! Heartbeat(slaveId, curRxBps, curTxBps)
         }
       }
 
       // Thread for periodically updating coflow sizes to master
-      context.system.scheduler.schedule(REMOTE_SYNC_PERIOD_MILLIS millis, REMOTE_SYNC_PERIOD_MILLIS millis) {
+      Utils.scheduleDaemonAtFixedRate(REMOTE_SYNC_PERIOD_MILLIS, REMOTE_SYNC_PERIOD_MILLIS) {
         if (coflows.size > 0 && coflowSizeUpdated.getAndSet(false)) {
           master ! LocalCoflows(slaveId, coflows.map(c => (c._2.coflowId, c._2.curSize)).toArray)
         }
       } 
 
-      // Thread for periodically processing ReadTokens
-      context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
-        var bytesProcessedThisCycle = 0L
-        breakable {
-          coflowOrder.synchronized {
+      // Thread for periodically processing ReadTokens and WriteTokens
+      Utils.scheduleDaemonAtFixedRate(LOCAL_SYNC_PERIOD_MILLIS, LOCAL_SYNC_PERIOD_MILLIS) {
+        coflowOrder.synchronized {
+          breakable {
+            var bytesProcessedThisCycle = 0L
             coflowOrder.foreach(c => {
               if (coflows.containsKey(c)) {
                 val cf = coflows(c)
@@ -197,14 +196,9 @@ private[varys] class SlaveActor(
               }
             })
           }
-        }
-      } 
 
-      // Thread for periodically processing WriteTokens
-      context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
-        var bytesProcessedThisCycle = 0L
-        breakable {
-          coflowOrder.synchronized {
+          breakable {
+            var bytesProcessedThisCycle = 0L
             coflowOrder.foreach(c => {
               if (coflows.containsKey(c)) {
                 val cf = coflows(c)
@@ -222,7 +216,6 @@ private[varys] class SlaveActor(
           }
         }
       } 
-
     }
 
     case RegisterSlaveFailed(message) => {

@@ -92,10 +92,14 @@ private[varys] class Master(
       }
 
       // Thread to watch out for dead slaves
-      // context.system.scheduler.schedule(0 millis, SLAVE_TIMEOUT millis, self, CheckForSlaveTimeOut)
+      // Utils.scheduleDaemonAtFixedRate(0, SLAVE_TIMEOUT) {
+      //   self ! CheckForSlaveTimeOut
+      // }
 
       // Thread to periodically update global coflow sizes to all slaves
-      context.system.scheduler.schedule(0 millis, REMOTE_SYNC_PERIOD_MILLIS millis, self, SyncSlaves)
+      Utils.scheduleDaemonAtFixedRate(0, REMOTE_SYNC_PERIOD_MILLIS) {
+        self ! SyncSlaves
+      }
 
     }
 

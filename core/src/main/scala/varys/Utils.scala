@@ -7,7 +7,8 @@ import java.io._
 import java.net._
 import java.nio.{ByteBuffer, MappedByteBuffer}
 import java.util.{Locale, Random, UUID}
-import java.util.concurrent.{Executors, ThreadFactory, ThreadPoolExecutor}
+import java.util.concurrent._
+import java.util.concurrent.TimeUnit._
 
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
@@ -225,7 +226,6 @@ private object Utils extends Logging {
     pw.close
   }
 
-
   /**
    * DO NOT use other than debugging purposes.
    * Not the best way, but more or less works.
@@ -237,5 +237,24 @@ private object Utils extends Logging {
     val t1 = System.nanoTime()
     println(blockName + " elapsed time: " + (t1 - t0) + "ns")
     result
+  }
+
+  /**
+   * Runs the given code block periodically in daemon threads.
+   * FIXME: Return a handle to stop this periodic task.
+   */
+  def scheduleDaemonAtFixedRate(
+      initialDelay: Long, 
+      period: Long, 
+      threads: Int = 4) 
+      (block: => Unit) {
+    
+    val task = new Runnable() {
+      def run() { 
+        block
+      }
+    }
+    val scheduler = Executors.newScheduledThreadPool(threads, daemonThreadFactory)
+    scheduler.scheduleAtFixedRate(task, initialDelay, period, MILLISECONDS)
   }
 }

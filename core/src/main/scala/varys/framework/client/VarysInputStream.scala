@@ -211,7 +211,7 @@ private[client] object VarysInputStream extends Logging {
           " milliseconds.")
 
         // Thread to periodically update flows to local slave
-        context.system.scheduler.schedule(LOCAL_SYNC_PERIOD_MILLIS millis, LOCAL_SYNC_PERIOD_MILLIS millis) {
+        Utils.scheduleDaemonAtFixedRate(LOCAL_SYNC_PERIOD_MILLIS, LOCAL_SYNC_PERIOD_MILLIS) {
           val messages = new ListBuffer[FrameworkMessage]()
           messagesBeforeSlaveConnection.drainTo(messages)
 
