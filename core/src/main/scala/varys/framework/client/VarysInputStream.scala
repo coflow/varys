@@ -6,7 +6,7 @@ import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, Remote
 
 import java.io._
 import java.net._
-import java.util.concurrent.{ConcurrentHashMap, LinkedBlockingQueue}
+import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap, LinkedBlockingQueue}
 import java.util.concurrent.atomic._
 
 import scala.collection.mutable.ListBuffer
@@ -21,6 +21,10 @@ import varys.util._
  * The VarysInputStream enables Varys on InputStream. 
  * It is implemented as a wrapper on top of another InputStream instance.
  * Currently, works only directly on sockets.
+ *
+ * It departs from other InputStreams by returning 0 as the number of bytes read.
+ * InputStream returns 0 iff he supplied byte array has length zero, whereas VarysInputStream
+ * returns zero in the absence of tokens.
  */
 class VarysInputStream(
     val sock: Socket,
@@ -43,30 +47,42 @@ class VarysInputStream(
   var bytesRead = 0L
   
   override def read(): Int = {
-    preRead(1)
-    val data = rawStream.read()
-    if (data != -1) {
-      postRead(1)
-    }
-    data
+    val doRead = preRead(1)
+    if (doRead) {
+      val data = rawStream.read()
+      if (data != -1) {
+        postRead(1)
+      }
+      data
+    } else {
+      0
+     }
   }
 
   override def read(b: Array[Byte]): Int = {
-    preRead(b.length)
-    val readLen = rawStream.read(b)
-    if (readLen != -1) {
-      postRead(readLen)
+    val doRead = preRead(b.length)
+    if (doRead) {
+      val readLen = rawStream.read(b)
+      if (readLen != -1) {
+        postRead(readLen)
+      }
+      readLen
+    } else {
+      0
     }
-    readLen
   }
 
   override def read(b: Array[Byte], off: Int, len: Int): Int = {
-    preRead(len)
-    val readLen = rawStream.read(b, off, len)
-    if (readLen != -1) {
-      postRead(readLen)
+    val doRead = preRead(len)
+    if (doRead) {
+      val readLen = rawStream.read(b, off, len)
+      if (readLen != -1) {
+        postRead(readLen)
+      }
+      readLen
+    } else {
+      0
     }
-    readLen
   }
 
   override def close() {
@@ -74,9 +90,14 @@ class VarysInputStream(
     rawStream.close()
   }
 
-  private def preRead(readLen: Long) {
+  /**
+   * Returns true if this read should happen
+   */
+  private def preRead(readLen: Long): Boolean = {
     if (bytesRead >= MIN_NOTIFICATION_THRESHOLD) {
       VarysInputStream.getReadToken(readLen)
+    } else {
+      true
     }
   }
 
@@ -121,7 +142,10 @@ private[client] object VarysInputStream extends Logging {
 
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
-  val tokenQueue = new LinkedBlockingQueue[Int]()
+  // TODO: Consider using actual bytes, instead of number of requests
+  val READ_QUEUE_SIZE = System.getProperty("varys.framework.rxQueueSize", "32").toInt
+  val tokenQueue = new LinkedBlockingQueue[Object]()
+  val reqQueue = new ArrayBlockingQueue[Object](READ_QUEUE_SIZE)
 
   private var lastSent = new AtomicLong(0)
   private val receivedSoFar = new AtomicLong(0)
@@ -134,13 +158,21 @@ private[client] object VarysInputStream extends Logging {
   }
 
   /**
-   * Blocks until receiving a token to send from local slave
+   * Returns true if this read should proceed.
    * FIXME: Does it need to be synchronized? 
    */
-  def getReadToken(readLen: Long) {
+  def getReadToken(readLen: Long): Boolean = {
     if (slaveClientId != null) {
-      slaveActor ! GetReadToken(slaveClientId, coflowId, readLen)
-      tokenQueue.take()
+      val tok = tokenQueue.poll()
+      if (tok == null) {
+        reqQueue.put(new Object)
+        slaveActor ! GetReadToken(slaveClientId, coflowId, readLen)
+        false
+      } else {
+        true
+      }
+    } else {
+      true
     }
   }
 
@@ -241,7 +273,8 @@ private[client] object VarysInputStream extends Logging {
       }
 
       case ReadToken => {
-        tokenQueue.put(0)
+        tokenQueue.put(new Object)
+        reqQueue.take()
       }
     }
 
