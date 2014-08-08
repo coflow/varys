@@ -40,9 +40,15 @@ private[examples] object VarysExampleClient {
     oos.flush
     
     val vis = new VarysInputStream(sock, coflowId)
+    // val vis = sock.getInputStream
+
+    val st = System.currentTimeMillis
     readBytes(vis, MBToRecv * 1048576)
+    val et = System.currentTimeMillis
+    System.out.println("It took " + (et-st) + " milliseconds to receive " + MBToRecv + " MB")
     
     vis.close
     sock.close
+
   }
 }
