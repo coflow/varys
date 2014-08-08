@@ -66,5 +66,8 @@ private[examples] object VarysExampleServer {
       clientSocket.close
     }
     serverSocket.close
+
+    // Finally, unregister coflow
+    client.unregisterCoflow(coflowId)
   }  
 }
