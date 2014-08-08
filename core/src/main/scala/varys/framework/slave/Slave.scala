@@ -180,12 +180,14 @@ private[varys] class SlaveActor(
       Utils.scheduleDaemonAtFixedRate(LOCAL_SYNC_PERIOD_MILLIS, LOCAL_SYNC_PERIOD_MILLIS) {
         coflowOrder.synchronized {
           breakable {
+            logTrace("Processing GetReadTokens")
             var bytesProcessedThisCycle = 0L
             coflowOrder.foreach(c => {
               if (coflows.containsKey(c)) {
                 val cf = coflows(c)
                 var request = cf.readTokenRequests.poll()
                 while(request != null) {
+                  logTrace("Sending ReadToken to " + cf)
                   idToActor(request.clientId) ! ReadToken
                   bytesProcessedThisCycle += request.readLen
                   if (bytesProcessedThisCycle >= MIN_READ_BYTES) {
@@ -198,12 +200,14 @@ private[varys] class SlaveActor(
           }
 
           breakable {
+            logTrace("Processing GetWriteTokens")
             var bytesProcessedThisCycle = 0L
             coflowOrder.foreach(c => {
               if (coflows.containsKey(c)) {
                 val cf = coflows(c)
                 var request = cf.writeTokenRequests.poll()
                 while(request != null) {
+                  logTrace("Sending WriteToken to " + cf)
                   idToActor(request.clientId) ! WriteToken
                   bytesProcessedThisCycle += request.writeLen
                   if (bytesProcessedThisCycle >= MIN_WRITE_BYTES) {
@@ -224,7 +228,8 @@ private[varys] class SlaveActor(
     }
 
     case GlobalCoflows(coflowSizes) => {
-      logTrace("Received GlobalCoflows of size " + coflowSizes.length)
+      val newSchedule = coflowSizes.map(_._1).mkString("-->")
+      logTrace("Received GlobalCoflows of size " + coflowSizes.length + " " + newSchedule)
       coflowOrder.synchronized {
         coflowOrder.clear
         for ((cf, _) <- coflowSizes) {

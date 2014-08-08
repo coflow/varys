@@ -407,7 +407,7 @@ private[varys] class Master(
       val step3Dur = now - st
 
       logInfo("MERGE_AND_SYNC in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + 
-        step2Dur + "+" + step3Dur + ") milliseconds")
+        step2Dur + "+" + step3Dur + ") milliseconds ==> " + newSchedule)
     }
   }
 }
