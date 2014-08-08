@@ -43,6 +43,7 @@ private[examples] object VarysExampleServer {
     System.out.println("Serving client " + clientSocket)
     val ois = new ObjectInputStream(clientSocket.getInputStream)
     val out = new VarysOutputStream(clientSocket, coflowId)
+    // val out = new ObjectOutputStream(clientSocket.getOutputStream)
     
     try {
       val reqSizeMB = ois.readLong
