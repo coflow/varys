@@ -55,6 +55,7 @@ private[examples] object VarysExampleServer {
 
         out.write(buf, 0, bytesToSend.toInt)
         bytesSent += bytesToSend
+        System.out.println("Sent " + bytesSent + " bytes of " + totBytes)
       }
     } catch {
       case e: Exception => {
