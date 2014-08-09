@@ -71,8 +71,10 @@ class VarysOutputStream(
 
   override def close() {
     // Block until all writes have completed
-    writeCompletionLock.synchronized {
-      writeCompletionLock.wait()
+    if (writesInProgress.get > 0) {
+      writeCompletionLock.synchronized {
+        writeCompletionLock.wait()
+      }
     }
     VarysOutputStream.unregister(visId)
     rawStream.close()
