@@ -43,7 +43,7 @@ private[examples] object VarysExampleServer {
     System.out.println("Serving client " + clientSocket)
     val ois = new ObjectInputStream(clientSocket.getInputStream)
     val out = new VarysOutputStream(clientSocket, coflowId)
-    // val out = new ObjectOutputStream(clientSocket.getOutputStream)
+    // val out = new BufferedOutputStream(clientSocket.getOutputStream)
     
     try {
       val reqSizeMB = ois.readLong
@@ -56,7 +56,7 @@ private[examples] object VarysExampleServer {
 
         out.write(buf, 0, bytesToSend.toInt)
         bytesSent += bytesToSend
-        System.out.println("Sent " + bytesSent + " bytes of " + totBytes)
+        System.out.println("Sent " + bytesSent + " bytes of " + totBytes + " n = " + bytesToSend)
       }
     } catch {
       case e: Exception => {
