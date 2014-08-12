@@ -16,7 +16,7 @@ private[examples] object VarysExampleClient {
       } else {
         bytesReceived += n
       }
-      System.out.println("Received " + bytesReceived + " bytes of " + bytesToRecv)
+      System.out.println("Received " + bytesReceived + " bytes of " + bytesToRecv + " n = " + n)
     }
   }
 
