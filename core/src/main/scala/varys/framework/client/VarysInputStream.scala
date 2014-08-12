@@ -121,8 +121,7 @@ class VarysInputStream(
 }
 
 private[client] object VarysInputStream extends Logging {
-  val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt
-  val MIN_LOCAL_UPDATE_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
+  val MIN_LOCAL_UPDATE_BYTES = 1048576L
 
   var actorSystem: ActorSystem = null
   var clientActor: ActorRef = null
@@ -133,8 +132,6 @@ private[client] object VarysInputStream extends Logging {
   var clientName: String = ""
 
   var slaveActor: ActorRef = null
-  val slaveClientRegisterLock = new Object
-  
   var slaveClientId: String = null
 
   val curVISId = new AtomicInteger(0)
@@ -202,16 +199,6 @@ private[client] object VarysInputStream extends Logging {
     activeStreams -= visId
   }
 
-  // Wait until the client has been registered with the master
-  private def waitForSlaveRegistration = {
-    while (slaveClientId == null) {
-      slaveClientRegisterLock.synchronized { 
-        slaveClientRegisterLock.wait()
-        slaveClientRegisterLock.notifyAll()
-      }
-    }
-  }
-
   class VarysInputStreamActor extends Actor with Logging {
     var slaveUrl: String = "varys://" + Utils.localHostName + ":1607"
     var slaveAddress: Address = null
@@ -236,21 +223,14 @@ private[client] object VarysInputStream extends Logging {
     override def receive = {
       case RegisteredSlaveClient(clientId_) => {
         slaveClientId = clientId_
-        slaveClientRegisterLock.synchronized { 
-          slaveClientRegisterLock.notifyAll() 
-        }
         logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
           " milliseconds.")
 
-        // Thread to periodically update flows to local slave
-        Utils.scheduleDaemonAtFixedRate(LOCAL_SYNC_PERIOD_MILLIS, LOCAL_SYNC_PERIOD_MILLIS) {
-          val messages = new ListBuffer[FrameworkMessage]()
-          messagesBeforeSlaveConnection.drainTo(messages)
-
-          // TODO: Optimize by ignoring coupled Started/Completed messages
-          for (m <- messages) {
-            slaveActor ! m
-          }
+        // Send missed updates to local slave
+        val messages = new ListBuffer[FrameworkMessage]()
+        messagesBeforeSlaveConnection.drainTo(messages)
+        for (m <- messages) {
+          slaveActor ! m
         }
       }
 
