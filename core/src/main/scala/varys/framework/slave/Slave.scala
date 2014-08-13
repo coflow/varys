@@ -12,6 +12,10 @@ import java.util.concurrent.{ConcurrentHashMap, LinkedBlockingQueue}
 import java.util.Date
 import java.net._
 
+import net.openhft.chronicle.ExcerptTailer
+import net.openhft.chronicle.VanillaChronicle
+import net.openhft.chronicle.VanillaChronicleConfig
+
 import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
@@ -88,10 +92,16 @@ private[varys] class SlaveActor(
   val actorToClient = new ConcurrentHashMap[ActorRef, ClientInfo]()
   val addressToClient = new ConcurrentHashMap[Address, ClientInfo]()
   val idToActor = new ConcurrentHashMap[String, ActorRef]()
+  val idToAppender = new ConcurrentHashMap[String, VanillaChronicle.VanillaAppender]()
 
   val coflows = new ConcurrentHashMap[String, CoflowInfo]()
   val coflowSizeUpdated = new AtomicBoolean(false)
   val coflowOrder = new ArrayBuffer[String]()
+
+  val SLAVE_HFT_PATH = "/tmp/HFT-slave"  
+  val config = new VanillaChronicleConfig()
+  var slaveChronicle: VanillaChronicle = null
+  var slaveTailer: ExcerptTailer = null
 
   var sigar = new Sigar()
   var lastRxBytes = -1.0
@@ -111,6 +121,10 @@ private[varys] class SlaveActor(
     webUi.start()
     connectToMaster()
 
+    // Chronicle preStart
+    slaveChronicle = new VanillaChronicle(SLAVE_HFT_PATH)
+    slaveTailer = slaveChronicle.createTailer()
+
     // Thread for periodically removing dead coflows every CLEANUP_INTERVAL_MS of inactivity    
     Utils.scheduleDaemonAtFixedRate(CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS) {
       logTrace("Cleaning up dead coflows")
@@ -121,6 +135,28 @@ private[varys] class SlaveActor(
       toRemove.foreach(c => coflows -= c.coflowId)
       logTrace("Removed %d dead coflows %s".format(numToRemove, toRemove))
     } 
+
+    // Thread for reading chronicle input
+    Utils.scheduleDaemonAtFixedRate(0, 1) {
+      while (slaveTailer.nextIndex) {
+        val msgType = slaveTailer.readInt()
+        msgType match {
+          case HFTUtils.GetReadToken => {
+            val clientId = slaveTailer.readUTF()
+            val coflowId = slaveTailer.readUTF()
+            val len = slaveTailer.readLong()
+            self ! GetReadToken(clientId, coflowId, len)
+          }
+          case HFTUtils.GetWriteToken => {            
+            val clientId = slaveTailer.readUTF()
+            val coflowId = slaveTailer.readUTF()
+            val len = slaveTailer.readLong()
+            self ! GetWriteToken(clientId, coflowId, len)
+          }
+        }
+        slaveTailer.finish
+      }
+    }    
   }
 
   override def postStop() {
@@ -180,7 +216,6 @@ private[varys] class SlaveActor(
       Utils.scheduleDaemonAtFixedRate(LOCAL_SYNC_PERIOD_MILLIS, LOCAL_SYNC_PERIOD_MILLIS) {
         coflowOrder.synchronized {
           breakable {
-            logTrace("Processing GetReadTokens")
             var bytesProcessedThisCycle = 0L
             coflowOrder.foreach(c => {
               if (coflows.containsKey(c)) {
@@ -188,7 +223,10 @@ private[varys] class SlaveActor(
                 var request = cf.readTokenRequests.poll()
                 while(request != null) {
                   logTrace("Sending ReadToken to " + cf)
-                  idToActor(request.clientId) ! ReadToken
+                  // idToActor(request.clientId) ! ReadToken
+                  idToAppender(request.clientId).startExcerpt()
+                  idToAppender(request.clientId).writeInt(HFTUtils.ReadToken)
+                  idToAppender(request.clientId).finish()
                   bytesProcessedThisCycle += request.readLen
                   if (bytesProcessedThisCycle >= MIN_READ_BYTES) {
                     break
@@ -200,7 +238,6 @@ private[varys] class SlaveActor(
           }
 
           breakable {
-            logTrace("Processing GetWriteTokens")
             var bytesProcessedThisCycle = 0L
             coflowOrder.foreach(c => {
               if (coflows.containsKey(c)) {
@@ -208,7 +245,10 @@ private[varys] class SlaveActor(
                 var request = cf.writeTokenRequests.poll()
                 while(request != null) {
                   logTrace("Sending WriteToken to " + cf)
-                  idToActor(request.clientId) ! WriteToken
+                  // idToActor(request.clientId) ! WriteToken
+                  idToAppender(request.clientId).startExcerpt()
+                  idToAppender(request.clientId).writeInt(HFTUtils.WriteToken)
+                  idToAppender(request.clientId).finish()
                   bytesProcessedThisCycle += request.writeLen
                   if (bytesProcessedThisCycle >= MIN_WRITE_BYTES) {
                     break
@@ -337,6 +377,7 @@ private[varys] class SlaveActor(
     actorToClient(actor) = client
     addressToClient(actor.path.address) = client
     idToActor(client.id) = actor
+    idToAppender(client.id) = (new VanillaChronicle("/tmp/HFT-" + client.id)).createAppender()
     client
   }
 

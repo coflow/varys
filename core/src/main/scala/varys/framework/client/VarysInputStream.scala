@@ -9,6 +9,10 @@ import java.net._
 import java.util.concurrent.{ArrayBlockingQueue, ConcurrentHashMap, LinkedBlockingQueue}
 import java.util.concurrent.atomic._
 
+import net.openhft.chronicle.ExcerptTailer
+import net.openhft.chronicle.VanillaChronicle
+import net.openhft.chronicle.VanillaChronicleConfig
+
 import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConversions._
 
@@ -144,6 +148,13 @@ private[client] object VarysInputStream extends Logging {
   val tokenQueue = new LinkedBlockingQueue[Object]()
   val reqQueue = new ArrayBlockingQueue[Object](READ_QUEUE_SIZE)
 
+  val SLAVE_HFT_PATH = "/tmp/HFT-slave"
+  var slaveChronicle = new VanillaChronicle(SLAVE_HFT_PATH)
+  var slaveAppender = slaveChronicle.createAppender()
+
+  var localChronicle: VanillaChronicle = null
+  var localTailer: ExcerptTailer = null
+
   private var lastSent = new AtomicLong(0)
   private val receivedSoFar = new AtomicLong(0)
   def updateReceivedSoFar(delta: Long) = synchronized {
@@ -163,7 +174,13 @@ private[client] object VarysInputStream extends Logging {
       val tok = tokenQueue.poll()
       if (tok == null) {
         reqQueue.put(new Object)
-        slaveActor ! GetReadToken(slaveClientId, coflowId, readLen)
+        // slaveActor ! GetReadToken(slaveClientId, coflowId, readLen)
+        slaveAppender.startExcerpt()
+        slaveAppender.writeInt(HFTUtils.GetReadToken)
+        slaveAppender.writeUTF(slaveClientId)
+        slaveAppender.writeUTF(coflowId)
+        slaveAppender.writeLong(readLen)
+        slaveAppender.finish()
         false
       } else {
         true
@@ -222,16 +239,33 @@ private[client] object VarysInputStream extends Logging {
 
     override def receive = {
       case RegisteredSlaveClient(clientId_) => {
-        slaveClientId = clientId_
-        logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
-          " milliseconds.")
-
         // Send missed updates to local slave
         val messages = new ListBuffer[FrameworkMessage]()
         messagesBeforeSlaveConnection.drainTo(messages)
         for (m <- messages) {
           slaveActor ! m
         }
+
+        // Chronicle preStart
+        val config = new VanillaChronicleConfig()
+        localChronicle = new VanillaChronicle("/tmp/HFT-" + clientId_)
+        localTailer = localChronicle.createTailer()
+
+        Utils.scheduleDaemonAtFixedRate(0, 1) {
+          while (localTailer.nextIndex) {
+            val msgType = localTailer.readInt()
+            msgType match {
+              case HFTUtils.ReadToken => {            
+                self ! ReadToken
+              }
+            }
+            localTailer.finish
+          }
+        }
+
+        slaveClientId = clientId_
+        logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
+          " milliseconds.")
       }
 
       case Terminated(actor_) => {
