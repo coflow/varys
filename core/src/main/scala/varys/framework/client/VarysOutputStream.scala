@@ -124,7 +124,7 @@ private[client] object VarysOutputStream extends Logging {
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
   // TODO: Consider using actual bytes, instead of number of requests
-  val WRITE_QUEUE_SIZE = System.getProperty("varys.framework.txQueueSize", "8").toInt
+  val WRITE_QUEUE_SIZE = System.getProperty("varys.framework.txQueueSize", "16").toInt
   val writeQueue = new ArrayBlockingQueue[(VarysOutputStream, Array[Byte])](WRITE_QUEUE_SIZE)
 
   var slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)

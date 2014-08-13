@@ -65,9 +65,11 @@ private[varys] class SlaveActor(
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
   val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.coflowReapSec", "60").toInt * 1000
 
-  val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt  
-  val MIN_READ_BYTES  = 131072L * LOCAL_SYNC_PERIOD_MILLIS
-  val MIN_WRITE_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
+  val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.slave.localSyncPeriod", "8").toInt  
+
+  val MULT_FACTOR = System.getProperty("varys.slave.ioCapMultiplier", "1").toDouble  
+  val MIN_READ_BYTES  = MULT_FACTOR * 131072 * LOCAL_SYNC_PERIOD_MILLIS
+  val MIN_WRITE_BYTES = MULT_FACTOR * 131072 * LOCAL_SYNC_PERIOD_MILLIS
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
 
