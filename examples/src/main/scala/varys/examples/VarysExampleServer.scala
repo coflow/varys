@@ -48,7 +48,7 @@ private[examples] object VarysExampleServer {
     try {
       val reqSizeMB = ois.readLong
       val totBytes = reqSizeMB * 1048576       
-      val buf = new Array[Byte](65535)
+      val buf = new Array[Byte](131072)
       var bytesSent = 0L
       while (bytesSent < totBytes) {
         val bytesToSend = 

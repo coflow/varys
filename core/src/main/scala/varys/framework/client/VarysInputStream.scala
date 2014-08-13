@@ -144,7 +144,7 @@ private[client] object VarysInputStream extends Logging {
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
   // TODO: Consider using actual bytes, instead of number of requests
-  val READ_QUEUE_SIZE = System.getProperty("varys.framework.rxQueueSize", "32").toInt
+  val READ_QUEUE_SIZE = System.getProperty("varys.framework.rxQueueSize", "8").toInt
   val tokenQueue = new LinkedBlockingQueue[Object]()
   val reqQueue = new ArrayBlockingQueue[Object](READ_QUEUE_SIZE)
 
@@ -251,17 +251,25 @@ private[client] object VarysInputStream extends Logging {
         localChronicle = new VanillaChronicle("/tmp/HFT-" + clientId_)
         localTailer = localChronicle.createTailer()
 
-        Utils.scheduleDaemonAtFixedRate(0, 1) {
-          while (localTailer.nextIndex) {
-            val msgType = localTailer.readInt()
-            msgType match {
-              case HFTUtils.ReadToken => {            
-                self ! ReadToken
+        // Thread for reading chronicle input
+        val someThread = new Thread(new Runnable() { 
+          override def run() {
+            while (true) {
+              while (localTailer.nextIndex) {
+                val msgType = localTailer.readInt()
+                msgType match {
+                  case HFTUtils.ReadToken => {            
+                    self ! ReadToken
+                  }
+                }
+                localTailer.finish
               }
+              Thread.sleep(1)
             }
-            localTailer.finish
           }
-        }
+        })
+        someThread.setDaemon(true)
+        someThread.start()
 
         slaveClientId = clientId_
         logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 

@@ -7,7 +7,7 @@ import varys.framework.client.VarysInputStream
 
 private[examples] object VarysExampleClient {
   def readBytes(in: InputStream, bytesToRecv: Long) {
-    val buf = new Array[Byte](65535)
+    val buf = new Array[Byte](131072)
     var bytesReceived = 0L
     while (bytesReceived < bytesToRecv) {
       val n = in.read(buf)

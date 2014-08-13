@@ -67,7 +67,7 @@ private[varys] class SlaveActor(
   val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.coflowReapSec", "60").toInt * 1000
 
   val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.localSyncPeriod", "8").toInt  
-  val MIN_READ_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
+  val MIN_READ_BYTES  = 131072L * LOCAL_SYNC_PERIOD_MILLIS
   val MIN_WRITE_BYTES = 131072L * LOCAL_SYNC_PERIOD_MILLIS
 
   val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
@@ -137,26 +137,33 @@ private[varys] class SlaveActor(
     } 
 
     // Thread for reading chronicle input
-    Utils.scheduleDaemonAtFixedRate(0, 1) {
-      while (slaveTailer.nextIndex) {
-        val msgType = slaveTailer.readInt()
-        msgType match {
-          case HFTUtils.GetReadToken => {
-            val clientId = slaveTailer.readUTF()
-            val coflowId = slaveTailer.readUTF()
-            val len = slaveTailer.readLong()
-            self ! GetReadToken(clientId, coflowId, len)
+    val someThread = new Thread(new Runnable() { 
+      override def run() {
+        while (true) {
+          while (slaveTailer.nextIndex) {
+            val msgType = slaveTailer.readInt()
+            msgType match {
+              case HFTUtils.GetReadToken => {
+                val clientId = slaveTailer.readUTF()
+                val coflowId = slaveTailer.readUTF()
+                val len = slaveTailer.readLong()
+                self ! GetReadToken(clientId, coflowId, len)
+              }
+              case HFTUtils.GetWriteToken => {            
+                val clientId = slaveTailer.readUTF()
+                val coflowId = slaveTailer.readUTF()
+                val len = slaveTailer.readLong()
+                self ! GetWriteToken(clientId, coflowId, len)
+              }
+            }
+            slaveTailer.finish
           }
-          case HFTUtils.GetWriteToken => {            
-            val clientId = slaveTailer.readUTF()
-            val coflowId = slaveTailer.readUTF()
-            val len = slaveTailer.readLong()
-            self ! GetWriteToken(clientId, coflowId, len)
-          }
+          Thread.sleep(1)
         }
-        slaveTailer.finish
       }
-    }    
+    })
+    someThread.setDaemon(true)
+    someThread.start()
   }
 
   override def postStop() {
