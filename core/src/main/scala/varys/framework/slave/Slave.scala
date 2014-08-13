@@ -14,7 +14,6 @@ import java.net._
 
 import net.openhft.chronicle.ExcerptTailer
 import net.openhft.chronicle.VanillaChronicle
-import net.openhft.chronicle.VanillaChronicleConfig
 
 import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
@@ -98,8 +97,6 @@ private[varys] class SlaveActor(
   val coflowSizeUpdated = new AtomicBoolean(false)
   val coflowOrder = new ArrayBuffer[String]()
 
-  val SLAVE_HFT_PATH = "/tmp/HFT-slave"  
-  val config = new VanillaChronicleConfig()
   var slaveChronicle: VanillaChronicle = null
   var slaveTailer: ExcerptTailer = null
 
@@ -122,7 +119,8 @@ private[varys] class SlaveActor(
     connectToMaster()
 
     // Chronicle preStart
-    slaveChronicle = new VanillaChronicle(SLAVE_HFT_PATH)
+    HFTUtils.cleanWorkDir
+    slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
     slaveTailer = slaveChronicle.createTailer()
 
     // Thread for periodically removing dead coflows every CLEANUP_INTERVAL_MS of inactivity    
@@ -230,7 +228,6 @@ private[varys] class SlaveActor(
                 var request = cf.readTokenRequests.poll()
                 while(request != null) {
                   logTrace("Sending ReadToken to " + cf)
-                  // idToActor(request.clientId) ! ReadToken
                   idToAppender(request.clientId).startExcerpt()
                   idToAppender(request.clientId).writeInt(HFTUtils.ReadToken)
                   idToAppender(request.clientId).finish()
@@ -252,7 +249,6 @@ private[varys] class SlaveActor(
                 var request = cf.writeTokenRequests.poll()
                 while(request != null) {
                   logTrace("Sending WriteToken to " + cf)
-                  // idToActor(request.clientId) ! WriteToken
                   idToAppender(request.clientId).startExcerpt()
                   idToAppender(request.clientId).writeInt(HFTUtils.WriteToken)
                   idToAppender(request.clientId).finish()
@@ -384,7 +380,7 @@ private[varys] class SlaveActor(
     actorToClient(actor) = client
     addressToClient(actor.path.address) = client
     idToActor(client.id) = actor
-    idToAppender(client.id) = (new VanillaChronicle("/tmp/HFT-" + client.id)).createAppender()
+    idToAppender(client.id) = (new VanillaChronicle(HFTUtils.createWorkDirPath(client.id))).createAppender()
     client
   }
 

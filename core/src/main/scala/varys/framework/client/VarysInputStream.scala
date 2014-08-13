@@ -11,7 +11,6 @@ import java.util.concurrent.atomic._
 
 import net.openhft.chronicle.ExcerptTailer
 import net.openhft.chronicle.VanillaChronicle
-import net.openhft.chronicle.VanillaChronicleConfig
 
 import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConversions._
@@ -148,8 +147,7 @@ private[client] object VarysInputStream extends Logging {
   val tokenQueue = new LinkedBlockingQueue[Object]()
   val reqQueue = new ArrayBlockingQueue[Object](READ_QUEUE_SIZE)
 
-  val SLAVE_HFT_PATH = "/tmp/HFT-slave"
-  var slaveChronicle = new VanillaChronicle(SLAVE_HFT_PATH)
+  var slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
   var slaveAppender = slaveChronicle.createAppender()
 
   var localChronicle: VanillaChronicle = null
@@ -174,7 +172,6 @@ private[client] object VarysInputStream extends Logging {
       val tok = tokenQueue.poll()
       if (tok == null) {
         reqQueue.put(new Object)
-        // slaveActor ! GetReadToken(slaveClientId, coflowId, readLen)
         slaveAppender.startExcerpt()
         slaveAppender.writeInt(HFTUtils.GetReadToken)
         slaveAppender.writeUTF(slaveClientId)
@@ -247,8 +244,7 @@ private[client] object VarysInputStream extends Logging {
         }
 
         // Chronicle preStart
-        val config = new VanillaChronicleConfig()
-        localChronicle = new VanillaChronicle("/tmp/HFT-" + clientId_)
+        localChronicle = new VanillaChronicle(HFTUtils.createWorkDirPath(clientId_))
         localTailer = localChronicle.createTailer()
 
         // Thread for reading chronicle input
