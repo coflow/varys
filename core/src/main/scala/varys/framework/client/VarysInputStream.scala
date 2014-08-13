@@ -143,7 +143,7 @@ private[client] object VarysInputStream extends Logging {
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
 
   // TODO: Consider using actual bytes, instead of number of requests
-  val READ_QUEUE_SIZE = System.getProperty("varys.framework.rxQueueSize", "16").toInt
+  val READ_QUEUE_SIZE = System.getProperty("varys.client.rxQueueSize", "16").toInt
   val tokenQueue = new LinkedBlockingQueue[Object]()
   val reqQueue = new ArrayBlockingQueue[Object](READ_QUEUE_SIZE)
 
