@@ -98,7 +98,7 @@ class VarysInputStream(
    */
   private def preRead(readLen: Long): Boolean = {
     if (bytesRead >= MIN_NOTIFICATION_THRESHOLD) {
-      VarysInputStream.getReadToken(readLen)
+      VarysInputStream.getReadToken()
     } else {
       true
     }
@@ -149,6 +149,7 @@ private[client] object VarysInputStream extends Logging {
 
   // Actual read length is unknown. Instead, we'll be using the read size from last read
   val lastReadLen = new AtomicLong(0)
+  val numReads = new AtomicInteger(0)
 
   var slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
   var slaveAppender = slaveChronicle.createAppender()
@@ -160,7 +161,8 @@ private[client] object VarysInputStream extends Logging {
   private val receivedSoFar = new AtomicLong(0)
   def updateReceivedSoFar(firstNotification: Boolean, delta: Long) = synchronized {
     if (!firstNotification) {
-      lastReadLen.set(delta)
+      lastReadLen.addAndGet(delta)
+      numReads.incrementAndGet()
     }
     val recvdSoFar = receivedSoFar.addAndGet(delta)
     if (slaveClientId != null && recvdSoFar - lastSent.get > MIN_LOCAL_UPDATE_BYTES) {
@@ -173,16 +175,23 @@ private[client] object VarysInputStream extends Logging {
    * Returns true if this read should proceed.
    * FIXME: Does it need to be synchronized? 
    */
-  def getReadToken(readLen: Long): Boolean = {
+  def getReadToken(): Boolean = {
     if (slaveClientId != null) {
       val tok = tokenQueue.poll()
       if (tok == null) {
         reqQueue.put(new Object)
+
+        val readLen = 
+          if (numReads.get > 0) 
+            lastReadLen.get / numReads.get
+          else 
+            0
+
         slaveAppender.startExcerpt()
         slaveAppender.writeInt(HFTUtils.GetReadToken)
         slaveAppender.writeUTF(slaveClientId)
         slaveAppender.writeUTF(coflowId)
-        slaveAppender.writeLong(lastReadLen.get)
+        slaveAppender.writeLong(readLen)
         slaveAppender.finish()
         false
       } else {
