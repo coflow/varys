@@ -144,12 +144,9 @@ private[client] object VarysInputStream extends Logging {
 
   // TODO: Consider using actual bytes, instead of number of requests
   val READ_QUEUE_SIZE = System.getProperty("varys.client.rxQueueSize", "16").toInt
-  val tokenQueue = new LinkedBlockingQueue[Object]()
   val reqQueue = new ArrayBlockingQueue[Object](READ_QUEUE_SIZE)
-
-  // Actual read length is unknown. Instead, we'll be using the read size from last read
-  val lastReadLen = new AtomicLong(0)
-  val numReads = new AtomicInteger(0)
+  val tokenLeft = new AtomicLong(0)
+  val TOKEN_SIZE = 131072L
 
   var slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
   var slaveAppender = slaveChronicle.createAppender()
@@ -161,8 +158,7 @@ private[client] object VarysInputStream extends Logging {
   private val receivedSoFar = new AtomicLong(0)
   def updateReceivedSoFar(firstNotification: Boolean, delta: Long) = synchronized {
     if (!firstNotification) {
-      lastReadLen.addAndGet(delta)
-      numReads.incrementAndGet()
+      tokenLeft.getAndAdd(-delta)
     }
     val recvdSoFar = receivedSoFar.addAndGet(delta)
     if (slaveClientId != null && recvdSoFar - lastSent.get > MIN_LOCAL_UPDATE_BYTES) {
@@ -177,22 +173,16 @@ private[client] object VarysInputStream extends Logging {
    */
   def getReadToken(): Boolean = {
     if (slaveClientId != null) {
-      val tok = tokenQueue.poll()
-      if (tok == null) {
+      if (tokenLeft.get <= 0) {
         reqQueue.put(new Object)
-
-        val readLen = 
-          if (numReads.get > 0) 
-            lastReadLen.get / numReads.get
-          else 
-            0
 
         slaveAppender.startExcerpt()
         slaveAppender.writeInt(HFTUtils.GetReadToken)
         slaveAppender.writeUTF(slaveClientId)
         slaveAppender.writeUTF(coflowId)
-        slaveAppender.writeLong(readLen)
+        slaveAppender.writeLong(TOKEN_SIZE)
         slaveAppender.finish()
+
         false
       } else {
         true
@@ -314,7 +304,7 @@ private[client] object VarysInputStream extends Logging {
       }
 
       case ReadToken => {
-        tokenQueue.put(new Object)
+        tokenLeft.getAndAdd(TOKEN_SIZE)
         reqQueue.take()
       }
     }
