@@ -203,13 +203,21 @@ private[client] object VarysInputStream extends Logging {
     init(coflowId_)
     val visId = curVISId.getAndIncrement()
     activeStreams(visId) = vis
-    messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vis.sIPPort, vis.dIPPort))
+    if (slaveActor == null) {
+      messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vis.sIPPort, vis.dIPPort))
+    } else {
+      slaveActor ! StartedFlow(coflowId, vis.sIPPort, vis.dIPPort)
+    }
     visId
   }
 
   def unregister(visId: Int) {
     val vis = activeStreams(visId)
-    messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, vis.sIPPort, vis.dIPPort))
+    if (slaveActor == null) {
+      messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, vis.sIPPort, vis.dIPPort)) 
+    } else {
+      slaveActor ! CompletedFlow(coflowId, vis.sIPPort, vis.dIPPort)
+    }
     activeStreams -= visId
   }
 

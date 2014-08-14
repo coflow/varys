@@ -118,7 +118,7 @@ private[client] object VarysOutputStream extends Logging {
   var slaveActor: ActorRef = null
   var slaveClientId: String = null
 
-  val curVISId = new AtomicInteger(0)
+  val curVOSId = new AtomicInteger(0)
   val activeStreams = new ConcurrentHashMap[Int, VarysOutputStream]()
 
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
@@ -169,18 +169,26 @@ private[client] object VarysOutputStream extends Logging {
     }
   }
 
-  def register(vis: VarysOutputStream, coflowId_ : String): Int = {
+  def register(vos: VarysOutputStream, coflowId_ : String): Int = {
     init(coflowId_)
-    val visId = curVISId.getAndIncrement()
-    activeStreams(visId) = vis
-    messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vis.sIPPort, vis.dIPPort))
-    visId
+    val vosId = curVOSId.getAndIncrement()
+    activeStreams(vosId) = vos
+    if (slaveClientId == null) {
+      messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vos.sIPPort, vos.dIPPort))
+    } else {
+      slaveActor ! StartedFlow(coflowId, vos.sIPPort, vos.dIPPort)
+    }
+    vosId
   }
 
-  def unregister(visId: Int) {
-    val vis = activeStreams(visId)
-    messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, vis.sIPPort, vis.dIPPort))
-    activeStreams -= visId
+  def unregister(vosId: Int) {
+    val vos = activeStreams(vosId)
+    if (slaveClientId == null) {
+      messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, vos.sIPPort, vos.dIPPort))
+    } else {
+      slaveActor ! CompletedFlow(coflowId, vos.sIPPort, vos.dIPPort)
+    }
+    activeStreams -= vosId
   }
 
   class VarysOutputStreamActor extends Actor with Logging {
