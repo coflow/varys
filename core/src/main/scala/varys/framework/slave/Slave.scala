@@ -220,7 +220,7 @@ private[varys] class SlaveActor(
       } 
 
       // Thread for periodically processing ReadTokens and WriteTokens
-      Utils.scheduleDaemonAtFixedRate(LOCAL_SYNC_PERIOD_MILLIS, LOCAL_SYNC_PERIOD_MILLIS) {
+      Utils.scheduleDaemonAtFixedRate(0, LOCAL_SYNC_PERIOD_MILLIS) {
         coflowOrder.synchronized {
           breakable {
             var bytesProcessedThisCycle = 0L
@@ -242,7 +242,11 @@ private[varys] class SlaveActor(
               }
             })
           }
+        }
+      }
 
+      Utils.scheduleDaemonAtFixedRate(0, LOCAL_SYNC_PERIOD_MILLIS) {
+        coflowOrder.synchronized {
           breakable {
             var bytesProcessedThisCycle = 0L
             coflowOrder.foreach(c => {
