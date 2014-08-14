@@ -154,6 +154,8 @@ private[client] object VarysOutputStream extends Logging {
 
       // Remember how many writes are yet to be processed
       vos.writesInProgress.incrementAndGet()
+    } else {
+      vos.rawStream.write(srcBytes)
     }
   }
 
@@ -272,10 +274,11 @@ private[client] object VarysOutputStream extends Logging {
         val (vos, bytes) = writeQueue.take()
         vos.rawStream.write(bytes)
         val numWriters = vos.writesInProgress.decrementAndGet()
-        if (numWriters == 0)
+        if (numWriters == 0) {
           vos.writeCompletionLock.synchronized {
             vos.writeCompletionLock.notifyAll()
           }
+        }
       }
     }
 
