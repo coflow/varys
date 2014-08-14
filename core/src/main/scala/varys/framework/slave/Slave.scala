@@ -276,10 +276,24 @@ private[varys] class SlaveActor(
       val newSchedule = coflowSizes.map(_._1).mkString("-->")
       logTrace("Received GlobalCoflows of size " + coflowSizes.length + " " + newSchedule)
       coflowOrder.synchronized {
-        coflowOrder.clear
+        // Store the new coflow order
+        val newOrder = new ArrayBuffer[String]()
         for ((cf, _) <- coflowSizes) {
-          coflowOrder += cf
+          newOrder += cf
         }
+        
+        // Remember coflows that locally exists, but somehow globally doesn't
+        val toKeep = new ArrayBuffer[String]
+        for (c <- coflowOrder) {
+          if (!newOrder.contains(c)) {
+            toKeep += c
+          }
+        }
+
+        // Update new order by giving local ones higher priority than global order
+        coflowOrder.clear
+        coflowOrder ++= toKeep
+        coflowOrder ++= newOrder
       }
     }
 
