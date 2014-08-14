@@ -15,7 +15,7 @@ private[varys] object HFTUtils extends Logging {
   val ReadToken     = 2
   val WriteToken    = 3
 
-  val HFT_WORKDIR_PATH = "/tmp/HFT"
+  val HFT_WORKDIR_PATH = System.getProperty("varys.framework.hftWorkDir", "/tmp/HFT")
   val HFT_LOCAL_SLAVE_PATH = HFT_WORKDIR_PATH + "/SLAVE"
 
   def createWorkDirPath(id: String): String = {
