@@ -85,11 +85,15 @@ private[framework] object DarkScheduler extends Logging {
     }
   }
 
-  def getSchedule(): Array[(String, Long)] = {
-    val retVal = new ArrayBuffer[(String, Long)]
+  def getSchedule(): (Array[String], Array[Long]) = {
+    val retCoflows = new ArrayBuffer[String]
+    val retSizes = new ArrayBuffer[Long]
     for (i <- 0 until NUM_JOB_QUEUES) {
-      retVal ++= sortedCoflows(i).map(cf => (cf.coflowId, cf.sizeSoFar))
+      for (cf <- sortedCoflows(i)) {
+        retCoflows += cf.coflowId
+        retSizes += cf.sizeSoFar
+      }
     }
-    retVal.toArray
+    (retCoflows.toArray, retSizes.toArray)
   }
 }

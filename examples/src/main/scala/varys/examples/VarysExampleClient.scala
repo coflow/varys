@@ -3,8 +3,6 @@ package varys.examples
 import java.io._
 import java.net._
 
-import varys.framework.client.VarysInputStream
-
 private[examples] object VarysExampleClient {
   def readBytes(in: InputStream, bytesToRecv: Long) {
     val buf = new Array[Byte](131072)
@@ -39,8 +37,7 @@ private[examples] object VarysExampleClient {
     oos.writeLong(MBToRecv)
     oos.flush
     
-    val vis = new VarysInputStream(sock, coflowId)
-    // val vis = sock.getInputStream
+    val vis = sock.getInputStream
 
     val st = System.currentTimeMillis
     readBytes(vis, MBToRecv * 1048576)

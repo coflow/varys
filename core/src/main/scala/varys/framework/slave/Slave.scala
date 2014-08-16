@@ -40,26 +40,27 @@ private[varys] class SlaveActor(
       val coflowId: String,
       var curSize: Long) {
 
-    val flows = new HashSet[(String, String)]()
+    val flows = new ArrayBuffer[String]()
     
     var lastUpdatedTime = System.currentTimeMillis
 
-    val readTokenRequests = new LinkedBlockingQueue[GetReadToken]()
-    val writeTokenRequests = new LinkedBlockingQueue[GetWriteToken]()
+    var clientId: String = null
 
     def updateSize(curSize_ : Long) {
       curSize = curSize_
       lastUpdatedTime = System.currentTimeMillis
     }
 
-    def addFlow(sIPPort: String, dIPPort: String) {
-      flows += ((sIPPort, dIPPort))
+    def addFlow(dIP: String) {
+      flows += dIP
     }
 
-    def deleteFlow(sIPPort: String, dIPPort: String) {
-      flows -= ((sIPPort, dIPPort))
+    def deleteFlow(dIP: String) {
+      flows -= dIP
     }
   }
+
+  val LOCAL_SLAVE_IP = Utils.localIpAddress
 
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
@@ -96,8 +97,7 @@ private[varys] class SlaveActor(
   val idToAppender = new ConcurrentHashMap[String, VanillaChronicle.VanillaAppender]()
 
   val coflows = new ConcurrentHashMap[String, CoflowInfo]()
-  val coflowSizeUpdated = new AtomicBoolean(false)
-  val coflowOrder = new ArrayBuffer[String]()
+  val coflowUpdated = new AtomicBoolean(false)
 
   var slaveChronicle: VanillaChronicle = null
   var slaveTailer: ExcerptTailer = null
@@ -143,17 +143,7 @@ private[varys] class SlaveActor(
           while (slaveTailer.nextIndex) {
             val msgType = slaveTailer.readInt()
             msgType match {
-              case HFTUtils.GetReadToken => {
-                val clientId = slaveTailer.readUTF()
-                val coflowId = slaveTailer.readUTF()
-                val len = slaveTailer.readLong()
-                self ! GetReadToken(clientId, coflowId, len)
-              }
-              case HFTUtils.GetWriteToken => {            
-                val clientId = slaveTailer.readUTF()
-                val coflowId = slaveTailer.readUTF()
-                val len = slaveTailer.readLong()
-                self ! GetWriteToken(clientId, coflowId, len)
+              case _ => {
               }
             }
             slaveTailer.finish
@@ -186,12 +176,18 @@ private[varys] class SlaveActor(
   }
 
   override def receive = {
-    case RegisterSlaveClient(clientName, host, commPort) => {
+    case RegisterSlaveClient(coflowId, clientName, host, commPort) => {
       val currentSender = sender
       val st = now
       logTrace("Registering client %s@%s:%d".format(clientName, host, commPort))
       
       val client = addClient(clientName, host, commPort, currentSender)
+      
+      if (!coflows.containsKey(coflowId)) {
+        coflows(coflowId) = CoflowInfo(coflowId, 0)
+      }
+      coflows(coflowId).clientId = client.id
+      
       currentSender ! RegisteredSlaveClient(client.id)
       
       logInfo("Registered client " + clientName + " with ID " + client.id + " in " + 
@@ -214,59 +210,9 @@ private[varys] class SlaveActor(
 
       // Thread for periodically updating coflow sizes to master
       Utils.scheduleDaemonAtFixedRate(REMOTE_SYNC_PERIOD_MILLIS, REMOTE_SYNC_PERIOD_MILLIS) {
-        if (coflows.size > 0 && coflowSizeUpdated.getAndSet(false)) {
-          master ! LocalCoflows(slaveId, coflows.map(c => (c._2.coflowId, c._2.curSize)).toArray)
-        }
-      } 
-
-      // Thread for periodically processing ReadTokens and WriteTokens
-      Utils.scheduleDaemonAtFixedRate(0, LOCAL_SYNC_PERIOD_MILLIS) {
-        coflowOrder.synchronized {
-          breakable {
-            var bytesProcessedThisCycle = 0L
-            coflowOrder.foreach(c => {
-              if (coflows.containsKey(c)) {
-                val cf = coflows(c)
-                var request = cf.readTokenRequests.poll()
-                while(request != null) {
-                  logTrace("Sending ReadToken to " + cf)
-                  idToAppender(request.clientId).startExcerpt()
-                  idToAppender(request.clientId).writeInt(HFTUtils.ReadToken)
-                  idToAppender(request.clientId).finish()
-                  bytesProcessedThisCycle += request.readLen
-                  if (bytesProcessedThisCycle >= MIN_READ_BYTES) {
-                    break
-                  }
-                  request = cf.readTokenRequests.poll()
-                }
-              }
-            })
-          }
-        }
-      }
-
-      Utils.scheduleDaemonAtFixedRate(0, LOCAL_SYNC_PERIOD_MILLIS) {
-        coflowOrder.synchronized {
-          breakable {
-            var bytesProcessedThisCycle = 0L
-            coflowOrder.foreach(c => {
-              if (coflows.containsKey(c)) {
-                val cf = coflows(c)
-                var request = cf.writeTokenRequests.poll()
-                while(request != null) {
-                  logTrace("Sending WriteToken to " + cf)
-                  idToAppender(request.clientId).startExcerpt()
-                  idToAppender(request.clientId).writeInt(HFTUtils.WriteToken)
-                  idToAppender(request.clientId).finish()
-                  bytesProcessedThisCycle += request.writeLen
-                  if (bytesProcessedThisCycle >= MIN_WRITE_BYTES) {
-                    break
-                  }
-                  request = cf.writeTokenRequests.poll()
-                }
-              }
-            })
-          }
+        if (coflows.size > 0 && coflowUpdated.getAndSet(false)) {
+          master ! LocalCoflows(slaveId, coflows.map(_._2.coflowId).toArray, 
+            coflows.map(_._2.curSize).toArray, coflows.map(_._2.flows.toArray).toArray)
         }
       } 
     }
@@ -276,28 +222,14 @@ private[varys] class SlaveActor(
       System.exit(1)
     }
 
-    case GlobalCoflows(coflowSizes) => {
-      val newSchedule = coflowSizes.map(_._1).mkString("-->")
-      logTrace("Received GlobalCoflows of size " + coflowSizes.length + " " + newSchedule)
-      coflowOrder.synchronized {
-        // Store the new coflow order
-        val newOrder = new ArrayBuffer[String]()
-        for ((cf, _) <- coflowSizes) {
-          newOrder += cf
-        }
-        
-        // Remember coflows that locally exists, but somehow globally doesn't
-        val toKeep = new ArrayBuffer[String]
-        for (c <- coflowOrder) {
-          if (!newOrder.contains(c)) {
-            toKeep += c
-          }
-        }
+    case GlobalCoflows(coflowIds, sizes) => {
+      val newSchedule = coflows.mkString("-->")
+      logTrace("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule)
 
-        // Update new order by giving local ones higher priority than global order
-        coflowOrder.clear
-        coflowOrder ++= toKeep
-        coflowOrder ++= newOrder
+      for (c <- coflowIds) {
+        if (coflows.containsKey(c)) {
+          idToActor(coflows(c).clientId) ! StartAll
+        }
       }
     }
 
@@ -329,24 +261,18 @@ private[varys] class SlaveActor(
       sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
     
-    case StartedFlow(coflowId, sIPPort, dIPPort) => {
+    case StartedFlow(coflowId, sIP, dIP) => {
       val currentSender = sender
-      logDebug("Received StartedFlow for " + sIPPort + "-->" + dIPPort + " of coflow " + coflowId)
-      
-      if (!coflows.containsKey(coflowId)) {
-        coflows(coflowId) = CoflowInfo(coflowId, 0)
-      }
-      coflows(coflowId).addFlow(sIPPort, dIPPort)
+      logDebug("Received StartedFlow for " + sIP + "-->" + dIP + " of coflow " + coflowId)
+      coflows(coflowId).addFlow(dIP)
+      coflowUpdated.set(true)
     }
 
-    case CompletedFlow(coflowId, sIPPort, dIPPort) => {
+    case CompletedFlow(coflowId, sIP, dIP) => {
       val currentSender = sender
-      logDebug("Received CompletedFlow for " + sIPPort + "-->" + dIPPort + " of coflow " + coflowId)
-      
-      if (!coflows.containsKey(coflowId)) {
-        coflows(coflowId) = CoflowInfo(coflowId, 0)
-      }
-      coflows(coflowId).deleteFlow(sIPPort, dIPPort)
+      logDebug("Received CompletedFlow for " + sIP + "-->" + dIP + " of coflow " + coflowId)
+      coflows(coflowId).deleteFlow(dIP)
+      coflowUpdated.set(true)
     }
 
     case UpdateCoflowSize(coflowId, curSize_) => {
@@ -358,31 +284,7 @@ private[varys] class SlaveActor(
       } else {
         coflows(coflowId) = CoflowInfo(coflowId, curSize_)
       }
-      coflowSizeUpdated.set(true)
-    }
-
-    case GetReadToken(clientId, coflowId, readLen) => {
-      val currentSender = sender
-      logDebug("Received GetReadToken for coflow " + coflowId + " of read length " + readLen + 
-        " for client " + clientId)
-      
-      if (coflows.containsKey(coflowId)) {
-        coflows(coflowId).readTokenRequests.put(GetReadToken(clientId, coflowId, readLen))
-      } else {
-        idToActor(clientId) ! ReadToken
-      }
-    }
-
-    case GetWriteToken(clientId, coflowId, writeLen) => {
-      val currentSender = sender
-      logDebug("Received GetWriteToken for coflow " + coflowId + " of write length " + writeLen + 
-        " for client " + clientId)
-      
-      if (coflows.containsKey(coflowId)) {
-        coflows(coflowId).writeTokenRequests.put(GetWriteToken(clientId, coflowId, writeLen))
-      } else {
-        idToActor(clientId) ! WriteToken
-      }
+      coflowUpdated.set(true)
     }
   }
 

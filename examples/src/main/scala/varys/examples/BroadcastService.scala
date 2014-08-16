@@ -369,7 +369,7 @@ private[varys] object BroadcastReceiver extends Logging {
       
       val poos = new ObjectOutputStream(new BufferedOutputStream(pieceSock.getOutputStream))
       poos.flush
-      val pois = new ObjectInputStream(new VarysInputStream(pieceSock, bInfo.coflowId))
+      val pois = new ObjectInputStream(pieceSock.getInputStream)
       
       // Mark start
       poos.writeObject(PieceRequest(pInfo._1, pInfo._2))

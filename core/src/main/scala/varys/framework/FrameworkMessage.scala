@@ -25,7 +25,10 @@ private[varys] case class Heartbeat(
 // FIXME: Not extending FrameworkMessage because it crashes kryo
 private[varys] case class LocalCoflows(
     slaveId: String,
-    coflowSizes: Array[(String, Long)])
+    coflowIds: Array[String],
+    sizes: Array[Long],
+    flows: Array[Array[String]])
+  extends FrameworkMessage
 
 // Master to Slave
 private[varys] case class RegisteredSlave(
@@ -38,7 +41,9 @@ private[varys] case class RegisterSlaveFailed(
 
 // FIXME: Not extending FrameworkMessage because it crashes kryo
 private[varys] case class GlobalCoflows(
-    coflowSizes: Array[(String, Long)])
+    coflows: Array[String],
+    sizes: Array[Long])
+  extends FrameworkMessage
 
 // Client to Master
 private[varys] case class RegisterMasterClient(
@@ -68,6 +73,7 @@ private[varys] case class RequestBestTxMachines(
 
 // Client to Slave
 private[varys] case class RegisterSlaveClient(
+    coflowId: String, 
     clientName: String, 
     host: String, 
     commPort: Int) 
@@ -88,18 +94,6 @@ private[varys] case class CompletedFlow(
 private[varys] case class UpdateCoflowSize(
     coflowId: String,
     curSize: Long)
-  extends FrameworkMessage
-
-private[varys] case class GetReadToken(
-    clientId: String,
-    coflowId: String,
-    readLen: Long)
-  extends FrameworkMessage
-
-private[varys] case class GetWriteToken(
-    clientId: String,
-    coflowId: String,
-    writeLen: Long)
   extends FrameworkMessage
 
 // Master/Client to Client/Slave
@@ -191,6 +185,15 @@ private[varys] case class SlaveState(
     txBps: Double,
     masterWebUiUrl: String)
 
-// Slave to client
-private[varys] case object ReadToken
-private[varys] case object WriteToken
+// Slave to Client
+private[varys] case object PauseAll
+
+private[varys] case object StartAll
+
+private[varys] case class PauseSome(
+    dsts: Array[String])
+  extends FrameworkMessage
+
+private[varys] case class StartSome(
+    dsts: Array[String])
+  extends FrameworkMessage

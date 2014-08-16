@@ -30,41 +30,37 @@ class VarysOutputStream(
     val coflowId: String)
   extends OutputStream() with Logging {
 
-  val MIN_NOTIFICATION_THRESHOLD: Long = 
+  val MIN_NOTIFICATION_THRESHOLD = 
     System.getProperty("varys.client.minNotificationMB", "1").toLong * 1048576L
 
-  // For OutputStream, local is stored as flow source
-  val sIPPort = Utils.getIPPortOfSocketAddress(sock.getLocalSocketAddress)
-  val dIPPort = Utils.getIPPortOfSocketAddress(sock.getRemoteSocketAddress)
+  val dIP = Utils.getIPPortOfSocketAddress(sock.getRemoteSocketAddress)
 
   // Register with the shared VarysOutputStream object
   val visId = VarysOutputStream.register(this, coflowId)
 
-  val writesInProgress = new AtomicInteger(0)
-  val writeCompletionLock = new Object
-
   val rawStream = sock.getOutputStream
 
   var bytesWritten = 0L
+  val firstNotification = new AtomicBoolean(true)
+
+  val canProceed = new AtomicBoolean(false)
+  val canProceedLock = new Object
 
   override def write(b: Int) = synchronized {
-    if (preWrite(Array(b.toByte), 0, 1)) {
-      rawStream.write(b) 
-    } 
+    preWrite()
+    rawStream.write(b) 
     postWrite(1)
   }
 
   override def write(b: Array[Byte]) = synchronized {
-    if (preWrite(b, 0, b.length)) {
-      rawStream.write(b)
-    }
+    preWrite()
+    rawStream.write(b)
     postWrite(b.length)
   }
 
   override def write(b: Array[Byte], off: Int, len: Int) = synchronized {
-    if (preWrite(b, off, len)) {
-      rawStream.write(b, off, len)
-    }
+    preWrite()
+    rawStream.write(b, off, len)
     postWrite(len)
   }
 
@@ -74,29 +70,33 @@ class VarysOutputStream(
 
   override def close() {
     // Block until all writes have completed
-    if (writesInProgress.get > 0) {
-      writeCompletionLock.synchronized {
-        writeCompletionLock.wait()
-      }
-    }
     VarysOutputStream.unregister(visId)
     rawStream.close()
   }
 
   /**
-   * Returns true if this write should be handled locally
+   * Wait for order from control after the minimum bytes have been transfered
    */
-  private def preWrite(b: Array[Byte], off: Int, len: Int): Boolean = {
-    if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD) {
-      VarysOutputStream.getWriteToken(this, b, off, len)
-      false
-    } else {
-      true
+  private def preWrite() {
+    if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD && VarysOutputStream.slaveClientId != null) {
+      while (!canProceed.get) {
+        canProceedLock.synchronized {
+          canProceedLock.wait
+        }
+      }
     }
   }
 
   private def postWrite(writeLen: Long) {
     bytesWritten += writeLen
+
+    if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD) {
+      if (firstNotification.getAndSet(false)) {
+        VarysOutputStream.updateSentSoFar(bytesWritten)
+      } else {
+        VarysOutputStream.updateSentSoFar(writeLen)
+      }
+    }
   }
 
   override def toString(): String = {
@@ -107,6 +107,13 @@ class VarysOutputStream(
 }
 
 private[client] object VarysOutputStream extends Logging {
+  // Should be equal to the smallest flow size. Hence...
+  val MIN_LOCAL_UPDATE_BYTES = 
+    System.getProperty("varys.client.minNotificationMB", "1").toLong * 1048576L
+
+  // Same source address for all VOS
+  val sIP = Utils.localIpAddress
+
   var actorSystem: ActorSystem = null
   var clientActor: ActorRef = null
 
@@ -120,12 +127,9 @@ private[client] object VarysOutputStream extends Logging {
 
   val curVOSId = new AtomicInteger(0)
   val activeStreams = new ConcurrentHashMap[Int, VarysOutputStream]()
+  val dstToStream = new ConcurrentHashMap[String, VarysOutputStream]()
 
   val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
-
-  // TODO: Consider using actual bytes, instead of number of requests
-  val WRITE_QUEUE_SIZE = System.getProperty("varys.client.txQueueSize", "16").toInt
-  val writeQueue = new ArrayBlockingQueue[(VarysOutputStream, Array[Byte])](WRITE_QUEUE_SIZE)
 
   var slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
   var slaveAppender = slaveChronicle.createAppender()
@@ -133,29 +137,13 @@ private[client] object VarysOutputStream extends Logging {
   var localChronicle: VanillaChronicle = null
   var localTailer: ExcerptTailer = null
 
-  /**
-   * Blocks until receiving a token to send from local slave
-   * FIXME: Does it need to be synchronized? 
-   */
-  def getWriteToken(vos: VarysOutputStream, srcBytes: Array[Byte], off: Int, len: Int) {
-    if (slaveClientId != null) {
-      // Ask for token
-      slaveAppender.startExcerpt()
-      slaveAppender.writeInt(HFTUtils.GetWriteToken)
-      slaveAppender.writeUTF(slaveClientId)
-      slaveAppender.writeUTF(coflowId)
-      slaveAppender.writeLong(len)
-      slaveAppender.finish()
-
-      // Store to be processed later
-      val dstBytes = Array.ofDim[Byte](len)
-      System.arraycopy(srcBytes, off, dstBytes, 0, len)
-      writeQueue.put((vos, dstBytes))
-
-      // Remember how many writes are yet to be processed
-      vos.writesInProgress.incrementAndGet()
-    } else {
-      vos.rawStream.write(srcBytes)
+  private var lastSent = new AtomicLong(0)
+  private val sentSoFar = new AtomicLong(0)
+  def updateSentSoFar(delta: Long) = synchronized {
+    val sent = sentSoFar.addAndGet(delta)
+    if (slaveClientId != null && sent - lastSent.get > MIN_LOCAL_UPDATE_BYTES) {
+      slaveActor ! UpdateCoflowSize(coflowId, sent)
+      lastSent.set(sent)
     }
   }
 
@@ -175,10 +163,11 @@ private[client] object VarysOutputStream extends Logging {
     init(coflowId_)
     val vosId = curVOSId.getAndIncrement()
     activeStreams(vosId) = vos
+    dstToStream(vos.dIP) = vos
     if (slaveClientId == null) {
-      messagesBeforeSlaveConnection.put(StartedFlow(coflowId, vos.sIPPort, vos.dIPPort))
+      messagesBeforeSlaveConnection.put(StartedFlow(coflowId, sIP, vos.dIP))
     } else {
-      slaveActor ! StartedFlow(coflowId, vos.sIPPort, vos.dIPPort)
+      slaveActor ! StartedFlow(coflowId, sIP, vos.dIP)
     }
     vosId
   }
@@ -186,9 +175,9 @@ private[client] object VarysOutputStream extends Logging {
   def unregister(vosId: Int) {
     val vos = activeStreams(vosId)
     if (slaveClientId == null) {
-      messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, vos.sIPPort, vos.dIPPort))
+      messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, sIP, vos.dIP))
     } else {
-      slaveActor ! CompletedFlow(coflowId, vos.sIPPort, vos.dIPPort)
+      slaveActor ! CompletedFlow(coflowId, sIP, vos.dIP)
     }
     activeStreams -= vosId
   }
@@ -206,7 +195,7 @@ private[client] object VarysOutputStream extends Logging {
       try {
         slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
         slaveAddress = slaveActor.path.address
-        slaveActor ! RegisterSlaveClient(clientName, "", -1)
+        slaveActor ! RegisterSlaveClient(coflowId, clientName, "", -1)
       } catch {
         case e: Exception =>
           logError("Failed to connect to local slave", e)
@@ -216,9 +205,11 @@ private[client] object VarysOutputStream extends Logging {
 
     override def receive = {
       case RegisteredSlaveClient(clientId_) => {
+        
         // Send missed updates to local slave
         val messages = new ListBuffer[FrameworkMessage]()
         messagesBeforeSlaveConnection.drainTo(messages)
+        
         for (m <- messages) {
           slaveActor ! m
         }
@@ -234,8 +225,11 @@ private[client] object VarysOutputStream extends Logging {
               while (localTailer.nextIndex) {
                 val msgType = localTailer.readInt()
                 msgType match {
-                  case HFTUtils.WriteToken => {            
-                    self ! WriteToken
+                  case HFTUtils.StartAll => {            
+                    self ! PauseAll
+                  }
+                  case HFTUtils.PauseAll => {
+                    self ! StartAll
                   }
                 }
                 localTailer.finish
@@ -270,15 +264,35 @@ private[client] object VarysOutputStream extends Logging {
         }
       }
 
-      case WriteToken => {
-        val (vos, bytes) = writeQueue.take()
-        vos.rawStream.write(bytes)
-        val numWriters = vos.writesInProgress.decrementAndGet()
-        if (numWriters == 0) {
-          vos.writeCompletionLock.synchronized {
-            vos.writeCompletionLock.notifyAll()
-          }
+      case StartAll => {
+        for ((_, vos) <- dstToStream) {
+          startOne(vos)
         }
+      }
+
+      case PauseAll => {
+        for ((_, vos) <- dstToStream) {
+          vos.canProceed.set(false)
+        }
+      }
+
+      case StartSome(dsts) => {
+        for (d <- dsts) {
+          startOne(dstToStream(d))
+        }
+      }
+
+      case PauseSome(dsts) => {
+        for (d <- dsts) {
+          dstToStream(d).canProceed.set(false)
+        }
+      }
+    }
+
+    private def startOne(vos: VarysOutputStream) {
+      vos.canProceed.set(true)
+      vos.canProceedLock.synchronized {
+        vos.canProceedLock.notifyAll
       }
     }
 

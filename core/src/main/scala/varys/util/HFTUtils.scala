@@ -10,10 +10,8 @@ import varys.Logging
  * Various utility classes for working with HFT.
  */
 private[varys] object HFTUtils extends Logging {
-  val GetReadToken  = 0
-  val GetWriteToken = 1
-  val ReadToken     = 2
-  val WriteToken    = 3
+  val StartAll = 0
+  val PauseAll = 1
 
   val HFT_WORKDIR_PATH = System.getProperty("varys.framework.hftWorkDir", "/tmp/HFT")
   val HFT_LOCAL_SLAVE_PATH = HFT_WORKDIR_PATH + "/SLAVE"
