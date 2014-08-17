@@ -395,8 +395,6 @@ private[varys] class Master(
         if (!idToSlave(slaveId).sameAsLastSchedule(sendTo)) {
           logTrace("Sending new schedule to " + slaveId + " ==> " + sendTo.mkString("|"))
           idToSlaveActor(slaveId) ! GlobalCoflows(arrCoflows, sendTo.toArray)
-        } else {
-          logTrace("Skipping sending to " + slaveId)
         }
       }
       val step3Dur = now - st

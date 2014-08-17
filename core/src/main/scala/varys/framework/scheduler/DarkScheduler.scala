@@ -16,6 +16,10 @@ private[framework] object DarkScheduler extends Logging {
     System.getProperty("varys.framework.darkScheduler.initQueueLimit", "10485760").toDouble
   val JOB_SIZE_MULT = System.getProperty("varys.framework.darkScheduler.jobSizeMult", "10").toDouble
 
+  logTrace("varys.framework.darkScheduler.numJobQueues   = " + NUM_JOB_QUEUES)
+  logTrace("varys.framework.darkScheduler.initQueueLimit = " + INIT_QUEUE_LIMIT)
+  logTrace("varys.framework.darkScheduler.jobSizeMult    = " + JOB_SIZE_MULT)
+
   val allCoflows = new ConcurrentHashMap[String, Coflow]()
 
   private object sortedCoflowsLock
