@@ -142,7 +142,14 @@ private[client] object VarysOutputStream extends Logging {
   def updateSentSoFar(delta: Long) = synchronized {
     val sent = sentSoFar.addAndGet(delta)
     if (slaveClientId != null && sent - lastSent.get > MIN_LOCAL_UPDATE_BYTES) {
-      slaveActor ! UpdateCoflowSize(coflowId, sent)
+      
+      // Send high-frequency local message through HFT
+      slaveAppender.startExcerpt()
+      slaveAppender.writeInt(HFTUtils.UpdateCoflowSize)
+      slaveAppender.writeUTF(coflowId)
+      slaveAppender.writeLong(sent)
+      slaveAppender.finish()
+
       lastSent.set(sent)
     }
   }

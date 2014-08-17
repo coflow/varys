@@ -143,7 +143,10 @@ private[varys] class SlaveActor(
           while (slaveTailer.nextIndex) {
             val msgType = slaveTailer.readInt()
             msgType match {
-              case _ => {
+              case HFTUtils.UpdateCoflowSize => {
+                val cf = slaveTailer.readUTF
+                val cs = slaveTailer.readLong
+                self ! UpdateCoflowSize(cf, cs)
               }
             }
             slaveTailer.finish
