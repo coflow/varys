@@ -3,9 +3,10 @@ package varys.framework.scheduler
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 import scala.collection.JavaConversions._
 
+import varys.framework.master.SlaveInfo
 import varys.{Logging, Utils, VarysException}
 
 private[framework] object DarkScheduler extends Logging {
@@ -48,11 +49,18 @@ private[framework] object DarkScheduler extends Logging {
     }
   }
 
-  def updateCoflowSizes(coflowSizes: Array[(String, Long)]) {
-    for ((coflowId, newSize) <- coflowSizes) {
-      val cf = allCoflows(coflowId)
-      if (cf != null) {
-        cf.sizeSoFar = newSize
+  def updateCoflowSizes(slaveInfos: ConcurrentHashMap[String, SlaveInfo]) {
+    for ((_, cf) <- allCoflows) {
+      cf.flows.clear
+    }
+
+    for ((slaveId, sInfo) <- slaveInfos) {
+      for (i <- 0 until sInfo.numCoflows) {
+        val cf = allCoflows(sInfo.coflowIds(i))
+        if (cf != null) {
+          cf.sizeSoFar += sInfo.sizes(i)
+          cf.flows += ((sInfo.id, sInfo.flows(i)))
+        }
       }
     }
   }
@@ -85,15 +93,47 @@ private[framework] object DarkScheduler extends Logging {
     }
   }
 
-  def getSchedule(): (Array[String], Array[Long]) = {
+  def getSchedule(slaveIds: Array[String]): (HashMap[String, ArrayBuffer[String]], Array[String]) = {
+    
+    val slaveAllocs = new HashMap[String, ArrayBuffer[String]]()
+    for (id <- slaveIds) {
+      slaveAllocs(id) = new ArrayBuffer[String]()
+    }
+
+    val srcUsed = new HashMap[String, Boolean]() { 
+      override def default(key: String) = false 
+    }
+    val dstUsed = new HashMap[String, Boolean]() { 
+      override def default(key: String) = false 
+    }
+
+    for (i <- 0 until NUM_JOB_QUEUES) {
+      for (cf <- sortedCoflows(i)) {
+        for ((slaveId, dsts) <- cf.flows) {          
+          if (!srcUsed(slaveId)) {
+            var srcInUse = false
+            for (d <- dsts) {
+              if (!dstUsed(d)) {
+                dstUsed(d) = true
+                slaveAllocs(slaveId) += d
+                srcInUse = true
+              }
+            }
+            if (srcInUse) {
+              srcUsed(slaveId) = true
+            }
+          }
+        }
+      }
+    }
+
     val retCoflows = new ArrayBuffer[String]
-    val retSizes = new ArrayBuffer[Long]
     for (i <- 0 until NUM_JOB_QUEUES) {
       for (cf <- sortedCoflows(i)) {
         retCoflows += cf.coflowId
-        retSizes += cf.sizeSoFar
       }
     }
-    (retCoflows.toArray, retSizes.toArray)
+
+    (slaveAllocs, retCoflows.toArray)
   }
 }

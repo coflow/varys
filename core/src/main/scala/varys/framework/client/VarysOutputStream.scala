@@ -112,7 +112,7 @@ private[client] object VarysOutputStream extends Logging {
     System.getProperty("varys.client.minNotificationMB", "1").toLong * 1048576L
 
   // Same source address for all VOS
-  val sIP = Utils.localIpAddress
+  val sIP = Utils.localHostName
 
   var actorSystem: ActorSystem = null
   var clientActor: ActorRef = null

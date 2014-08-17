@@ -107,6 +107,8 @@ private[varys] object AkkaUtils {
               "varys.framework.StartedFlow",
               "varys.framework.CompletedFlow",
               "varys.framework.UpdateCoflowSize",
+              "varys.framework.StartSome",
+              "varys.framework.PauseSome",
               "varys.framework.CoflowDescription",
               "varys.framework.CoflowType$",
               "varys.framework.FlowDescription",

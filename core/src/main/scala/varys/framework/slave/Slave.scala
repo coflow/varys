@@ -60,8 +60,6 @@ private[varys] class SlaveActor(
     }
   }
 
-  val LOCAL_SLAVE_IP = Utils.localIpAddress
-
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
   val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.coflowReapSec", "60").toInt * 1000
@@ -182,7 +180,7 @@ private[varys] class SlaveActor(
     case RegisterSlaveClient(coflowId, clientName, host, commPort) => {
       val currentSender = sender
       val st = now
-      logTrace("Registering client %s@%s:%d".format(clientName, host, commPort))
+      logDebug("Registering client %s@%s:%d".format(clientName, host, commPort))
       
       val client = addClient(clientName, host, commPort, currentSender)
       
@@ -225,13 +223,21 @@ private[varys] class SlaveActor(
       System.exit(1)
     }
 
-    case GlobalCoflows(coflowIds, sizes) => {
-      val newSchedule = coflows.mkString("-->")
-      logTrace("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule)
+    case GlobalCoflows(coflowIds, sendTo) => {
+      val newSchedule = coflowIds.mkString("-->")
+      logDebug("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule)
 
+      // Stop all
+      for ((_, c) <- coflows) {
+        if (idToActor.containsKey(c.clientId)) {
+          idToActor(c.clientId) ! PauseAll
+        }
+      }
+
+      // Start some
       for (c <- coflowIds) {
-        if (coflows.containsKey(c)) {
-          idToActor(coflows(c).clientId) ! StartAll
+        if (coflows.containsKey(c) && idToActor.containsKey(coflows(c).clientId)) {
+          idToActor(coflows(c).clientId) ! StartSome(sendTo)
         }
       }
     }
@@ -280,7 +286,7 @@ private[varys] class SlaveActor(
 
     case UpdateCoflowSize(coflowId, curSize_) => {
       val currentSender = sender
-      logDebug("Received UpdateCoflowSize for coflow " + coflowId + " of size " + curSize_)
+      logTrace("Received UpdateCoflowSize for coflow " + coflowId + " of size " + curSize_)
       
       if (coflows.containsKey(coflowId)) {
         coflows(coflowId).updateSize(curSize_)

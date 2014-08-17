@@ -2,7 +2,7 @@ package varys.framework.master
 
 import akka.actor.ActorRef
 
-import scala.collection.mutable
+import scala.collection.mutable.HashMap
 
 import varys.util.BpsInfo
 
@@ -37,6 +37,28 @@ private[varys] class SlaveInfo(
     rxBpsInfo.update(newRxBps)
     txBpsInfo.update(newTxBps)
   }
-  
+
+  var numCoflows = 0
+  var coflowIds: Array[String] = null
+  var sizes: Array[Long] = null
+  var flows: Array[Array[String]] = null
+  val localCoflows = new HashMap[String, (Long, Array[String])]()
+
+  def updateCoflows(
+      coflowIds_ : Array[String], 
+      sizes_ : Array[Long], 
+      flows_ : Array[Array[String]]) {
+
+    numCoflows = coflowIds_.size
+    coflowIds = coflowIds_
+    sizes = sizes_
+    flows = flows_
+
+    localCoflows.clear
+    for (i <- 0 until numCoflows) {
+      localCoflows(coflowIds(i)) = ((sizes(i), flows(i)))
+    }
+  }
+
   override def toString: String = "SlaveInfo(" + id + "[" + host + ":" + port + "]:" + state + ")"
 }

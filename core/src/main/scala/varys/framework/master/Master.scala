@@ -39,10 +39,10 @@ private[varys] class Master(
   var lastSchedule = ""
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
+  val idToSlaveActor = new ConcurrentHashMap[String, ActorRef]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
   val addressToSlave = new ConcurrentHashMap[Address, SlaveInfo]
   val hostToSlave = new ConcurrentHashMap[String, SlaveInfo]
-  val localCoflowSizes = new ConcurrentHashMap[String, (Array[String], Array[Long], Array[Array[String]])]
 
   val idToRxBps = new SlaveToBpsMap
   val idToTxBps = new SlaveToBpsMap
@@ -139,7 +139,7 @@ private[varys] class Master(
       case RegisterMasterClient(clientName, host, commPort) => {
         val currentSender = sender
         val st = now
-        logTrace("Registering client %s@%s:%d".format(clientName, host, commPort))
+        logDebug("Registering client %s@%s:%d".format(clientName, host, commPort))
         
         if (hostToSlave.containsKey(host)) {
           val client = addClient(clientName, host, commPort, currentSender)
@@ -162,7 +162,7 @@ private[varys] class Master(
       case RegisterCoflow(clientId, description) => {
         val currentSender = sender
         val st = now
-        logTrace("Registering coflow " + description.name)
+        logDebug("Registering coflow " + description.name)
 
         if (CONSIDER_DEADLINE && description.deadlineMillis == 0) {
           currentSender ! RegisterCoflowFailed("Must specify a valid deadline")
@@ -249,9 +249,9 @@ private[varys] class Master(
         sender ! WebUIPortResponse(webUi.boundPort.getOrElse(-1))
       }
 
-      case LocalCoflows(slaveId, coflows, sizes, flows) => {
-        logTrace("Received LocalCoflows from " + slaveId + " with " + coflows.size + " coflows")
-        localCoflowSizes(slaveId) = (coflows, sizes, flows)
+      case LocalCoflows(slaveId, coflowIds, sizes, flows) => {
+        logTrace("Received LocalCoflows from " + slaveId + " with " + coflowIds.size + " coflows")
+        idToSlave.get(slaveId).updateCoflows(coflowIds, sizes, flows)
       }
 
       case RequestBestRxMachines(howMany, bytes) => {
@@ -281,6 +281,7 @@ private[varys] class Master(
       
       val slave = new SlaveInfo(id, host, port, actor, webUiPort, commPort, publicAddress)
       idToSlave.put(slave.id, slave)
+      idToSlaveActor.put(slave.id, actor)
       actorToSlave(actor) = slave
       addressToSlave(actor.path.address) = slave
       hostToSlave(slave.host) = slave
@@ -291,6 +292,7 @@ private[varys] class Master(
       slave.setState(SlaveState.DEAD)
       logError("Removing " + slave)
       // Do not remove from idToSlave so that we remember DEAD slaves
+      idToSlaveActor -= slave.id
       actorToSlave -= slave.actor
       addressToSlave -= slave.actor.path.address
       hostToSlave -= slave.host
@@ -307,7 +309,7 @@ private[varys] class Master(
 
     def removeClient(client: ClientInfo) {
       if (client != null && idToClient.containsValue(client)) {
-        logTrace("Removing " + client)
+        logDebug("Removing " + client)
         idToClient.remove(client.id)
         actorToClient -= client.actor
         addressToClient -= client.actor.path.address
@@ -379,15 +381,8 @@ private[varys] class Master(
     def mergeAllAndSyncSlaves() {
       var st = now
 
-      // Combine
-      val coflowSizes = new HashMap[String, Long]() { override def default(key: String) = 0L }
-      for ((lcs, vals) <- localCoflowSizes) {
-        val numCoflows = vals._1.size
-        for (i <- 0 until numCoflows) {
-          coflowSizes(vals._1(i)) += vals._2(i)
-        }
-      }
-      DarkScheduler.updateCoflowSizes(coflowSizes.toArray)
+      // Update scheduler
+      DarkScheduler.updateCoflowSizes(idToSlave)
       val step1Dur = now - st
 
       // Schedule
@@ -397,13 +392,13 @@ private[varys] class Master(
 
       // Send out if the schedule has changed
       st = now
-      val (arrCoflows, arrSizes) = DarkScheduler.getSchedule()
+      val (slaveAllocs, arrCoflows) = DarkScheduler.getSchedule(idToSlave.keys.toSeq.toArray)
       val newSchedule = arrCoflows.mkString("")
       // if (lastSchedule == newSchedule) {
       //   return
       // }
-      for (slaveActor <- actorToSlave.keys) {
-        slaveActor ! GlobalCoflows(arrCoflows, arrSizes)
+      for ((slaveId, sendTo) <- slaveAllocs) {
+        idToSlaveActor(slaveId) ! GlobalCoflows(arrCoflows, sendTo.toArray)
       }
       lastSchedule = newSchedule
       val step3Dur = now - st

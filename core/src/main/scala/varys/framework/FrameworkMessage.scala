@@ -22,7 +22,6 @@ private[varys] case class Heartbeat(
     txBps: Double)
   extends FrameworkMessage
 
-// FIXME: Not extending FrameworkMessage because it crashes kryo
 private[varys] case class LocalCoflows(
     slaveId: String,
     coflowIds: Array[String],
@@ -39,10 +38,9 @@ private[varys] case class RegisterSlaveFailed(
     message: String) 
   extends FrameworkMessage
 
-// FIXME: Not extending FrameworkMessage because it crashes kryo
 private[varys] case class GlobalCoflows(
     coflows: Array[String],
-    sizes: Array[Long])
+    sendTo: Array[String])
   extends FrameworkMessage
 
 // Client to Master
