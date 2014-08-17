@@ -33,7 +33,7 @@ class VarysOutputStream(
   val MIN_NOTIFICATION_THRESHOLD = 
     System.getProperty("varys.client.minNotificationMB", "1").toLong * 1048576L
 
-  val dIP = Utils.getIPPortOfSocketAddress(sock.getRemoteSocketAddress)
+  val dIP = Utils.getIPFromSocketAddress(sock.getRemoteSocketAddress)
 
   // Register with the shared VarysOutputStream object
   val visId = VarysOutputStream.register(this, coflowId)
