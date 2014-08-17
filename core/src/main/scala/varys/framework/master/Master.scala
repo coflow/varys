@@ -32,8 +32,6 @@ private[varys] class Master(
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
   
-  val CONSIDER_DEADLINE = System.getProperty("varys.master.considerDeadline", "false").toBoolean
-
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
 
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
@@ -162,21 +160,17 @@ private[varys] class Master(
         val st = now
         logDebug("Registering coflow " + description.name)
 
-        if (CONSIDER_DEADLINE && description.deadlineMillis == 0) {
-          currentSender ! RegisterCoflowFailed("Must specify a valid deadline")
+        val client = idToClient.get(clientId)
+        if (client == null) {
+          currentSender ! RegisterCoflowFailed("Invalid clientId " + clientId)
         } else {
-          val client = idToClient.get(clientId)
-          if (client == null) {
-            currentSender ! RegisterCoflowFailed("Invalid clientId " + clientId)
-          } else {
-            val coflow = addCoflow(client, description, currentSender)
+          val coflow = addCoflow(client, description, currentSender)
 
-            // context.watch doesn't work with remote actors but helps for testing
-            // context.watch(currentSender)
-            currentSender ! RegisteredCoflow(coflow.id)
-            logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + 
-              (now - st) + " milliseconds")
-          }
+          // context.watch doesn't work with remote actors but helps for testing
+          // context.watch(currentSender)
+          currentSender ! RegisteredCoflow(coflow.id)
+          logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + 
+            (now - st) + " milliseconds")
         }
       }
 

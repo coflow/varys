@@ -1,7 +1,7 @@
 # Varys
 Varys is an open-source application-aware network scheduler that aims to improve communication performance of Big Data applications. Its target applications/jobs include those written in Spark, Hadoop, YARN, BSP, and similar data-parallel frameworks.
 
-Varys provides a simple API that allows data-parallel frameworks to express their communication requirements as coflows with minimal changes to the framework. **User jobs do not require any modification**. Using coflows as the basic abstraction of network scheduling, Varys implements novel schedulers either to make applications faster or to make time-restricted applications complete within deadlines.
+Varys provides a simple API that allows data-parallel frameworks to express their communication requirements as coflows with minimal changes to the framework. **User jobs do not require any modification**. Using coflows as the basic abstraction of network scheduling, Varys implements novel schedulers to make applications faster.
 
 To learn more, visit <http://varys.net/>
 
