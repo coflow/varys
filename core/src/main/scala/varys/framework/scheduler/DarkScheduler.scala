@@ -3,7 +3,7 @@ package varys.framework.scheduler
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
 
 import varys.framework.master.SlaveInfo
@@ -21,6 +21,9 @@ private[framework] object DarkScheduler extends Logging {
   logTrace("varys.framework.darkScheduler.jobSizeMult    = " + JOB_SIZE_MULT)
 
   val allCoflows = new ConcurrentHashMap[String, Coflow]()
+  
+  // Keep track of coflows that are actually running at some slave
+  val activeCoflows = new HashSet[String]()
 
   private object sortedCoflowsLock
   val sortedCoflows = Array.ofDim[ArrayBuffer[Coflow]](NUM_JOB_QUEUES)
@@ -54,6 +57,10 @@ private[framework] object DarkScheduler extends Logging {
   }
 
   def updateCoflowSizes(slaveInfos: ConcurrentHashMap[String, SlaveInfo]) {
+    // Reset coflows that are active
+    activeCoflows.clear
+
+    // Reset all coflow-related stats except for their locations in the job queue
     for ((_, cf) <- allCoflows) {
       cf.sizeSoFar = 0
       cf.flows.clear
@@ -66,6 +73,9 @@ private[framework] object DarkScheduler extends Logging {
           cf.sizeSoFar += sInfo.sizes(i)
           cf.flows += ((sInfo.id, sInfo.flows(i)))
         }
+
+        // Remember active coflows
+        activeCoflows += sInfo.coflowIds(i)        
       }
     }
   }
@@ -117,18 +127,21 @@ private[framework] object DarkScheduler extends Logging {
     sortedCoflowsLock.synchronized {
       for (i <- 0 until NUM_JOB_QUEUES) {
         for (cf <- sortedCoflows(i)) {
-          for ((slaveId, dsts) <- cf.flows) {          
-            if (!srcUsed(slaveId)) {
-              var srcInUse = false
-              for (d <- dsts) {
-                if (!dstUsed(d)) {
-                  dstUsed(d) = true
-                  slaveAllocs(slaveId) += d
-                  srcInUse = true
+          if (activeCoflows.contains(cf.coflowId)) {
+            logTrace("Processing " + cf)
+            for ((slaveId, dsts) <- cf.flows) {          
+              if (!srcUsed(slaveId)) {
+                var srcInUse = false
+                for (d <- dsts) {
+                  if (!dstUsed(d)) {
+                    dstUsed(d) = true
+                    slaveAllocs(slaveId) += d
+                    srcInUse = true
+                  }
                 }
-              }
-              if (srcInUse) {
-                srcUsed(slaveId) = true
+                if (srcInUse) {
+                  srcUsed(slaveId) = true
+                }
               }
             }
           }
@@ -137,7 +150,9 @@ private[framework] object DarkScheduler extends Logging {
 
       for (i <- 0 until NUM_JOB_QUEUES) {
         for (cf <- sortedCoflows(i)) {
-          retCoflows += cf.coflowId
+          if (activeCoflows.contains(cf.coflowId)) {
+            retCoflows += cf.coflowId
+          }
         }
       }
     }

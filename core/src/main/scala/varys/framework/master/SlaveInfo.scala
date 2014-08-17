@@ -61,8 +61,8 @@ private[varys] class SlaveInfo(
   }
 
   var lastSchedule: String = null
-  def sameAsLastSchedule(newSchedule: ArrayBuffer[String]): Boolean = {
-    val ns = scala.util.Sorting.stableSort(newSchedule).mkString("|")
+  def sameAsLastSchedule(newCoflowOrder: String, newSchedule: ArrayBuffer[String]): Boolean = {
+    val ns = newCoflowOrder + " <> " + scala.util.Sorting.stableSort(newSchedule).mkString("|")
     if (lastSchedule == null) {
       lastSchedule = ns
       return true

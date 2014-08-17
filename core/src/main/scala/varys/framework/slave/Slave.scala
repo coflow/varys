@@ -212,8 +212,9 @@ private[varys] class SlaveActor(
       // Thread for periodically updating coflow sizes to master
       Utils.scheduleDaemonAtFixedRate(REMOTE_SYNC_PERIOD_MILLIS, REMOTE_SYNC_PERIOD_MILLIS) {
         if (coflows.size > 0 && coflowUpdated.getAndSet(false)) {
-          master ! LocalCoflows(slaveId, coflows.map(_._2.coflowId).toArray, 
-            coflows.map(_._2.curSize).toArray, coflows.map(_._2.flows.toArray).toArray)
+          val activeCoflows = coflows.filter(_._2.flows.size > 0)
+          master ! LocalCoflows(slaveId, activeCoflows.map(_._2.coflowId).toArray, 
+            activeCoflows.map(_._2.curSize).toArray, activeCoflows.map(_._2.flows.toArray).toArray)
         }
       } 
     }

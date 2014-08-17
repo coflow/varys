@@ -389,18 +389,24 @@ private[varys] class Master(
       val step2Dur = now - st
 
       // Send out if the schedule has changed
+      var sentSomething = false
       st = now
       val (slaveAllocs, arrCoflows) = DarkScheduler.getSchedule(idToSlave.keys.toSeq.toArray)
+      val newOrder = arrCoflows.mkString("->")
       for ((slaveId, sendTo) <- slaveAllocs) {
-        if (!idToSlave(slaveId).sameAsLastSchedule(sendTo)) {
-          logTrace("Sending new schedule to " + slaveId + " ==> " + sendTo.mkString("|"))
+        if (!idToSlave(slaveId).sameAsLastSchedule(newOrder, sendTo)) {
+          logTrace("Sending new schedule to " + slaveId + " => " + sendTo.mkString("|") + 
+            " => " + newOrder)
           idToSlaveActor(slaveId) ! GlobalCoflows(arrCoflows, sendTo.toArray)
+          sentSomething = true
         }
       }
       val step3Dur = now - st
 
-      logInfo("MERGE_AND_SYNC in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + 
-        step2Dur + "+" + step3Dur + ") milliseconds")
+      if (sentSomething) {
+        logInfo("MERGE_AND_SYNC in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + 
+          step2Dur + "+" + step3Dur + ") milliseconds")
+      }
     }
   }
 }
