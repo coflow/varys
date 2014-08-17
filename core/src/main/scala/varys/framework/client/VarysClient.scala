@@ -44,8 +44,6 @@ class VarysClient(
 
   var masterRegStartTime = 0L
 
-  val flowToObject = new HashMap[DataIdentifier, Array[Byte]]
-
   val serverThreadName = "ServerThread for Client@" + Utils.localHostName()
 
   var clientHost = Utils.localHostName()
@@ -204,7 +202,6 @@ class VarysClient(
   }
 
   private def freeLocalResources(coflowId: String) {
-    flowToObject.retain((dataId, _) => dataId.coflowId != coflowId)
   }
   
   /**

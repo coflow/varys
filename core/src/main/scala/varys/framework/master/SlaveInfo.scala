@@ -42,7 +42,6 @@ private[varys] class SlaveInfo(
   var coflowIds: Array[String] = null
   var sizes: Array[Long] = null
   var flows: Array[Array[String]] = null
-  val localCoflows = new HashMap[String, (Long, Array[String])]()
 
   def updateCoflows(
       coflowIds_ : Array[String], 
@@ -53,11 +52,6 @@ private[varys] class SlaveInfo(
     coflowIds = coflowIds_
     sizes = sizes_
     flows = flows_
-
-    localCoflows.clear
-    for (i <- 0 until numCoflows) {
-      localCoflows(coflowIds(i)) = ((sizes(i), flows(i)))
-    }
   }
 
   var lastSchedule: String = null

@@ -128,7 +128,6 @@ private[framework] object DarkScheduler extends Logging {
       for (i <- 0 until NUM_JOB_QUEUES) {
         for (cf <- sortedCoflows(i)) {
           if (activeCoflows.contains(cf.coflowId)) {
-            logTrace("Processing " + cf)
             for ((slaveId, dsts) <- cf.flows) {          
               if (!srcUsed(slaveId)) {
                 var srcInUse = false
