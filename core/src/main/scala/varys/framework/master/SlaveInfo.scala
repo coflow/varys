@@ -2,7 +2,7 @@ package varys.framework.master
 
 import akka.actor.ActorRef
 
-import scala.collection.mutable.HashMap
+import scala.collection.mutable.{ArrayBuffer, HashMap}
 
 import varys.util.BpsInfo
 
@@ -58,6 +58,19 @@ private[varys] class SlaveInfo(
     for (i <- 0 until numCoflows) {
       localCoflows(coflowIds(i)) = ((sizes(i), flows(i)))
     }
+  }
+
+  var lastSchedule: String = null
+  def sameAsLastSchedule(newSchedule: ArrayBuffer[String]): Boolean = {
+    val ns = scala.util.Sorting.stableSort(newSchedule).mkString("|")
+    if (lastSchedule == null) {
+      lastSchedule = ns
+      return true
+    } 
+
+    val retVal = (lastSchedule == ns)
+    lastSchedule = ns
+    retVal
   }
 
   override def toString: String = "SlaveInfo(" + id + "[" + host + ":" + port + "]:" + state + ")"

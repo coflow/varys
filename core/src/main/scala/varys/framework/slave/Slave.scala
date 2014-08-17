@@ -225,7 +225,7 @@ private[varys] class SlaveActor(
 
     case GlobalCoflows(coflowIds, sendTo) => {
       val newSchedule = coflowIds.mkString("-->")
-      logDebug("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule)
+      logDebug("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule + " [" + sendTo.mkString(" ") + "]")
 
       // Stop all
       for ((_, c) <- coflows) {

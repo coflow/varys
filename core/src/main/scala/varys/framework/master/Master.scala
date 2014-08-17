@@ -398,7 +398,11 @@ private[varys] class Master(
       //   return
       // }
       for ((slaveId, sendTo) <- slaveAllocs) {
-        idToSlaveActor(slaveId) ! GlobalCoflows(arrCoflows, sendTo.toArray)
+        if (!idToSlave(slaveId).sameAsLastSchedule(sendTo)) {
+          idToSlaveActor(slaveId) ! GlobalCoflows(arrCoflows, sendTo.toArray)
+        } else {
+          logTrace("Skipping sending to " + slaveId)
+        }
       }
       lastSchedule = newSchedule
       val step3Dur = now - st

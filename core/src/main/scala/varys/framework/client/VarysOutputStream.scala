@@ -272,24 +272,28 @@ private[client] object VarysOutputStream extends Logging {
       }
 
       case StartAll => {
+        logTrace("Received StartAll")
         for ((_, vos) <- dstToStream) {
           startOne(vos)
         }
       }
 
       case PauseAll => {
+        logTrace("Received PauseAll")
         for ((_, vos) <- dstToStream) {
           vos.canProceed.set(false)
         }
       }
 
       case StartSome(dsts) => {
+        logTrace("Received StartSome")
         for (d <- dsts) {
           startOne(dstToStream(d))
         }
       }
 
       case PauseSome(dsts) => {
+        logTrace("Received PauseSome")
         for (d <- dsts) {
           dstToStream(d).canProceed.set(false)
         }
