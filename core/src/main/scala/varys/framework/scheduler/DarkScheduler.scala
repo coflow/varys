@@ -55,6 +55,7 @@ private[framework] object DarkScheduler extends Logging {
 
   def updateCoflowSizes(slaveInfos: ConcurrentHashMap[String, SlaveInfo]) {
     for ((_, cf) <- allCoflows) {
+      cf.sizeSoFar = 0
       cf.flows.clear
     }
 
@@ -111,30 +112,33 @@ private[framework] object DarkScheduler extends Logging {
       override def default(key: String) = false 
     }
 
-    for (i <- 0 until NUM_JOB_QUEUES) {
-      for (cf <- sortedCoflows(i)) {
-        for ((slaveId, dsts) <- cf.flows) {          
-          if (!srcUsed(slaveId)) {
-            var srcInUse = false
-            for (d <- dsts) {
-              if (!dstUsed(d)) {
-                dstUsed(d) = true
-                slaveAllocs(slaveId) += d
-                srcInUse = true
+    val retCoflows = new ArrayBuffer[String]
+
+    sortedCoflowsLock.synchronized {
+      for (i <- 0 until NUM_JOB_QUEUES) {
+        for (cf <- sortedCoflows(i)) {
+          for ((slaveId, dsts) <- cf.flows) {          
+            if (!srcUsed(slaveId)) {
+              var srcInUse = false
+              for (d <- dsts) {
+                if (!dstUsed(d)) {
+                  dstUsed(d) = true
+                  slaveAllocs(slaveId) += d
+                  srcInUse = true
+                }
               }
-            }
-            if (srcInUse) {
-              srcUsed(slaveId) = true
+              if (srcInUse) {
+                srcUsed(slaveId) = true
+              }
             }
           }
         }
       }
-    }
 
-    val retCoflows = new ArrayBuffer[String]
-    for (i <- 0 until NUM_JOB_QUEUES) {
-      for (cf <- sortedCoflows(i)) {
-        retCoflows += cf.coflowId
+      for (i <- 0 until NUM_JOB_QUEUES) {
+        for (cf <- sortedCoflows(i)) {
+          retCoflows += cf.coflowId
+        }
       }
     }
 
