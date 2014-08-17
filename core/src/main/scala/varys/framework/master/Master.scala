@@ -36,8 +36,6 @@ private[varys] class Master(
 
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
 
-  var lastSchedule = ""
-
   val idToSlave = new ConcurrentHashMap[String, SlaveInfo]()
   val idToSlaveActor = new ConcurrentHashMap[String, ActorRef]()
   val actorToSlave = new ConcurrentHashMap[ActorRef, SlaveInfo]
@@ -393,22 +391,18 @@ private[varys] class Master(
       // Send out if the schedule has changed
       st = now
       val (slaveAllocs, arrCoflows) = DarkScheduler.getSchedule(idToSlave.keys.toSeq.toArray)
-      val newSchedule = arrCoflows.mkString("")
-      // if (lastSchedule == newSchedule) {
-      //   return
-      // }
       for ((slaveId, sendTo) <- slaveAllocs) {
         if (!idToSlave(slaveId).sameAsLastSchedule(sendTo)) {
+          logTrace("Sending new schedule to " + slaveId + " ==> " + sendTo.mkString("|"))
           idToSlaveActor(slaveId) ! GlobalCoflows(arrCoflows, sendTo.toArray)
         } else {
           logTrace("Skipping sending to " + slaveId)
         }
       }
-      lastSchedule = newSchedule
       val step3Dur = now - st
 
       logInfo("MERGE_AND_SYNC in " + (step1Dur + step2Dur + step3Dur) + " = (" + step1Dur + "+" + 
-        step2Dur + "+" + step3Dur + ") milliseconds ==> " + newSchedule)
+        step2Dur + "+" + step3Dur + ") milliseconds")
     }
   }
 }

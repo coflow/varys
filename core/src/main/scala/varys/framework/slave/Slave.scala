@@ -286,7 +286,6 @@ private[varys] class SlaveActor(
 
     case UpdateCoflowSize(coflowId, curSize_) => {
       val currentSender = sender
-      logTrace("Received UpdateCoflowSize for coflow " + coflowId + " of size " + curSize_)
       
       if (coflows.containsKey(coflowId)) {
         coflows(coflowId).updateSize(curSize_)
