@@ -115,11 +115,11 @@ private[framework] object DarkScheduler extends Logging {
       slaveAllocs(id) = new ArrayBuffer[String]()
     }
 
-    val srcUsed = new HashMap[String, Boolean]() { 
-      override def default(key: String) = false 
+    val srcUsedBy = new HashMap[String, String]() { 
+      override def default(key: String) = null 
     }
-    val dstUsed = new HashMap[String, Boolean]() { 
-      override def default(key: String) = false 
+    val dstUsedBy = new HashMap[String, String]() { 
+      override def default(key: String) = null 
     }
 
     val retCoflows = new ArrayBuffer[String]
@@ -129,17 +129,17 @@ private[framework] object DarkScheduler extends Logging {
         for (cf <- sortedCoflows(i)) {
           if (activeCoflows.contains(cf.coflowId)) {
             for ((slaveId, dsts) <- cf.flows) {          
-              if (!srcUsed(slaveId)) {
+              if (srcUsedBy(slaveId) == null || srcUsedBy(slaveId) == cf.coflowId) {
                 var srcInUse = false
                 for (d <- dsts) {
-                  if (!dstUsed(d)) {
-                    dstUsed(d) = true
+                  if (dstUsedBy(d) == null || dstUsedBy(d) == cf.coflowId) {
+                    dstUsedBy(d) = cf.coflowId
                     slaveAllocs(slaveId) += d
                     srcInUse = true
                   }
                 }
                 if (srcInUse) {
-                  srcUsed(slaveId) = true
+                  srcUsedBy(slaveId) = cf.coflowId
                 }
               }
             }
