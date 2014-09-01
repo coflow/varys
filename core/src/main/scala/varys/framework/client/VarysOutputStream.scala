@@ -288,14 +288,18 @@ private[client] object VarysOutputStream extends Logging {
       case StartSome(dsts) => {
         logTrace("Received StartSome")
         for (d <- dsts) {
-          startOne(dstToStream(d))
+          if (dstToStream.containsKey(d)) {
+            startOne(dstToStream(d))
+          }
         }
       }
 
       case PauseSome(dsts) => {
         logTrace("Received PauseSome")
         for (d <- dsts) {
-          dstToStream(d).canProceed.set(false)
+          if (dstToStream.containsKey(d)) {
+            dstToStream(d).canProceed.set(false)
+          }
         }
       }
     }
