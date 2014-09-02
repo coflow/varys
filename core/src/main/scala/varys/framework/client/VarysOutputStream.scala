@@ -293,14 +293,26 @@ private[client] object VarysOutputStream extends Logging {
       case StartAll => {
         logTrace("Received StartAll")
         for ((_, vos) <- dstToStream) {
-          startOne(vos)
+          try {
+            startOne(vos)
+          } catch {
+            case e => {
+              logTrace(e + ": vos doesn't exist")
+            }
+          }
         }
       }
 
       case PauseAll => {
         logTrace("Received PauseAll")
         for ((_, vos) <- dstToStream) {
-          vos.canProceed.set(false)
+          try {
+            vos.canProceed.set(false)
+          } catch {
+            case e => {
+              logTrace(e + ": vos doesn't exist")
+            }
+          }
         }
       }
 
@@ -328,9 +340,15 @@ private[client] object VarysOutputStream extends Logging {
     }
 
     private def startOne(vos: VarysOutputStream) {
-      vos.canProceed.set(true)
-      vos.canProceedLock.synchronized {
-        vos.canProceedLock.notifyAll
+      try {
+        vos.canProceed.set(true)
+        vos.canProceedLock.synchronized {
+          vos.canProceedLock.notifyAll
+        }
+      } catch {
+        case e => {
+          logTrace(e + ": vos doesn't exist")
+        }
       }
     }
 
