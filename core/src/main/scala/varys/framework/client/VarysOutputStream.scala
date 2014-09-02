@@ -143,12 +143,14 @@ private[client] object VarysOutputStream extends Logging {
     val sent = sentSoFar.addAndGet(delta)
     if (slaveClientId != null && sent - lastSent.get > MIN_LOCAL_UPDATE_BYTES) {
       
-      // Send high-frequency local message through HFT
-      slaveAppender.startExcerpt()
-      slaveAppender.writeInt(HFTUtils.UpdateCoflowSize)
-      slaveAppender.writeUTF(coflowId)
-      slaveAppender.writeLong(sent)
-      slaveAppender.finish()
+      // // Send high-frequency local message through HFT
+      // slaveAppender.startExcerpt()
+      // slaveAppender.writeInt(HFTUtils.UpdateCoflowSize)
+      // slaveAppender.writeUTF(coflowId)
+      // slaveAppender.writeLong(sent)
+      // slaveAppender.finish()
+
+      slaveActor ! UpdateCoflowSize(coflowId, sent)
 
       lastSent.set(sent)
     }

@@ -123,16 +123,16 @@ private[varys] class SlaveActor(
     slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
     slaveTailer = slaveChronicle.createTailer()
 
-    // Thread for periodically removing dead coflows every CLEANUP_INTERVAL_MS of inactivity    
-    Utils.scheduleDaemonAtFixedRate(CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS) {
-      logTrace("Cleaning up dead coflows")
-      val allCoflows = coflows.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]]
-      val toRemove = allCoflows.filter(x => 
-        (System.currentTimeMillis - x.lastUpdatedTime) >= CLEANUP_INTERVAL_MS)
-      val numToRemove = toRemove.size
-      toRemove.foreach(c => coflows -= c.coflowId)
-      logTrace("Removed %d dead coflows %s".format(numToRemove, toRemove))
-    } 
+    // // Thread for periodically removing dead coflows every CLEANUP_INTERVAL_MS of inactivity    
+    // Utils.scheduleDaemonAtFixedRate(CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS) {
+    //   logDebug("Cleaning up dead coflows")
+    //   val allCoflows = coflows.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]]
+    //   val toRemove = allCoflows.filter(x => 
+    //     (System.currentTimeMillis - x.lastUpdatedTime) >= CLEANUP_INTERVAL_MS)
+    //   val numToRemove = toRemove.size
+    //   toRemove.foreach(c => coflows -= c.coflowId)
+    //   logDebug("Removed %d dead coflows %s".format(numToRemove, toRemove))
+    // } 
 
     // Thread for reading chronicle input
     val someThread = new Thread(new Runnable() { 
