@@ -91,7 +91,8 @@ private[varys] case class CompletedFlow(
 
 private[varys] case class UpdateCoflowSize(
     coflowId: String,
-    curSize: Long)
+    curSize: Long,
+    rateInMbps: Long)
   extends FrameworkMessage
 
 // Master/Client to Client/Slave

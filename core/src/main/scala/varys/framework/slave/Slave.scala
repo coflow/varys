@@ -144,7 +144,8 @@ private[varys] class SlaveActor(
               case HFTUtils.UpdateCoflowSize => {
                 val cf = slaveTailer.readUTF
                 val cs = slaveTailer.readLong
-                self ! UpdateCoflowSize(cf, cs)
+                val rm = slaveTailer.readLong
+                self ! UpdateCoflowSize(cf, cs, rm)
               }
             }
             slaveTailer.finish
@@ -294,7 +295,7 @@ private[varys] class SlaveActor(
       coflowUpdated.set(true)
     }
 
-    case UpdateCoflowSize(coflowId, curSize_) => {
+    case UpdateCoflowSize(coflowId, curSize_, curRateMbps) => {
       val currentSender = sender
       
       if (coflows.containsKey(coflowId)) {
