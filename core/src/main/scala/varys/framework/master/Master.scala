@@ -177,6 +177,15 @@ private[varys] class Master(
       case UnregisterCoflow(coflowId) => {
         removeCoflow(idToCoflow.get(coflowId))
         sender ! true
+
+        // Let all slaves know without blocking here
+        self ! UnregisteredCoflow(coflowId)
+      }
+
+      case UnregisteredCoflow(coflowId) => {
+        for (slaveActor <- actorToSlave.keys) {
+          slaveActor ! UnregisteredCoflow(coflowId)
+        }
       }
 
       case Heartbeat(slaveId, newRxBps, newTxBps) => {

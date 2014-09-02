@@ -67,15 +67,6 @@ private[varys] class SlaveActor(
 
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
   val REMOTE_SYNC_PERIOD_MILLIS = System.getProperty("varys.framework.remoteSyncPeriod", "80").toInt
-  val CLEANUP_INTERVAL_MS = System.getProperty("varys.slave.coflowReapSec", "60").toInt * 1000
-
-  val LOCAL_SYNC_PERIOD_MILLIS = System.getProperty("varys.slave.localSyncPeriod", "8").toInt  
-
-  val MULT_FACTOR = System.getProperty("varys.slave.ioCapMultiplier", "1").toDouble  
-  val MIN_READ_BYTES  = MULT_FACTOR * 131072 * LOCAL_SYNC_PERIOD_MILLIS
-  val MIN_WRITE_BYTES = MULT_FACTOR * 131072 * LOCAL_SYNC_PERIOD_MILLIS
-
-  val serverThreadName = "ServerThread for Slave@" + Utils.localHostName()
 
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For slave IDs
 
@@ -127,17 +118,6 @@ private[varys] class SlaveActor(
     HFTUtils.cleanWorkDir
     slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
     slaveTailer = slaveChronicle.createTailer()
-
-    // // Thread for periodically removing dead coflows every CLEANUP_INTERVAL_MS of inactivity    
-    // Utils.scheduleDaemonAtFixedRate(CLEANUP_INTERVAL_MS, CLEANUP_INTERVAL_MS) {
-    //   logDebug("Cleaning up dead coflows")
-    //   val allCoflows = coflows.values.toBuffer.asInstanceOf[ArrayBuffer[CoflowInfo]]
-    //   val toRemove = allCoflows.filter(x => 
-    //     (System.currentTimeMillis - x.lastUpdatedTime) >= CLEANUP_INTERVAL_MS)
-    //   val numToRemove = toRemove.size
-    //   toRemove.foreach(c => coflows -= c.coflowId)
-    //   logDebug("Removed %d dead coflows %s".format(numToRemove, toRemove))
-    // } 
 
     // Thread for reading chronicle input
     val someThread = new Thread(new Runnable() { 
@@ -324,6 +304,11 @@ private[varys] class SlaveActor(
         coflows(coflowId) = CoflowInfo(coflowId, curSize_)
       }
       coflowUpdated.set(true)
+    }
+
+    case UnregisteredCoflow(coflowId) => {
+      logDebug("Removing " + coflowId)
+      coflows -= coflowId
     }
   }
 
