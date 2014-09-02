@@ -129,7 +129,8 @@ private[client] object VarysOutputStream extends Logging {
   val activeStreams = new ConcurrentHashMap[Int, VarysOutputStream]()
   val dstToStream = new ConcurrentHashMap[String, VarysOutputStream]()
 
-  val messagesBeforeSlaveConnection = new LinkedBlockingQueue[FrameworkMessage]()
+  val messagesBeforeSlaveConnection = new ListBuffer[FrameworkMessage]()
+  val mbscLock = new Object()
 
   var slaveChronicle = new VanillaChronicle(HFTUtils.HFT_LOCAL_SLAVE_PATH)
   var slaveAppender = slaveChronicle.createAppender()
@@ -178,7 +179,13 @@ private[client] object VarysOutputStream extends Logging {
     activeStreams(vosId) = vos
     dstToStream(vos.dIP) = vos
     if (slaveClientId == null) {
-      messagesBeforeSlaveConnection.put(StartedFlow(coflowId, sIP, vos.dIP))
+      mbscLock.synchronized {
+        if (slaveClientId == null) {
+          messagesBeforeSlaveConnection += StartedFlow(coflowId, sIP, vos.dIP)
+        } else {
+          slaveActor ! StartedFlow(coflowId, sIP, vos.dIP)
+        }
+      }
     } else {
       slaveActor ! StartedFlow(coflowId, sIP, vos.dIP)
     }
@@ -188,7 +195,13 @@ private[client] object VarysOutputStream extends Logging {
   def unregister(vosId: Int) {
     val vos = activeStreams(vosId)
     if (slaveClientId == null) {
-      messagesBeforeSlaveConnection.remove(StartedFlow(coflowId, sIP, vos.dIP))
+      mbscLock.synchronized {
+        if (slaveClientId == null) {
+          messagesBeforeSlaveConnection -= StartedFlow(coflowId, sIP, vos.dIP)
+        } else {
+          slaveActor ! CompletedFlow(coflowId, sIP, vos.dIP)
+        }
+      }
     } else {
       slaveActor ! CompletedFlow(coflowId, sIP, vos.dIP)
     }
@@ -219,15 +232,7 @@ private[client] object VarysOutputStream extends Logging {
 
     override def receive = {
       case RegisteredSlaveClient(clientId_) => {
-        
-        // Send missed updates to local slave
-        val messages = new ListBuffer[FrameworkMessage]()
-        messagesBeforeSlaveConnection.drainTo(messages)
-        
-        for (m <- messages) {
-          slaveActor ! m
-        }
-  
+          
         // Chronicle preStart
         localChronicle = new VanillaChronicle(HFTUtils.createWorkDirPath(clientId_))
         localTailer = localChronicle.createTailer()
@@ -255,9 +260,16 @@ private[client] object VarysOutputStream extends Logging {
         someThread.setDaemon(true)
         someThread.start()
 
-        slaveClientId = clientId_
-        logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
-          " milliseconds.")
+        mbscLock.synchronized {
+          // Send missed updates to local slave
+          for (m <- messagesBeforeSlaveConnection) {
+            slaveActor ! m
+          }
+
+          slaveClientId = clientId_
+          logInfo("Registered to local slave in " +  (System.currentTimeMillis - slaveRegStartTime) + 
+            " milliseconds.")
+        }
       }      
 
       case Terminated(actor_) => {
