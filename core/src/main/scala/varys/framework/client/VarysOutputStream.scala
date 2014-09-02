@@ -176,7 +176,9 @@ private[client] object VarysOutputStream extends Logging {
     init(coflowId_)
     val vosId = curVOSId.getAndIncrement()
     activeStreams(vosId) = vos
-    dstToStream(vos.dIP) = vos
+    dstToStream.synchronized {
+      dstToStream(vos.dIP) = vos
+    }
     if (slaveClientId == null) {
       messagesBeforeSlaveConnection.put(StartedFlow(coflowId, sIP, vos.dIP))
     } else {
@@ -193,7 +195,9 @@ private[client] object VarysOutputStream extends Logging {
       slaveActor ! CompletedFlow(coflowId, sIP, vos.dIP)
     }
     activeStreams -= vosId
-    dstToStream -= vos.dIP
+    dstToStream.synchronized {
+      dstToStream -= vos.dIP
+    }
   }
 
   class VarysOutputStreamActor extends Actor with Logging {
@@ -280,36 +284,48 @@ private[client] object VarysOutputStream extends Logging {
 
       case StartAll => {
         logTrace("Received StartAll")
-        for ((_, vos) <- dstToStream) {
-          startOne(vos)
+        dstToStream.synchronized {
+          for ((_, vos) <- dstToStream) {
+            if (vos != null) {
+              startOne(vos) 
+            }
+          }
         }
       }
 
       case PauseAll => {
         logTrace("Received PauseAll")
-        for ((_, vos) <- dstToStream) {
-          vos.canProceed.set(false)
+        dstToStream.synchronized {
+          for ((_, vos) <- dstToStream) {
+            if (vos != null) {
+              vos.canProceed.set(false)
+            }
+          }
         }
       }
 
       case StartSome(dsts) => {
         logTrace("Received StartSome for " + dsts.size + " destinations")
-        for (d <- dsts) {
-          if (dstToStream.containsKey(d)) {
-            startOne(dstToStream(d))
-          } else {
-            logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
+        dstToStream.synchronized {
+          for (d <- dsts) {
+            if (dstToStream.containsKey(d)) {
+              startOne(dstToStream(d))
+            } else {
+              logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
+            }
           }
         }
       }
 
       case PauseSome(dsts) => {
         logTrace("Received PauseSome for " + dsts.size + " destinations")
-        for (d <- dsts) {
-          if (dstToStream.containsKey(d)) {
-            dstToStream(d).canProceed.set(false)
-          } else {
-            logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
+        dstToStream.synchronized {
+          for (d <- dsts) {
+            if (dstToStream.containsKey(d)) {
+              dstToStream(d).canProceed.set(false)
+            } else {
+              logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
+            }
           }
         }
       }
