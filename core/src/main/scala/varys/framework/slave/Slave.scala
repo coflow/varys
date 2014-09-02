@@ -58,6 +58,11 @@ private[varys] class SlaveActor(
     def deleteFlow(dIP: String) {
       flows -= dIP
     }
+
+    // Rate measurements
+    var lastPrintTime = 0L
+    var lastPrintSize = 0L
+    var lastPrintRate = 0L
   }
 
   val HEARTBEAT_SEC = System.getProperty("varys.framework.heartbeat", "1").toInt
@@ -145,7 +150,7 @@ private[varys] class SlaveActor(
                 val cf = slaveTailer.readUTF
                 val cs = slaveTailer.readLong
                 val rm = slaveTailer.readLong
-                self ! UpdateCoflowSize(cf, cs, rm)
+                self ! UpdateCoflowSize(cf, cs)
               }
             }
             slaveTailer.finish
@@ -156,6 +161,21 @@ private[varys] class SlaveActor(
     })
     someThread.setDaemon(true)
     someThread.start()
+
+    // Thread for periodically printing coflow rates
+    Utils.scheduleDaemonAtFixedRate(0, HEARTBEAT_SEC * 1000) {
+      var totalRate = 0L
+      for ((_, c) <- coflows) {
+        var rate = (c.curSize - c.lastPrintSize) / (System.currentTimeMillis - c.lastPrintTime) / 128
+        rate = (c.lastPrintRate * 0.2 + rate * 0.8).toLong
+        totalRate += rate.toLong
+        logDebug(c.coflowId + " => " + rate + " Mbps")
+        c.lastPrintSize = c.curSize
+        c.lastPrintTime = System.currentTimeMillis
+        c.lastPrintRate = rate
+      }
+      logDebug("TOTAL => " + totalRate + " Mbps")
+    }     
   }
 
   override def postStop() {
@@ -295,7 +315,7 @@ private[varys] class SlaveActor(
       coflowUpdated.set(true)
     }
 
-    case UpdateCoflowSize(coflowId, curSize_, curRateMbps) => {
+    case UpdateCoflowSize(coflowId, curSize_) => {
       val currentSender = sender
       
       if (coflows.containsKey(coflowId)) {
