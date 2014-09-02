@@ -188,7 +188,7 @@ private[client] object VarysOutputStream extends Logging {
   def unregister(vosId: Int) {
     val vos = activeStreams(vosId)
     if (slaveClientId == null) {
-      messagesBeforeSlaveConnection.put(CompletedFlow(coflowId, sIP, vos.dIP))
+      messagesBeforeSlaveConnection.remove(StartedFlow(coflowId, sIP, vos.dIP))
     } else {
       slaveActor ! CompletedFlow(coflowId, sIP, vos.dIP)
     }
