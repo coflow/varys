@@ -150,7 +150,7 @@ private[varys] class SlaveActor(
                 val cf = slaveTailer.readUTF
                 val cs = slaveTailer.readLong
                 val rm = slaveTailer.readLong
-                self ! UpdateCoflowSize(cf, cs)
+                self ! UpdateCoflowSize(cf, cs, rm)
               }
             }
             slaveTailer.finish
@@ -315,7 +315,7 @@ private[varys] class SlaveActor(
       coflowUpdated.set(true)
     }
 
-    case UpdateCoflowSize(coflowId, curSize_) => {
+    case UpdateCoflowSize(coflowId, curSize_, curRateMbps) => {
       val currentSender = sender
       
       if (coflows.containsKey(coflowId)) {
