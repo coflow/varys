@@ -226,9 +226,10 @@ private[varys] class SlaveActor(
       System.exit(1)
     }
 
-    case GlobalCoflows(coflowIds, sendTo) => {
+    case GlobalCoflows(coflowIds, sendTo_) => {
       val newSchedule = coflowIds.mkString("-->")
-      logDebug("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule + " [" + sendTo.mkString(" ") + "]")
+      logDebug("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule + " [" + 
+        sendTo_.mkString(" ") + "]")
 
       // Stop all
       for ((_, c) <- coflows) {
@@ -240,10 +241,12 @@ private[varys] class SlaveActor(
       }
 
       // Start some
+      var sendTo = sendTo_.toBuffer
       for (c <- coflowIds) {
         if (coflows.containsKey(c)) {
           if (idToActor.containsKey(coflows(c).clientId)) {
-            idToActor(coflows(c).clientId) ! StartSome(sendTo)
+            idToActor(coflows(c).clientId) ! StartSome(sendTo.toArray)
+            sendTo --= coflows(c).flows
           } else {
             logTrace("StartSome: idToActor doesn't contain " + coflows(c).clientId)
           }
