@@ -233,13 +233,21 @@ private[varys] class SlaveActor(
       for ((_, c) <- coflows) {
         if (idToActor.containsKey(c.clientId)) {
           idToActor(c.clientId) ! PauseAll
+        } else {
+          logTrace("PauseAll: idToActor doesn't contain " + c.clientId)
         }
       }
 
       // Start some
       for (c <- coflowIds) {
-        if (coflows.containsKey(c) && idToActor.containsKey(coflows(c).clientId)) {
-          idToActor(coflows(c).clientId) ! StartSome(sendTo)
+        if (coflows.containsKey(c)) {
+          if (idToActor.containsKey(coflows(c).clientId)) {
+            idToActor(coflows(c).clientId) ! StartSome(sendTo)
+          } else {
+            logTrace("StartSome: idToActor doesn't contain " + coflows(c).clientId)
+          }
+        } else {
+          logTrace("StartSome: coflows doesn't contain " + c)
         }
       }
     }

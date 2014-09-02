@@ -187,6 +187,7 @@ private[client] object VarysOutputStream extends Logging {
       slaveActor ! CompletedFlow(coflowId, sIP, vos.dIP)
     }
     activeStreams -= vosId
+    dstToStream -= vos.dIP
   }
 
   class VarysOutputStreamActor extends Actor with Logging {
@@ -286,19 +287,23 @@ private[client] object VarysOutputStream extends Logging {
       }
 
       case StartSome(dsts) => {
-        logTrace("Received StartSome")
+        logTrace("Received StartSome for " + dsts.size + " destinations")
         for (d <- dsts) {
           if (dstToStream.containsKey(d)) {
             startOne(dstToStream(d))
+          } else {
+            logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
           }
         }
       }
 
       case PauseSome(dsts) => {
-        logTrace("Received PauseSome")
+        logTrace("Received PauseSome for " + dsts.size + " destinations")
         for (d <- dsts) {
           if (dstToStream.containsKey(d)) {
             dstToStream(d).canProceed.set(false)
+          } else {
+            logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
           }
         }
       }

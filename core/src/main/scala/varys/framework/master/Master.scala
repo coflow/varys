@@ -389,7 +389,7 @@ private[varys] class Master(
       val newOrder = arrCoflows.mkString("->")
       for ((slaveId, sendTo) <- slaveAllocs) {
         if (!idToSlave(slaveId).sameAsLastSchedule(newOrder, sendTo)) {
-          logTrace("Sending new schedule to " + slaveId + " => " + sendTo.mkString("|") + 
+          logDebug("Sending new schedule to " + slaveId + " => " + sendTo.mkString("|") + 
             " => " + newOrder)
           idToSlaveActor(slaveId) ! GlobalCoflows(arrCoflows, sendTo.toArray)
           sentSomething = true
