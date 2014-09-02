@@ -240,10 +240,10 @@ private[client] object VarysOutputStream extends Logging {
                 val msgType = localTailer.readInt()
                 msgType match {
                   case HFTUtils.StartAll => {            
-                    self ! PauseAll
+                    self ! StartAll
                   }
                   case HFTUtils.PauseAll => {
-                    self ! StartAll
+                    self ! PauseAll
                   }
                 }
                 localTailer.finish
