@@ -31,7 +31,7 @@ class VarysOutputStream(
   extends OutputStream() with Logging {
 
   val MIN_NOTIFICATION_THRESHOLD = 
-    System.getProperty("varys.client.individualMinNotificationMB", "1").toLong * 1048576L
+    System.getProperty("varys.client.individualMinNotificationMB", "10").toLong * 1048576L
 
   val dIP = Utils.getIPFromSocketAddress(sock.getRemoteSocketAddress)
 
