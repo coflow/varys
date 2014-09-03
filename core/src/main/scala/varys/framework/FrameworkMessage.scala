@@ -187,12 +187,6 @@ private[varys] case class SlaveState(
 // Slave to Client
 private[varys] case object PauseAll
 
-private[varys] case object StartAll
-
-private[varys] case class PauseSome(
-    dsts: Array[String])
-  extends FrameworkMessage
-
 private[varys] case class StartSome(
     dsts: Array[String])
   extends FrameworkMessage

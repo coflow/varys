@@ -10,7 +10,6 @@ import varys.Logging
  * Various utility classes for working with HFT.
  */
 private[varys] object HFTUtils extends Logging {
-  val StartAll         = 0
   val PauseAll         = 1
   val UpdateCoflowSize = 2
 

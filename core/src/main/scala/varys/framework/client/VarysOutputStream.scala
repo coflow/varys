@@ -244,9 +244,6 @@ private[client] object VarysOutputStream extends Logging {
               while (localTailer.nextIndex) {
                 val msgType = localTailer.readInt()
                 msgType match {
-                  case HFTUtils.StartAll => {            
-                    self ! StartAll
-                  }
                   case HFTUtils.PauseAll => {
                     self ! PauseAll
                   }
@@ -290,19 +287,6 @@ private[client] object VarysOutputStream extends Logging {
         }
       }
 
-      case StartAll => {
-        logTrace("Received StartAll")
-        for ((_, vos) <- dstToStream) {
-          try {
-            startOne(vos)
-          } catch {
-            case e => {
-              logTrace(e + ": vos doesn't exist")
-            }
-          }
-        }
-      }
-
       case PauseAll => {
         logTrace("Received PauseAll")
         for ((_, vos) <- dstToStream) {
@@ -320,18 +304,13 @@ private[client] object VarysOutputStream extends Logging {
         logTrace("Received StartSome for " + dsts.size + " destinations")
         for (d <- dsts) {
           if (dstToStream.containsKey(d)) {
-            startOne(dstToStream(d))
-          } else {
-            logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
-          }
-        }
-      }
-
-      case PauseSome(dsts) => {
-        logTrace("Received PauseSome for " + dsts.size + " destinations")
-        for (d <- dsts) {
-          if (dstToStream.containsKey(d)) {
-            dstToStream(d).canProceed.set(false)
+            try {
+              startOne(dstToStream(d))
+            } catch {
+              case e => {
+                logTrace(e + ": vos doesn't exist")
+              }
+            }
           } else {
             logTrace(d + " doesn't exist in " + dstToStream.keys().mkString(" ~ "))
           }
@@ -340,15 +319,9 @@ private[client] object VarysOutputStream extends Logging {
     }
 
     private def startOne(vos: VarysOutputStream) {
-      try {
-        vos.canProceed.set(true)
-        vos.canProceedLock.synchronized {
-          vos.canProceedLock.notifyAll
-        }
-      } catch {
-        case e => {
-          logTrace(e + ": vos doesn't exist")
-        }
+      vos.canProceed.set(true)
+      vos.canProceedLock.synchronized {
+        vos.canProceedLock.notifyAll
       }
     }
 
