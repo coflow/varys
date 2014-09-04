@@ -35,8 +35,7 @@ class VarysOutputStream(
 
   val dIP = Utils.getIPFromSocketAddress(sock.getRemoteSocketAddress)
 
-  // Register with the shared VarysOutputStream object
-  val visId = VarysOutputStream.register(this, coflowId)
+  var visId: Int = -1
 
   val rawStream = sock.getOutputStream
 
@@ -69,8 +68,9 @@ class VarysOutputStream(
   }
 
   override def close() {
-    // Block until all writes have completed
-    VarysOutputStream.unregister(visId)
+    if (visId != -1) {
+      VarysOutputStream.unregister(visId)
+    }
     rawStream.close()
   }
 
@@ -78,7 +78,9 @@ class VarysOutputStream(
    * Wait for order from control after the minimum bytes have been transfered
    */
   private def preWrite() {
-    if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD && VarysOutputStream.slaveClientId != null) {
+    if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD && visId != -1 && 
+        VarysOutputStream.slaveClientId != null) {
+
       while (!canProceed.get) {
         canProceedLock.synchronized {
           canProceedLock.wait
@@ -92,6 +94,7 @@ class VarysOutputStream(
 
     if (bytesWritten >= MIN_NOTIFICATION_THRESHOLD) {
       if (firstNotification.getAndSet(false)) {
+        visId = VarysOutputStream.register(this, coflowId)
         VarysOutputStream.updateSentSoFar(bytesWritten)
       } else {
         VarysOutputStream.updateSentSoFar(writeLen)
