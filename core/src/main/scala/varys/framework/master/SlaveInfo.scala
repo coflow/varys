@@ -2,7 +2,7 @@ package varys.framework.master
 
 import akka.actor.ActorRef
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 import varys.util.BpsInfo
 
@@ -55,8 +55,8 @@ private[varys] class SlaveInfo(
   }
 
   var lastSchedule: String = null
-  def sameAsLastSchedule(newCoflowOrder: String, newSchedule: ArrayBuffer[String]): Boolean = {
-    val ns = newCoflowOrder + " <> " + scala.util.Sorting.stableSort(newSchedule).mkString("|")
+  def sameAsLastSchedule(newCoflowOrder: String, newSchedule: HashSet[String]): Boolean = {
+    val ns = newCoflowOrder + " <> " + scala.util.Sorting.stableSort(newSchedule.toBuffer).mkString("|")
     if (lastSchedule == null) {
       lastSchedule = ns
       return true

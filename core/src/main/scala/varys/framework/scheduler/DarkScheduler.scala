@@ -108,11 +108,11 @@ private[framework] object DarkScheduler extends Logging {
     }
   }
 
-  def getSchedule_0(slaveIds: Array[String]): (HashMap[String, ArrayBuffer[String]], Array[String]) = {
+  def getSchedule_0(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[String]) = {
     
-    val slaveAllocs = new HashMap[String, ArrayBuffer[String]]()
+    val slaveAllocs = new HashMap[String, HashSet[String]]()
     for (id <- slaveIds) {
-      slaveAllocs(id) = new ArrayBuffer[String]()
+      slaveAllocs(id) = new HashSet[String]()
     }
 
     val srcUsedBy = new HashMap[String, String]() { 
@@ -168,11 +168,11 @@ private[framework] object DarkScheduler extends Logging {
     (slaveAllocs, retCoflows.toArray)
   }
 
-  def getSchedule(slaveIds: Array[String]): (HashMap[String, ArrayBuffer[String]], Array[String]) = {
+  def getSchedule(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[String]) = {
     
-    val slaveAllocs = new HashMap[String, ArrayBuffer[String]]()
+    val slaveAllocs = new HashMap[String, HashSet[String]]()
     for (id <- slaveIds) {
-      slaveAllocs(id) = new ArrayBuffer[String]()
+      slaveAllocs(id) = new HashSet[String]()
     }
 
     val NIC_Mbps = System.getProperty("varys.network.nicMbps", "1024").toDouble
