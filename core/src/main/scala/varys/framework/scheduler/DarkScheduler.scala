@@ -232,7 +232,7 @@ private[framework] object DarkScheduler extends Logging {
                     }
 
                     srcUsed(slaveId) += minFree
-                    dstUsed(slaveId) += minFree
+                    dstUsed(d) += minFree
 
                     if (minFree > 0.0) {
                       slaveAllocs(slaveId) += d
