@@ -115,31 +115,40 @@ private[framework] object DarkScheduler extends Logging {
       slaveAllocs(id) = new HashSet[String]()
     }
 
-    val srcUsedBy = new HashMap[String, String]() { 
-      override def default(key: String) = null 
+    val srcUsedBy = new HashMap[String, HashSet[String]]() { 
+      override def default(key: String) = new HashSet[String]() 
     }
-    val dstUsedBy = new HashMap[String, String]() { 
-      override def default(key: String) = null 
+    val dstUsedBy = new HashMap[String, HashSet[String]]() { 
+      override def default(key: String) = new HashSet[String]() 
     }
 
     val retCoflows = new ArrayBuffer[String]
+    val MAX_CF = 1
 
     sortedCoflowsLock.synchronized {
       for (i <- 0 until NUM_JOB_QUEUES) {
         for (cf <- sortedCoflows(i)) {
           if (activeCoflows.contains(cf.coflowId)) {
             for ((slaveId, dsts) <- cf.flows) {          
-              if (srcUsedBy(slaveId) == null || srcUsedBy(slaveId) == cf.coflowId) {
+              if (srcUsedBy(slaveId).size < MAX_CF || srcUsedBy(slaveId).contains(cf.coflowId)) {
                 var srcInUse = false
                 for (d <- dsts) {
-                  if (dstUsedBy(d) == null || dstUsedBy(d) == cf.coflowId) {
-                    dstUsedBy(d) = cf.coflowId
-                    slaveAllocs(slaveId) += d
-                    srcInUse = true
+                  if (dstUsedBy(d).size < MAX_CF || dstUsedBy(d).contains(cf.coflowId)) {
+                    if (d != null) {
+                      try {
+                          slaveAllocs(slaveId) += d
+                          dstUsedBy(d) += cf.coflowId
+                          srcInUse = true
+                        } catch {
+                          case e => {
+                            logWarning("" + e)
+                          }
+                        }
+                    }
                   }
                 }
                 if (srcInUse) {
-                  srcUsedBy(slaveId) = cf.coflowId
+                  srcUsedBy(slaveId) += cf.coflowId
                 }
               }
             }
@@ -156,13 +165,13 @@ private[framework] object DarkScheduler extends Logging {
       }
     }
 
-    logInfo("%3d Sources".format(srcUsedBy.size))
+    logDebug("%3d Sources".format(srcUsedBy.size))
     for ((s, c) <- srcUsedBy) {
-      logInfo("%40s --> %s".format(s, c))
+      logTrace("%40s --> %s".format(s, c))
     }
-    logInfo("%3d Destinations".format(dstUsedBy.size))
+    logDebug("%3d Destinations".format(dstUsedBy.size))
     for ((d, c) <- dstUsedBy) {
-      logInfo("%40s --> %s".format(d, c))
+      logTrace("%40s --> %s".format(d, c))
     }
 
     (slaveAllocs, retCoflows.toArray)
