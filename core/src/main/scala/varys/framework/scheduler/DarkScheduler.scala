@@ -234,8 +234,14 @@ private[framework] object DarkScheduler extends Logging {
                     srcUsed(slaveId) += minFree
                     dstUsed(d) += minFree
 
-                    if (minFree > 0.0) {
-                      slaveAllocs(slaveId) += d
+                    if (minFree > 0.0 && d != null) {
+                      try {
+                        slaveAllocs(slaveId) += d
+                      } catch {
+                        case e => {
+                          logWarning("" + e)
+                        }
+                      }
                     }
                   }
                 }
@@ -261,8 +267,8 @@ private[framework] object DarkScheduler extends Logging {
       }
     }
 
-    logInfo("%3d Sources".format(srcFree.size))
-    logInfo("%3d Destinations".format(dstFree.size))
+    logDebug("%3d Sources".format(srcFree.size))
+    logDebug("%3d Destinations".format(dstFree.size))
 
     (slaveAllocs, retCoflows.toArray)
   }
