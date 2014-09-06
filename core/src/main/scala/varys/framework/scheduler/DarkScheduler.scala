@@ -109,7 +109,7 @@ private[framework] object DarkScheduler extends Logging {
       }
 
       for (i <- 0 until NUM_JOB_QUEUES) {      
-        sortedCoflows(i).sortBy(_.sizeSoFar)
+        sortedCoflows(i).sortBy(_.coflowId)
       }
     }
   }

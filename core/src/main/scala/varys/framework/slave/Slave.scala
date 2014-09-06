@@ -92,6 +92,8 @@ private[varys] class SlaveActor(
 
   val coflows = new ConcurrentHashMap[String, CoflowInfo]()
   val coflowUpdated = new AtomicBoolean(false)
+  
+  val ccLock = new Object
   var currentCoflowOrder: Array[String] = null
 
   var slaveChronicle: VanillaChronicle = null
@@ -229,7 +231,9 @@ private[varys] class SlaveActor(
 
     case GlobalCoflows(coflowIds, sendTo_) => {
       // Remember latest coflow order
-      currentCoflowOrder = coflowIds
+      ccLock.synchronized {
+        currentCoflowOrder = coflowIds
+      }
 
       val newSchedule = coflowIds.mkString("-->")
       logDebug("Received GlobalCoflows of size " + coflowIds.size + " " + newSchedule + " [" + 
@@ -302,12 +306,14 @@ private[varys] class SlaveActor(
       coflowUpdated.set(true)
 
       // Prioritize flow from the next coflow until next update
-      breakable {
-        for (c <- currentCoflowOrder) {
-          if (c != coflowId && coflows.containsKey(c) && coflows(c).flows.contains(dIP)) {
-            logDebug("Promoted " + sIP + "-->" + dIP + " of coflow " + c)
-            idToActor(coflows(c).clientId) ! StartSome(Array(dIP))
-            break
+      ccLock.synchronized {
+        breakable {
+          for (c <- currentCoflowOrder) {
+            if (c != coflowId && coflows.containsKey(c) && coflows(c).flows.contains(dIP)) {
+              logDebug("Promoted " + sIP + "-->" + dIP + " of coflow " + c)
+              idToActor(coflows(c).clientId) ! StartSome(Array(dIP))
+              break
+            }
           }
         }
       }
