@@ -35,9 +35,9 @@ private[framework] object DarkScheduler extends Logging {
    * Add coflow to the end of the first queue
    */
   def addCoflow(coflowId: String) {
-    val cf = Coflow(coflowId)
-    allCoflows(coflowId) = cf
     sortedCoflowsLock.synchronized {
+      val cf = Coflow(coflowId)
+      allCoflows(coflowId) = cf
       sortedCoflows(0) += cf
     }
   }
@@ -49,9 +49,9 @@ private[framework] object DarkScheduler extends Logging {
         for (i <- 0 until NUM_JOB_QUEUES) {
           sortedCoflows(i) -= cf
         }
-      }
-      if (allCoflows.containsValue(coflowId)) {
-        allCoflows.remove(coflowId)
+        if (allCoflows.containsValue(coflowId)) {
+          allCoflows.remove(coflowId)
+        }
       }
     }
   }
@@ -60,22 +60,24 @@ private[framework] object DarkScheduler extends Logging {
     // Reset coflows that are active
     activeCoflows.clear
 
-    // Reset all coflow-related stats except for their locations in the job queue
-    for ((_, cf) <- allCoflows) {
-      cf.sizeSoFar = 0
-      cf.flows.clear
-    }
+    sortedCoflowsLock.synchronized {
+      // Reset all coflow-related stats except for their locations in the job queue
+      for ((_, cf) <- allCoflows) {
+        cf.sizeSoFar = 0
+        cf.flows.clear
+      }
 
-    for ((slaveId, sInfo) <- slaveInfos) {
-      for (i <- 0 until sInfo.numCoflows) {
-        val cf = allCoflows(sInfo.coflowIds(i))
-        if (cf != null) {
-          cf.sizeSoFar += sInfo.sizes(i)
-          cf.flows += ((sInfo.id, sInfo.flows(i)))
+      for ((slaveId, sInfo) <- slaveInfos) {
+        for (i <- 0 until sInfo.numCoflows) {
+          val cf = allCoflows(sInfo.coflowIds(i))
+          if (cf != null) {
+            cf.sizeSoFar += sInfo.sizes(i)
+            cf.flows += ((sInfo.id, sInfo.flows(i)))
+          }
+
+          // Remember active coflows
+          activeCoflows += sInfo.coflowIds(i)        
         }
-
-        // Remember active coflows
-        activeCoflows += sInfo.coflowIds(i)        
       }
     }
   }
@@ -85,9 +87,12 @@ private[framework] object DarkScheduler extends Logging {
    */ 
   def updateCoflowOrder() {
     sortedCoflowsLock.synchronized {
-      for (i <- 0 until NUM_JOB_QUEUES) {
-        val coflowsToMove = new ArrayBuffer[Coflow]()
-        for (cf <- sortedCoflows(i)) {
+      for (i <- 0 until NUM_JOB_QUEUES) {      
+        sortedCoflows(i).clear
+      }
+
+      for ((cId, cf) <- allCoflows) {
+        if (activeCoflows.contains(cId)) {
           val size = cf.sizeSoFar
           var curQ = 0
           var k = INIT_QUEUE_LIMIT
@@ -95,15 +100,16 @@ private[framework] object DarkScheduler extends Logging {
             curQ += 1
             k *= JOB_SIZE_MULT
           }
-          if (cf.currentJobQueue < curQ) {
-            cf.currentJobQueue += 1
-            coflowsToMove += cf
+          if (curQ >= NUM_JOB_QUEUES) {
+            curQ = NUM_JOB_QUEUES - 1
           }
+          cf.currentJobQueue = curQ
+          sortedCoflows(curQ) += cf
         }
-        if (i + 1 < NUM_JOB_QUEUES && coflowsToMove.size() > 0) {
-          sortedCoflows(i) --= coflowsToMove
-          sortedCoflows(i + 1) ++= coflowsToMove
-        }
+      }
+
+      for (i <- 0 until NUM_JOB_QUEUES) {      
+        sortedCoflows(i).sortBy(_.sizeSoFar)
       }
     }
   }
