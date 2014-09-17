@@ -52,7 +52,8 @@ private[varys] case class RegisterMasterClient(
 
 private[varys] case class RegisterCoflow(
     clientId: String, 
-    coflowDescription: CoflowDescription) 
+    coflowDescription: CoflowDescription,
+    parentCoflows: Array[Int]) 
   extends FrameworkMessage
 
 private[varys] case class UnregisterCoflow(

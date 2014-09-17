@@ -182,15 +182,19 @@ class VarysClient(
   }
   
   def registerCoflow(coflowDesc: CoflowDescription): Int = {
+    registerCoflow(coflowDesc, Array[Int]())
+  }
+  
+  def registerCoflow(coflowDesc: CoflowDescription, parentCoflows: Array[Int]): Int = {
     waitForMasterRegistration
 
     // Register with the master
     val RegisteredCoflow(coflowId) = AkkaUtils.askActorWithReply[RegisteredCoflow](masterActor, 
-      RegisterCoflow(masterClientId, coflowDesc))
+      RegisterCoflow(masterClientId, coflowDesc, parentCoflows))
       
     coflowId
   }
-  
+
   def unregisterCoflow(coflowId: Int) {
     waitForMasterRegistration
     

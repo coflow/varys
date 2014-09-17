@@ -28,6 +28,8 @@ private[varys] class Master(
     webUiPort: Int) 
   extends Logging {
   
+  val MAX_DEPTH = 100
+
   val NUM_MASTER_INSTANCES = System.getProperty("varys.master.numInstances", "1").toInt
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
   val SLAVE_TIMEOUT = System.getProperty("varys.slave.timeout", "60").toLong * 1000
@@ -155,7 +157,7 @@ private[varys] class Master(
         }
       }
 
-      case RegisterCoflow(clientId, description) => {
+      case RegisterCoflow(clientId, description, parentCoflows) => {
         val currentSender = sender
         val st = now
         logDebug("Registering coflow " + description.name)
@@ -164,7 +166,7 @@ private[varys] class Master(
         if (client == null) {
           currentSender ! RegisterCoflowFailed("Invalid clientId " + clientId)
         } else {
-          val coflow = addCoflow(client, description, currentSender)
+          val coflow = addCoflow(client, description, parentCoflows, currentSender)
 
           // context.watch doesn't work with remote actors but helps for testing
           // context.watch(currentSender)
@@ -318,10 +320,15 @@ private[varys] class Master(
       }
     }
 
-    def addCoflow(client: ClientInfo, desc: CoflowDescription, actor: ActorRef): CoflowInfo = {
+    def addCoflow(
+        client: ClientInfo, 
+        desc: CoflowDescription, 
+        parentCoflows: Array[Int], 
+        actor: ActorRef): CoflowInfo = {
+
       val now = System.currentTimeMillis()
       val date = new Date(now)
-      val coflow = new CoflowInfo(now, newCoflowId(date), desc, client, date, actor)
+      val coflow = new CoflowInfo(now, newCoflowId(parentCoflows), desc, client, date, actor)
 
       idToCoflow.put(coflow.id, coflow)
       DarkScheduler.addCoflow(coflow.id)
@@ -351,8 +358,13 @@ private[varys] class Master(
     /** 
      * Generate a new coflow ID given a coflow's submission date 
      */
-    def newCoflowId(submitDate: Date): Int = {
-      nextCoflowNumber.getAndIncrement()
+    def newCoflowId(parentCoflows: Array[Int]): Int = {
+      if (parentCoflows == null || parentCoflows.size == 0) {
+        nextCoflowNumber.getAndIncrement() * MAX_DEPTH
+      } else {
+        val maxCoflowId = parentCoflows.reduceLeft(math.max(_, _))
+        maxCoflowId + 1
+      }
     }
 
     /** 
