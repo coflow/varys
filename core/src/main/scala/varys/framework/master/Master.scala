@@ -44,7 +44,7 @@ private[varys] class Master(
   val idToTxBps = new SlaveToBpsMap
 
   var nextCoflowNumber = new AtomicInteger()
-  val idToCoflow = new ConcurrentHashMap[String, CoflowInfo]()
+  val idToCoflow = new ConcurrentHashMap[Int, CoflowInfo]()
   val completedCoflows = new ArrayBuffer[CoflowInfo]
 
   var nextClientNumber = new AtomicInteger()
@@ -351,8 +351,8 @@ private[varys] class Master(
     /** 
      * Generate a new coflow ID given a coflow's submission date 
      */
-    def newCoflowId(submitDate: Date): String = {
-      "COFLOW-%06d".format(nextCoflowNumber.getAndIncrement())
+    def newCoflowId(submitDate: Date): Int = {
+      nextCoflowNumber.getAndIncrement()
     }
 
     /** 

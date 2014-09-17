@@ -181,7 +181,7 @@ class VarysClient(
     }
   }
   
-  def registerCoflow(coflowDesc: CoflowDescription): String = {
+  def registerCoflow(coflowDesc: CoflowDescription): Int = {
     waitForMasterRegistration
 
     // Register with the master
@@ -191,7 +191,7 @@ class VarysClient(
     coflowId
   }
   
-  def unregisterCoflow(coflowId: String) {
+  def unregisterCoflow(coflowId: Int) {
     waitForMasterRegistration
     
     // Let the master know
@@ -201,7 +201,7 @@ class VarysClient(
     freeLocalResources(coflowId)
   }
 
-  private def freeLocalResources(coflowId: String) {
+  private def freeLocalResources(coflowId: Int) {
   }
   
   /**

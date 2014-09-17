@@ -38,7 +38,7 @@ private[varys] object BroadcastUtils {
 }
 
 private[varys] case class BroadcastInfo(
-    val coflowId: String, 
+    val coflowId: Int, 
     val pathToFile: String, 
     val LEN_BYTES: Long)
 private[varys] case class BroadcastRequest()
@@ -219,7 +219,7 @@ private[varys] object BroadcastSender extends Logging {
     
     // Start server after registering the coflow and relevant 
     val masterThread = new MasterThread(BroadcastInfo(coflowId, pathToFile, LEN_BYTES), numSlaves, 
-      coflowId)
+      coflowId.toString)
     masterThread.start()
     logInfo("Started MasterThread. Now waiting for it to die.")
     logInfo("Broadcast Master Url: %s:%d".format(

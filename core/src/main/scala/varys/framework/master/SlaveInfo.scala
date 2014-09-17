@@ -39,12 +39,12 @@ private[varys] class SlaveInfo(
   }
 
   var numCoflows = 0
-  var coflowIds: Array[String] = null
+  var coflowIds: Array[Int] = null
   var sizes: Array[Long] = null
   var flows: Array[Array[String]] = null
 
   def updateCoflows(
-      coflowIds_ : Array[String], 
+      coflowIds_ : Array[Int], 
       sizes_ : Array[Long], 
       flows_ : Array[Array[String]]) {
 

@@ -24,7 +24,7 @@ private[varys] case class Heartbeat(
 
 private[varys] case class LocalCoflows(
     slaveId: String,
-    coflowIds: Array[String],
+    coflowIds: Array[Int],
     sizes: Array[Long],
     flows: Array[Array[String]])
   extends FrameworkMessage
@@ -39,7 +39,7 @@ private[varys] case class RegisterSlaveFailed(
   extends FrameworkMessage
 
 private[varys] case class GlobalCoflows(
-    coflows: Array[String],
+    coflows: Array[Int],
     sendTo: Array[String])
   extends FrameworkMessage
 
@@ -56,7 +56,7 @@ private[varys] case class RegisterCoflow(
   extends FrameworkMessage
 
 private[varys] case class UnregisterCoflow(
-    coflowId: String) 
+    coflowId: Int) 
   extends FrameworkMessage
 
 private[varys] case class RequestBestRxMachines(
@@ -71,26 +71,26 @@ private[varys] case class RequestBestTxMachines(
 
 // Client to Slave
 private[varys] case class RegisterSlaveClient(
-    coflowId: String, 
+    coflowId: Int, 
     clientName: String, 
     host: String, 
     commPort: Int) 
   extends FrameworkMessage
 
 private[varys] case class StartedFlow(
-    coflowId: String,
+    coflowId: Int,
     sIPPort: String,
     dIPPort: String)
   extends FrameworkMessage
 
 private[varys] case class CompletedFlow(
-    coflowId: String,
+    coflowId: Int,
     sIPPort: String,
     dIPPort: String)
   extends FrameworkMessage
 
 private[varys] case class UpdateCoflowSize(
-    coflowId: String,
+    coflowId: Int,
     curSize: Long,
     rateInMbps: Long)
   extends FrameworkMessage
@@ -116,7 +116,7 @@ private[varys] case class RegisterClientFailed(
   extends FrameworkMessage
 
 private[varys] case class RegisteredCoflow(
-    coflowId: String) 
+    coflowId: Int) 
   extends FrameworkMessage
 
 private[varys] case class RegisterCoflowFailed(
@@ -124,11 +124,11 @@ private[varys] case class RegisterCoflowFailed(
   extends FrameworkMessage
 
 private[varys] case class UnregisteredCoflow(
-    coflowId: String) 
+    coflowId: Int) 
   extends FrameworkMessage
 
 private[varys] case class RejectedCoflow(
-    coflowId: String,
+    coflowId: Int,
     message: String) 
   extends FrameworkMessage
 

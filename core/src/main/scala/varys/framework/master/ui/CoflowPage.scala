@@ -42,8 +42,8 @@ private[varys] class CoflowPage(parent: MasterWebUI) {
     val coflowId = request.getParameter("coflowId")
     val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
     val state = Await.result(stateFuture, 30 seconds)
-    val coflow = state.activeCoflows.find(_.id == coflowId).getOrElse({
-      state.completedCoflows.find(_.id == coflowId).getOrElse(null)
+    val coflow = state.activeCoflows.find(_.id == coflowId.toInt).getOrElse({
+      state.completedCoflows.find(_.id == coflowId.toInt).getOrElse(null)
     })
     JsonProtocol.writeCoflowInfo(coflow)
   }
@@ -53,8 +53,8 @@ private[varys] class CoflowPage(parent: MasterWebUI) {
     val coflowId = request.getParameter("coflowId")
     val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
     val state = Await.result(stateFuture, 30 seconds)
-    val coflow = state.activeCoflows.find(_.id == coflowId).getOrElse({
-      state.completedCoflows.find(_.id == coflowId).getOrElse(null)
+    val coflow = state.activeCoflows.find(_.id == coflowId.toInt).getOrElse({
+      state.completedCoflows.find(_.id == coflowId.toInt).getOrElse(null)
     })
 
     val content =

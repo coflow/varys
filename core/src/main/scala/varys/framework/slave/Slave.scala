@@ -37,7 +37,7 @@ private[varys] class SlaveActor(
   extends Actor with Logging {
   
   case class CoflowInfo(
-      val coflowId: String,
+      val coflowId: Int,
       var curSize: Long) {
 
     val flows = new ArrayBuffer[String]()
@@ -90,9 +90,9 @@ private[varys] class SlaveActor(
   val idToActor = new ConcurrentHashMap[String, ActorRef]()
   val idToAppender = new ConcurrentHashMap[String, VanillaChronicle.VanillaAppender]()
 
-  val coflows = new ConcurrentHashMap[String, CoflowInfo]()
+  val coflows = new ConcurrentHashMap[Int, CoflowInfo]()
   val coflowUpdated = new AtomicBoolean(false)
-  var currentCoflowOrder: Array[String] = null
+  var currentCoflowOrder: Array[Int] = null
 
   var slaveChronicle: VanillaChronicle = null
   var slaveTailer: ExcerptTailer = null
@@ -128,7 +128,7 @@ private[varys] class SlaveActor(
             val msgType = slaveTailer.readInt()
             msgType match {
               case HFTUtils.UpdateCoflowSize => {
-                val cf = slaveTailer.readUTF
+                val cf = slaveTailer.readInt
                 val cs = slaveTailer.readLong
                 val rm = slaveTailer.readLong
                 self ! UpdateCoflowSize(cf, cs, rm)

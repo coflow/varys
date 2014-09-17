@@ -13,7 +13,7 @@ import varys.framework.{ClientInfo, CoflowDescription}
 
 private[varys] class CoflowInfo(
     val startTime: Long,
-    val id: String,
+    val id: Int,
     val desc: CoflowDescription,
     val parentClient: ClientInfo,
     val submitDate: Date,

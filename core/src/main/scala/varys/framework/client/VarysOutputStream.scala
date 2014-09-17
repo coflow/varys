@@ -27,7 +27,7 @@ import varys.util._
  */
 class VarysOutputStream(
     val sock: Socket,
-    val coflowId: String)
+    val coflowId: Int)
   extends OutputStream() with Logging {
 
   val MIN_NOTIFICATION_THRESHOLD = 
@@ -122,7 +122,7 @@ private[client] object VarysOutputStream extends Logging {
 
   val initCalled = new AtomicBoolean(false)
   
-  var coflowId: String = "UNKNOWN"
+  var coflowId: Int = -1
   var clientName: String = ""
 
   var slaveActor: ActorRef = null
@@ -164,7 +164,7 @@ private[client] object VarysOutputStream extends Logging {
     }
   }
 
-  private def init(coflowId_ : String) {
+  private def init(coflowId_ : Int) {
     if (!initCalled.getAndSet(true)) {
       coflowId = coflowId_
       clientName = (coflowId + "@" + Utils.localHostName).replaceAll("[^a-zA-Z0-9\\-]+", "")
@@ -176,7 +176,7 @@ private[client] object VarysOutputStream extends Logging {
     }
   }
 
-  def register(vos: VarysOutputStream, coflowId_ : String): Int = {
+  def register(vos: VarysOutputStream, coflowId_ : Int): Int = {
     init(coflowId_)
     val vosId = curVOSId.getAndIncrement()
     activeStreams(vosId) = vos

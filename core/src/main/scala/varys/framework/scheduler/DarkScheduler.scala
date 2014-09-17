@@ -20,10 +20,10 @@ private[framework] object DarkScheduler extends Logging {
   logTrace("varys.framework.darkScheduler.initQueueLimit = " + INIT_QUEUE_LIMIT)
   logTrace("varys.framework.darkScheduler.jobSizeMult    = " + JOB_SIZE_MULT)
 
-  val allCoflows = new ConcurrentHashMap[String, Coflow]()
+  val allCoflows = new ConcurrentHashMap[Int, Coflow]()
   
   // Keep track of coflows that are actually running at some slave
-  val activeCoflows = new HashSet[String]()
+  val activeCoflows = new HashSet[Int]()
 
   private object sortedCoflowsLock
   val sortedCoflows = Array.ofDim[ArrayBuffer[Coflow]](NUM_JOB_QUEUES)
@@ -34,7 +34,7 @@ private[framework] object DarkScheduler extends Logging {
   /**
    * Add coflow to the end of the first queue
    */
-  def addCoflow(coflowId: String) {
+  def addCoflow(coflowId: Int) {
     val cf = Coflow(coflowId)
     allCoflows(coflowId) = cf
     sortedCoflowsLock.synchronized {
@@ -42,7 +42,7 @@ private[framework] object DarkScheduler extends Logging {
     }
   }
 
-  def deleteCoflow(coflowId: String) {
+  def deleteCoflow(coflowId: Int) {
     val cf = allCoflows(coflowId)
     if (cf != null) {
       sortedCoflowsLock.synchronized {
@@ -108,31 +108,31 @@ private[framework] object DarkScheduler extends Logging {
     }
   }
 
-  def getSchedule_0(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[String]) = {
+  def getSchedule_0(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[Int]) = {
     
     val slaveAllocs = new HashMap[String, HashSet[String]]()
     for (id <- slaveIds) {
       slaveAllocs(id) = new HashSet[String]()
     }
 
-    val srcUsedBy = new HashMap[String, String]() { 
-      override def default(key: String) = null 
+    val srcUsedBy = new HashMap[String, Int]() { 
+      override def default(key: String) = -1 
     }
-    val dstUsedBy = new HashMap[String, String]() { 
-      override def default(key: String) = null 
+    val dstUsedBy = new HashMap[String, Int]() { 
+      override def default(key: String) = -1 
     }
 
-    val retCoflows = new ArrayBuffer[String]
+    val retCoflows = new ArrayBuffer[Int]
 
     sortedCoflowsLock.synchronized {
       for (i <- 0 until NUM_JOB_QUEUES) {
         for (cf <- sortedCoflows(i)) {
           if (activeCoflows.contains(cf.coflowId)) {
             for ((slaveId, dsts) <- cf.flows) {          
-              if (srcUsedBy(slaveId) == null || srcUsedBy(slaveId) == cf.coflowId) {
+              if (srcUsedBy(slaveId) == -1 || srcUsedBy(slaveId) == cf.coflowId) {
                 var srcInUse = false
                 for (d <- dsts) {
-                  if (dstUsedBy(d) == null || dstUsedBy(d) == cf.coflowId) {
+                  if (dstUsedBy(d) == -1 || dstUsedBy(d) == cf.coflowId) {
                     dstUsedBy(d) = cf.coflowId
                     slaveAllocs(slaveId) += d
                     srcInUse = true
@@ -168,7 +168,7 @@ private[framework] object DarkScheduler extends Logging {
     (slaveAllocs, retCoflows.toArray)
   }
 
-  def getSchedule(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[String]) = {
+  def getSchedule(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[Int]) = {
     
     val slaveAllocs = new HashMap[String, HashSet[String]]()
     for (id <- slaveIds) {
@@ -184,7 +184,7 @@ private[framework] object DarkScheduler extends Logging {
       override def default(key: String) = NIC_Mbps 
     }
 
-    val retCoflows = new ArrayBuffer[String]
+    val retCoflows = new ArrayBuffer[Int]
 
     val numSrcFlows = new HashMap[String, Int]() { 
       override def default(key: String) = 0 
