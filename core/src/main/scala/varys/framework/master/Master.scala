@@ -28,7 +28,7 @@ private[varys] class Master(
     webUiPort: Int) 
   extends Logging {
   
-  val MAX_DEPTH = 100
+  val MAX_DEPTH = System.getProperty("varys.framework.maxDagDepth", "100").toInt
 
   val NUM_MASTER_INSTANCES = System.getProperty("varys.master.numInstances", "1").toInt
   val DATE_FORMAT = new SimpleDateFormat("yyyyMMddHHmmss")  // For coflow IDs
