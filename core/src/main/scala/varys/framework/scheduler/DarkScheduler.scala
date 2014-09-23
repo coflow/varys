@@ -108,68 +108,7 @@ private[framework] object DarkScheduler extends Logging {
     }
   }
 
-  def getSchedule_0(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[Int]) = {
-    
-    val slaveAllocs = new HashMap[String, HashSet[String]]()
-    for (id <- slaveIds) {
-      slaveAllocs(id) = new HashSet[String]()
-    }
-
-    val srcUsedBy = new HashMap[String, Int]() { 
-      override def default(key: String) = -1 
-    }
-    val dstUsedBy = new HashMap[String, Int]() { 
-      override def default(key: String) = -1 
-    }
-
-    val retCoflows = new ArrayBuffer[Int]
-
-    sortedCoflowsLock.synchronized {
-      for (i <- 0 until NUM_JOB_QUEUES) {
-        for (cf <- sortedCoflows(i)) {
-          if (activeCoflows.contains(cf.coflowId)) {
-            for ((slaveId, dsts) <- cf.flows) {          
-              if (srcUsedBy(slaveId) == -1 || srcUsedBy(slaveId) == cf.coflowId) {
-                var srcInUse = false
-                for (d <- dsts) {
-                  if (dstUsedBy(d) == -1 || dstUsedBy(d) == cf.coflowId) {
-                    dstUsedBy(d) = cf.coflowId
-                    slaveAllocs(slaveId) += d
-                    srcInUse = true
-                  }
-                }
-                if (srcInUse) {
-                  srcUsedBy(slaveId) = cf.coflowId
-                }
-              }
-            }
-          }
-        }
-      }
-
-      for (i <- 0 until NUM_JOB_QUEUES) {
-        for (cf <- sortedCoflows(i)) {
-          if (activeCoflows.contains(cf.coflowId)) {
-            retCoflows += cf.coflowId
-          }
-        }
-      }
-    }
-
-    logInfo("%3d Sources".format(srcUsedBy.size))
-    for ((s, c) <- srcUsedBy) {
-      logInfo("%40s --> %s".format(s, c))
-    }
-    logInfo("%3d Destinations".format(dstUsedBy.size))
-    for ((d, c) <- dstUsedBy) {
-      logInfo("%40s --> %s".format(d, c))
-    }
-
-    (slaveAllocs, retCoflows.toArray)
-  }
-
-  def getSchedule(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[Int]) = {
-    
+  def getSchedule(slaveIds: Array[String]): (HashMap[String, HashSet[String]], Array[Int]) = { 
     val slaveAllocs = new HashMap[String, HashSet[String]]()
     for (id <- slaveIds) {
       slaveAllocs(id) = new HashSet[String]()
