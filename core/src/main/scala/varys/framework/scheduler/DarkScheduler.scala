@@ -11,6 +11,8 @@ import varys.{Logging, Utils, VarysException}
 
 private[framework] object DarkScheduler extends Logging {
 
+  val MAX_DEPTH = System.getProperty("varys.framework.maxDagDepth", "100").toInt
+
   val NUM_JOB_QUEUES = System.getProperty("varys.framework.darkScheduler.numJobQueues", "10").toInt
   val INIT_QUEUE_LIMIT = 
     System.getProperty("varys.framework.darkScheduler.initQueueLimit", "10485760").toDouble
@@ -21,6 +23,11 @@ private[framework] object DarkScheduler extends Logging {
   logTrace("varys.framework.darkScheduler.jobSizeMult    = " + JOB_SIZE_MULT)
 
   val allCoflows = new ConcurrentHashMap[Int, Coflow]()
+  
+  // Keep track of DAG-level coflow size (i.e., the sum of size of all coflows in a DAG)
+  val dagLevelCoflowSizes = new HashMap[Int, Long]() { 
+    override def default(key: Int) = 0L
+  }
   
   // Keep track of coflows that are actually running at some slave
   val activeCoflows = new HashSet[Int]()
@@ -61,16 +68,18 @@ private[framework] object DarkScheduler extends Logging {
     activeCoflows.clear
 
     sortedCoflowsLock.synchronized {
-      // Reset all coflow-related stats except for their locations in the job queue
+      // Reset all coflow-related stats
+      dagLevelCoflowSizes.clear
       for ((_, cf) <- allCoflows) {
         cf.sizeSoFar = 0
         cf.flows.clear
-      }
+      }  
 
       for ((slaveId, sInfo) <- slaveInfos) {
         for (i <- 0 until sInfo.numCoflows) {
           val cf = allCoflows(sInfo.coflowIds(i))
           if (cf != null) {
+            dagLevelCoflowSizes(cf.coflowId / MAX_DEPTH) += sInfo.sizes(i)
             cf.sizeSoFar += sInfo.sizes(i)
             cf.flows += ((sInfo.id, sInfo.flows(i)))
           }
@@ -93,7 +102,7 @@ private[framework] object DarkScheduler extends Logging {
 
       for ((cId, cf) <- allCoflows) {
         if (activeCoflows.contains(cId)) {
-          val size = cf.sizeSoFar
+          val size = dagLevelCoflowSizes(cId / MAX_DEPTH)
           var curQ = 0
           var k = INIT_QUEUE_LIMIT
           while (k < size) {
