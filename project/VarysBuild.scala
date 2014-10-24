@@ -1,9 +1,6 @@
 import sbt._
 import sbt.Classpaths.publishTask
 import Keys._
-import sbtassembly.Plugin._
-import AssemblyKeys._
-import com.github.bigtoast.sbtthrift.ThriftPlugin
 import Classpaths.managedJars
 
 object VarysBuild extends Build {
@@ -60,14 +57,12 @@ object VarysBuild extends Build {
       "com.typesafe.akka" %% "akka-actor" % "2.2.3" excludeAll(excludeNetty),
       "com.typesafe.akka" %% "akka-remote" % "2.2.3" excludeAll(excludeNetty),
       "com.typesafe.akka" %% "akka-slf4j" % "2.2.3" excludeAll(excludeNetty),
-      "net.liftweb" % "lift-json_2.9.2" % "2.5",
-      "org.apache.thrift" % "libthrift" % "0.8.0",
+      "net.liftweb" %% "lift-json" % "2.5.1",
       "io.netty" % "netty-all" % "4.0.23.Final",
       "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native",
       "com.esotericsoftware.kryo" % "kryo" % "2.19",
       "javax.servlet" % "javax.servlet-api" % "3.0.1",
-      // akka-kryo-serialization has been added in an hackish way. We've compiled locally, then uploaded the jar to my website.
-      "akka-kryo-serialization" % "akka-kryo-serialization" % "0.2-SNAPSHOT" from "http://mosharaf.com/akka-kryo-serialization-0.2-SNAPSHOT.jar"
+      "com.github.romix.akka" % "akka-kryo-serialization_2.10" % "0.3.1"
     ),
     
     // Collect jar files to be extracted from managed jar dependencies
@@ -88,7 +83,7 @@ object VarysBuild extends Build {
     
     // Make extractJars run before compile
     (compile in Compile) <<= (compile in Compile) dependsOn(extractJars)
-  ) ++ assemblySettings ++ ThriftPlugin.thriftSettings
+  )
 
   def rootSettings = sharedSettings ++ Seq(
     publish := {}

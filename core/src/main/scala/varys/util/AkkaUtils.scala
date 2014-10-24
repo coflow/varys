@@ -28,7 +28,7 @@ private[varys] object AkkaUtils {
     val akkaThreads = System.getProperty("varys.akka.threads", "4").toInt
     val akkaBatchSize = System.getProperty("varys.akka.batchSize", "15").toInt
     val akkaTimeout = System.getProperty("varys.akka.timeout", "60").toInt
-    val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt
+    val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt * 1048576
     val logLevel = System.getProperty("varys.akka.logLevel", "ERROR")
     val lifecycleEvents = if (System.getProperty("varys.akka.logLifecycleEvents", "false").toBoolean) "on" else "off"
     val logRemoteEvents = if (System.getProperty("varys.akka.logRemoteEvents", "false").toBoolean) "on" else "off"
@@ -37,7 +37,8 @@ private[varys] object AkkaUtils {
     val akkaConf = ConfigFactory.parseString("""
       akka {
         daemonic = on
-        event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+        jvm-exit-on-fatal-error = off
+        loggers = ["akka.event.slf4j.Slf4jLogger"]
         extensions = ["com.romix.akka.serialization.kryo.KryoSerializationExtension$"]
 
         actor {
@@ -126,12 +127,13 @@ private[varys] object AkkaUtils {
 
       akka.loglevel = "%s"
       akka.stdout-loglevel = "%s"
-      akka.remote.transport = "akka.remote.netty.NettyRemoteTransport"
-      akka.remote.netty.hostname = "%s"
-      akka.remote.netty.port = %d
-      akka.remote.netty.connection-timeout = %ds
-      akka.remote.netty.message-frame-size = %d MiB
-      akka.remote.netty.execution-pool-size = %d
+      akka.remote.netty.tcp.transport-class = "akka.remote.transport.netty.NettyTransport"
+      akka.remote.netty.tcp.hostname = "%s"
+      akka.remote.netty.tcp.port = %d
+      akka.remote.netty.tcp.tcp-nodelay = on
+      akka.remote.netty.tcp.connection-timeout = %ds
+      akka.remote.netty.tcp.maximum-frame-size = %dB
+      akka.remote.netty.tcp.execution-pool-size = %d
       akka.actor.default-dispatcher.throughput = %d
       akka.remote.log-remote-lifecycle-events = %s
       akka.remote.log-sent-messages = %s

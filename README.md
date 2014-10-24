@@ -6,7 +6,7 @@ Varys provides a simple API that allows data-parallel frameworks to express thei
 To learn more, visit <http://varys.net/>
 
 ## Building Varys
-Varys is built on `Scala 2.9.3`. To build Varys and example programs using it, run
+Varys is built on `Scala 2.10.4`. To build Varys and example programs using it, run
 
 	./sbt/sbt package
 
@@ -47,7 +47,7 @@ To run any pair of them (e.g., one creating random coflows) in your local machin
 
 	./bin/start-all.sh
 
-Now, go to `http://localhost:16016/` in your browser to find the MASTER_URL.
+Now, go to <http://localhost:16016> in your browser to find the MASTER_URL.
 
 Next, start the sender and the receiver
 
