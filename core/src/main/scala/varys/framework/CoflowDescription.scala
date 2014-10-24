@@ -1,6 +1,6 @@
 package varys.framework
 
-object CoflowType extends Enumeration("DEFAULT", "SHUFFLE", "BROADCAST", "INCAST", "ANYCAST") {
+object CoflowType extends Enumeration {
   type CoflowType = Value
 
   val DEFAULT, SHUFFLE, BROADCAST, INCAST, ANYCAST = Value

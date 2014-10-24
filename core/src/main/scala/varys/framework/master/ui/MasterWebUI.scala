@@ -18,11 +18,12 @@
 package varys.framework.master.ui
 
 import akka.actor._
-import akka.util.Duration
 
 import javax.servlet.http.HttpServletRequest
 
 import org.eclipse.jetty.server.{Handler, Server}
+
+import scala.concurrent.duration.Duration
 
 import varys.{Logging, Utils}
 import varys.ui.JettyUtils

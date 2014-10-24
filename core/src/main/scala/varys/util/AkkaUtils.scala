@@ -1,14 +1,12 @@
 package varys.util
 
-import akka.actor.{ActorRef, Props, ActorSystemImpl, ActorSystem}
-import akka.util.duration._
+import akka.actor._
 import akka.pattern.ask
-import akka.remote.RemoteActorRefProvider
-import akka.dispatch.Await
 
 import com.typesafe.config.ConfigFactory
 
-import java.util.concurrent.TimeoutException
+import scala.concurrent.duration._
+import scala.concurrent.Await
 
 import varys.VarysException
 
@@ -157,8 +155,8 @@ private[varys] object AkkaUtils {
 
     // Figure out the port number we bound to, in case port was passed as 0. This is a bit of a
     // hack because Akka doesn't let you figure out the port through the public API yet.
-    val provider = actorSystem.asInstanceOf[ActorSystemImpl].provider
-    val boundPort = provider.asInstanceOf[RemoteActorRefProvider].transport.address.port.get
+    val provider = actorSystem.asInstanceOf[ExtendedActorSystem].provider
+    val boundPort = provider.getDefaultAddress.port.get
     return (actorSystem, boundPort)
   }
 
@@ -192,9 +190,13 @@ private[varys] object AkkaUtils {
       case ie: InterruptedException => throw ie
       case e: Exception => {
         throw new VarysException(
-          "Error sending message to " + actor + " [message = " + message + "]", 
-          e)
+          "Error sending message to " + actor + " [message = " + message + "]", e)
       }
     }
   }
+
+  def getActorRef(url: String, context: ActorContext): ActorRef = {
+    val timeout = AKKA_TIMEOUT_MS.millis
+    Await.result(context.actorSelection(url).resolveOne(timeout), timeout)
+  }  
 }

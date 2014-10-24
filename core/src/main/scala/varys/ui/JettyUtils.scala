@@ -26,6 +26,7 @@ import org.eclipse.jetty.server.handler.{ResourceHandler, HandlerList, ContextHa
 import org.eclipse.jetty.util.thread.QueuedThreadPool
 
 import scala.annotation.tailrec
+import scala.language.implicitConversions
 import scala.util.{Try, Success, Failure}
 import scala.xml.Node
 

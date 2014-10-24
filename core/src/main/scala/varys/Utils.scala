@@ -15,6 +15,7 @@ import scala.io.Source
 import scala.Some
 
 import sun.nio.ch.DirectBuffer
+import scala.reflect.ClassTag
 
 /**
  * Various utility methods used by Varys.
@@ -62,7 +63,7 @@ private object Utils extends Logging {
    * result in a new collection. Unlike scala.util.Random.shuffle, this method
    * uses a local random number generator, avoiding inter-thread contention.
    */
-  def randomize[T: ClassManifest](seq: TraversableOnce[T]): Seq[T] = {
+  def randomize[T: ClassTag](seq: TraversableOnce[T]): Seq[T] = {
     randomizeInPlace(seq.toArray)
   }
 

@@ -2,11 +2,9 @@ package varys.framework.client
 
 import akka.actor._
 import akka.actor.Terminated
-import akka.util.duration._
 import akka.pattern.ask
 import akka.pattern.AskTimeoutException
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
-import akka.dispatch.{Await, ExecutionContext}
+import akka.remote.{RemotingLifecycleEvent, DisassociatedEvent}
 
 import java.io._
 import java.net._
@@ -14,6 +12,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.HashMap
 import scala.collection.JavaConversions._
+import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 
 import varys.{Logging, Utils, VarysException}
 import varys.framework._
@@ -73,13 +73,10 @@ class VarysClient(
       logInfo("Connecting to master " + masterUrl)
       regStartTime = now
       try {
-        masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
+        masterActor = AkkaUtils.getActorRef(Master.toAkkaUrl(masterUrl), context)
         masterAddress = masterActor.path.address
         masterActor ! RegisterClient(clientName, clientHost, clientCommPort)
-        context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-
-        // context.watch doesn't work with remote actors but helps for testing
-        // context.watch(masterActor)
+        context.system.eventStream.subscribe(self, classOf[RemotingLifecycleEvent])
       } catch {
         case e: Exception =>
           logError("Failed to connect to master", e)
@@ -105,7 +102,7 @@ class VarysClient(
         clientId = clientId_
         slaveId = slaveId_
         slaveUrl = slaveUrl_
-        slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
+        slaveActor = AkkaUtils.getActorRef(Slave.toAkkaUrl(slaveUrl), context)
         if (listener != null) {
           listener.connected(clientId)
         }
@@ -114,7 +111,7 @@ class VarysClient(
           " milliseconds. Local slave url = " + slaveUrl)
         
         // Thread to periodically uodate the rates of all existing ThrottledInputStreams
-        context.system.scheduler.schedule(0 millis, RATE_UPDATE_FREQ millis) {
+        context.system.scheduler.schedule(0.millis, RATE_UPDATE_FREQ.millis) {
           flowToBitPerSec.synchronized {
             flowToBitPerSec.foreach { kv => {
               // kv (key = FlowId, value = Rate)
@@ -128,10 +125,7 @@ class VarysClient(
       case Terminated(actor_) if actor_ == masterActor =>
         masterDisconnected()
 
-      case RemoteClientDisconnected(_, address) if address == masterAddress =>
-        masterDisconnected()
-
-      case RemoteClientShutdown(_, address) if address == masterAddress =>
+      case e: DisassociatedEvent if e.remoteAddress == masterAddress =>
         masterDisconnected()
 
       case StopClient =>

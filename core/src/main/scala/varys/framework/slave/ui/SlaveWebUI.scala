@@ -17,14 +17,15 @@
 
 package varys.framework.slave.ui
 
-import akka.actor.{ActorRef}
-import akka.util.{Duration, Timeout}
+import akka.util.Timeout
 
-import java.io.{FileInputStream, File}
+import java.io.File
 
 import javax.servlet.http.HttpServletRequest
 
 import org.eclipse.jetty.server.{Handler, Server}
+
+import scala.concurrent.duration.Duration
 
 import varys.framework.slave.SlaveActor
 import varys.{Logging, Utils}

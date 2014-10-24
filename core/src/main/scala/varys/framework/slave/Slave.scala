@@ -1,8 +1,7 @@
 package varys.framework.slave
 
 import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
-import akka.util.duration._
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
+import akka.remote.{RemotingLifecycleEvent, DisassociatedEvent}
 
 import com.google.common.io.Files
 
@@ -13,7 +12,9 @@ import java.net._
 
 import org.hyperic.sigar.{Sigar, SigarException, NetInterfaceStat}
 
-import scala.collection.mutable.{ArrayBuffer, HashMap}
+import scala.collection.mutable.HashMap
+import scala.concurrent.duration._
+import scala.concurrent.ExecutionContext
 
 import varys.framework.master.Master
 import varys.framework.slave.ui.SlaveWebUI
@@ -60,6 +61,9 @@ private[varys] class SlaveActor(
   var curRxBps = 0.0
   var curTxBps = 0.0
 
+  // ExecutionContext for Futures
+  implicit var futureExecContext = ExecutionContext.fromExecutor(Utils.newDaemonCachedThreadPool())
+
   def createWorkDir() {
     workDir = Option(workDirPath).map(new File(_)).getOrElse(new File(varysHome, "work"))
     try {
@@ -94,11 +98,10 @@ private[varys] class SlaveActor(
   def connectToMaster() {
     logInfo("Connecting to master " + masterUrl)
     try {
-      master = context.actorFor(Master.toAkkaUrl(masterUrl))
+      master = AkkaUtils.getActorRef(Master.toAkkaUrl(masterUrl), context)
       masterAddress = master.path.address
       master ! RegisterSlave(slaveId, ip, port, webUi.boundPort.get, commPort, publicAddress)
-      context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-      context.watch(master) // Doesn't work with remote actors, but useful for testing
+      context.system.eventStream.subscribe(self, classOf[RemotingLifecycleEvent])
     } catch {
       case e: Exception =>
         logError("Failed to connect to master", e)
@@ -115,7 +118,7 @@ private[varys] class SlaveActor(
       val sendStats = System.getProperty("varys.slave.sendStats", "false").toBoolean
       if (sendStats) {
         // Thread to periodically update last{Rx|Tx}Bytes
-        context.system.scheduler.schedule(0 millis, HEARTBEAT_SEC * 1000 millis) {
+        context.system.scheduler.schedule(0.millis, (HEARTBEAT_SEC * 1000).millis) {
           updateNetStats()
           master ! Heartbeat(slaveId, curRxBps, curTxBps)
         }
@@ -131,14 +134,9 @@ private[varys] class SlaveActor(
       masterDisconnected()
     }
     
-    case RemoteClientDisconnected(_, address) if address == masterAddress => {
+    case e: DisassociatedEvent if e.remoteAddress == masterAddress =>
       masterDisconnected()
-    }
      
-    case RemoteClientShutdown(_, address) if address == masterAddress => {
-      masterDisconnected()
-    }
-
     case RequestSlaveState => {
       sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }
@@ -273,12 +271,12 @@ private[varys] object Slave {
   }
 
   /** 
-   * Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
+   * Returns an `akka.tcp://...` URL for the Slave actor given a varysUrl `varys://host:ip`. 
    */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>
-        "akka://%s@%s:%s/user/%s".format(systemName, host, port, actorName)
+        "akka.tcp://%s@%s:%s/user/%s".format(systemName, host, port, actorName)
       case _ =>
         throw new VarysException("Invalid master URL: " + varysUrl)
     }

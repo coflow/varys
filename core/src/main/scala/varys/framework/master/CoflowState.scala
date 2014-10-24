@@ -1,12 +1,6 @@
 package varys.framework.master
 
-private[varys] object CoflowState extends Enumeration(
-    "WAITING", 
-    "READY", 
-    "RUNNING", 
-    "FINISHED", 
-    "FAILED", 
-    "REJECTED") {
+private[varys] object CoflowState extends Enumeration {
   
   type CoflowState = Value
 

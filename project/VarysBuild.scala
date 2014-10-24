@@ -22,8 +22,8 @@ object VarysBuild extends Build {
   def sharedSettings = Defaults.defaultSettings ++ Seq(
     organization := "net.varys",
     version := "0.1.0-SNAPSHOT",
-    scalaVersion := "2.9.3",
-    scalacOptions := Seq("-deprecation", "-unchecked", "-optimize"),
+    scalaVersion := "2.10.4",
+    scalacOptions := Seq("-deprecation", "-unchecked", "-optimize", "-feature"),
     unmanagedJars in Compile <<= baseDirectory map { base => (base / "lib" ** "*.jar").classpath },
     retrieveManaged := true,
     retrievePattern := "[type]s/[artifact](-[revision])(-[classifier]).[ext]",
@@ -37,7 +37,7 @@ object VarysBuild extends Build {
   )
 
   val jettyVersion = "8.1.14.v20131031"
-  val slf4jVersion = "1.6.1"
+  val slf4jVersion = "1.7.5"
   val sigarVersion = "1.6.4"
 
   val excludeNetty = ExclusionRule(organization = "org.jboss.netty")
@@ -53,16 +53,16 @@ object VarysBuild extends Build {
 
     libraryDependencies ++= Seq(
       "com.google.guava" % "guava" % "11.0.1",
-      "log4j" % "log4j" % "1.2.16",
+      "log4j" % "log4j" % "1.2.17",
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "org.slf4j" % "slf4j-log4j12" % slf4jVersion,
       "com.google.protobuf" % "protobuf-java" % "2.4.1",
-      "com.typesafe.akka" % "akka-actor" % "2.0.3" excludeAll(excludeNetty),
-      "com.typesafe.akka" % "akka-remote" % "2.0.3" excludeAll(excludeNetty),
-      "com.typesafe.akka" % "akka-slf4j" % "2.0.3" excludeAll(excludeNetty),
+      "com.typesafe.akka" %% "akka-actor" % "2.2.3" excludeAll(excludeNetty),
+      "com.typesafe.akka" %% "akka-remote" % "2.2.3" excludeAll(excludeNetty),
+      "com.typesafe.akka" %% "akka-slf4j" % "2.2.3" excludeAll(excludeNetty),
       "net.liftweb" % "lift-json_2.9.2" % "2.5",
       "org.apache.thrift" % "libthrift" % "0.8.0",
-      "io.netty" % "netty-all" % "4.0.0.Beta2",
+      "io.netty" % "netty-all" % "4.0.23.Final",
       "org.fusesource" % "sigar" % sigarVersion classifier "" classifier "native",
       "com.esotericsoftware.kryo" % "kryo" % "2.19",
       "javax.servlet" % "javax.servlet-api" % "3.0.1",

@@ -17,14 +17,14 @@
 
 package varys.framework.master.ui
 
-import akka.dispatch.Await
 import akka.pattern.ask
-import akka.util.duration._
 
 import javax.servlet.http.HttpServletRequest
 
 import net.liftweb.json.JsonAST.JValue
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
 import scala.xml.Node
 
 import varys.framework.FrameworkWebUI
@@ -40,14 +40,14 @@ private[varys] class IndexPage(parent: MasterWebUI) {
 
   def renderJson(request: HttpServletRequest): JValue = {
     val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
-    val state = Await.result(stateFuture, 30 seconds)
+    val state = Await.result(stateFuture, 30.seconds)
     JsonProtocol.writeMasterState(state)
   }
 
   /** Index view listing coflows and executors */
   def render(request: HttpServletRequest): Seq[Node] = {
     val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
-    val state = Await.result(stateFuture, 30 seconds)
+    val state = Await.result(stateFuture, 30.seconds)
 
     val slaveHeaders = Seq("Id", "Address", "State")
     val slaves = state.slaves.sortBy(_.id)

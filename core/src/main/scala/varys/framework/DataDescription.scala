@@ -1,6 +1,6 @@
 package varys.framework
 
-private[varys] object DataType extends Enumeration("FAKE", "INMEMORY", "ONDISK") {
+private[varys] object DataType extends Enumeration {
   type DataType = Value
 
   val FAKE, INMEMORY, ONDISK = Value

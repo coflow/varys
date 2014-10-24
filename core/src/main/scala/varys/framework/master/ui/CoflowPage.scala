@@ -17,14 +17,14 @@
 
 package varys.framework.master.ui
 
-import akka.dispatch.Await
 import akka.pattern.ask
-import akka.util.duration._
 
 import javax.servlet.http.HttpServletRequest
 
 import net.liftweb.json.JsonAST.JValue
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
 import scala.xml.Node
 
 import varys.framework.{MasterState, RequestMasterState}
@@ -41,7 +41,7 @@ private[varys] class CoflowPage(parent: MasterWebUI) {
   def renderJson(request: HttpServletRequest): JValue = {
     val coflowId = request.getParameter("coflowId")
     val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
-    val state = Await.result(stateFuture, 30 seconds)
+    val state = Await.result(stateFuture, 30.seconds)
     val coflow = state.activeCoflows.find(_.id == coflowId).getOrElse({
       state.completedCoflows.find(_.id == coflowId).getOrElse(null)
     })
@@ -52,7 +52,7 @@ private[varys] class CoflowPage(parent: MasterWebUI) {
   def render(request: HttpServletRequest): Seq[Node] = {
     val coflowId = request.getParameter("coflowId")
     val stateFuture = (master ? RequestMasterState)(timeout).mapTo[MasterState]
-    val state = Await.result(stateFuture, 30 seconds)
+    val state = Await.result(stateFuture, 30.seconds)
     val coflow = state.activeCoflows.find(_.id == coflowId).getOrElse({
       state.completedCoflows.find(_.id == coflowId).getOrElse(null)
     })

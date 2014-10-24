@@ -1,9 +1,7 @@
 package varys.framework.master
 
 import akka.actor._
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
-import akka.util.duration._
-import akka.dispatch._
+import akka.remote.{DisassociatedEvent, RemotingLifecycleEvent}
 import akka.routing._
 
 import java.text.SimpleDateFormat
@@ -13,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
+import scala.concurrent.{Future, ExecutionContext}
 
 import varys.framework._
 import varys.framework.master.scheduler._
@@ -90,7 +89,7 @@ private[varys] class Master(
     override def preStart() {
       logInfo("Starting Varys master at varys://" + ip + ":" + port)
       // Listen for remote client disconnection events, since they don't go through Akka's watch()
-      context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
+      context.system.eventStream.subscribe(self, classOf[RemotingLifecycleEvent])
       if (!webUiStarted.getAndSet(true)) {
         webUi.start()
       }
@@ -201,22 +200,13 @@ private[varys] class Master(
           removeClient(actorToClient.get(actor))
       }
 
-      case RemoteClientDisconnected(transport, address) => {
+      case e: DisassociatedEvent => {
         // The disconnected actor could've been a slave or a client; remove accordingly. 
         // Coflow termination is handled explicitly through UnregisterCoflow or when its client dies
-        if (addressToSlave.containsKey(address))
-          removeSlave(addressToSlave.get(address))
-        if (addressToClient.containsKey(address))  
-          removeClient(addressToClient.get(address))
-      }
-
-      case RemoteClientShutdown(transport, address) => {
-        // The disconnected actor could've been a slave or a client; remove accordingly. 
-        // Coflow termination is handled explicitly through UnregisterCoflow or when its client dies
-        if (addressToSlave.containsKey(address))
-          removeSlave(addressToSlave.get(address))
-        if (addressToClient.containsKey(address))  
-          removeClient(addressToClient.get(address))
+        if (addressToSlave.containsKey(e.remoteAddress))
+          removeSlave(addressToSlave.get(e.remoteAddress))
+        if (addressToClient.containsKey(e.remoteAddress))  
+          removeClient(addressToClient.get(e.remoteAddress))
       }
 
       case RequestMasterState => {
@@ -580,12 +570,12 @@ private[varys] object Master {
   }
 
   /** 
-   * Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
+   * Returns an `akka.tcp://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
    */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>
-        "akka://%s@%s:%s/user/%s".format(systemName, host, port, actorName)
+        "akka.tcp://%s@%s:%s/user/%s".format(systemName, host, port, actorName)
       case _ =>
         throw new VarysException("Invalid master URL: " + varysUrl)
     }
