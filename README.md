@@ -19,7 +19,7 @@ Other projects on the same machine can then list the project as a dependency.
 
 ### SBT
 ```
-libraryDependencies += "net.varys" %% "varys-core" % "0.1.0-SNAPSHOT"
+libraryDependencies += "net.varys" %% "varys-core" % "0.2.0-SNAPSHOT"
 ```
 
 ### Apache Maven
@@ -27,13 +27,13 @@ libraryDependencies += "net.varys" %% "varys-core" % "0.1.0-SNAPSHOT"
 <dependency>
   <groupId>net.varys</groupId>
   <artifactId>varys-core</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.2.0-SNAPSHOT</version>
 </dependency>
 ```
 
 ### Apache Ant
 ```xml
-<dependency org="net.varys" name="varys-core" rev="0.1.0-SNAPSHOT">
+<dependency org="net.varys" name="varys-core" rev="0.2.0-SNAPSHOT">
   <artifact name="varys-core" type="jar" />
 </dependency>
 ```
