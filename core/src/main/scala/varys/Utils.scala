@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConversions._
 import scala.io.Source
+import scala.reflect.ClassTag
 import scala.Some
 
 import sun.nio.ch.DirectBuffer
@@ -63,7 +64,7 @@ private object Utils extends Logging {
    * result in a new collection. Unlike scala.util.Random.shuffle, this method
    * uses a local random number generator, avoiding inter-thread contention.
    */
-  def randomize[T: ClassManifest](seq: TraversableOnce[T]): Seq[T] = {
+  def randomize[T: ClassTag](seq: TraversableOnce[T]): Seq[T] = {
     randomizeInPlace(seq.toArray)
   }
 

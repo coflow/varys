@@ -1,7 +1,7 @@
 package varys.framework.slave
 
-import akka.actor.{ActorRef, Address, Props, Actor, ActorSystem, Terminated}
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientShutdown, RemoteClientDisconnected}
+import akka.actor._
+import akka.remote.{DisassociatedEvent, RemotingLifecycleEvent}
 
 import com.google.common.io.Files
 
@@ -168,11 +168,10 @@ private[varys] class SlaveActor(
   def connectToMaster() {
     logInfo("Connecting to master " + masterUrl)
     try {
-      master = context.actorFor(Master.toAkkaUrl(masterUrl))
+      master = AkkaUtils.getActorRef(Master.toAkkaUrl(masterUrl), context)
       masterAddress = master.path.address
       master ! RegisterSlave(slaveId, ip, port, webUi.boundPort.get, commPort, publicAddress)
-      context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
-      context.watch(master) // Doesn't work with remote actors, but useful for testing
+      context.system.eventStream.subscribe(self, classOf[RemotingLifecycleEvent])
     } catch {
       case e: Exception =>
         logError("Failed to connect to master", e)
@@ -272,22 +271,14 @@ private[varys] class SlaveActor(
         removeClient(actorToClient.get(actor))
     }
 
-    case RemoteClientDisconnected(_, address) => {
-      if (address == masterAddress) {
+    case e: DisassociatedEvent => {
+      if (e.remoteAddress == masterAddress) {
         masterDisconnected()
       }
-      if (addressToClient.containsKey(address))  
-        removeClient(addressToClient.get(address))
+      if (addressToClient.containsKey(e.remoteAddress))  
+        removeClient(addressToClient.get(e.remoteAddress))
     }
-
-    case RemoteClientShutdown(_, address) => {
-      if (address == masterAddress) {
-        masterDisconnected()
-      }
-      if (addressToClient.containsKey(address))  
-        removeClient(addressToClient.get(address))
-    }
-
+    
     case RequestSlaveState => {
       sender ! SlaveState(ip, port, slaveId, masterUrl, curRxBps, curTxBps, masterWebUiUrl)
     }

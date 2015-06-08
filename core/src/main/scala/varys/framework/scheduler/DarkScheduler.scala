@@ -192,7 +192,7 @@ private[framework] object DarkScheduler extends Logging {
                       try {
                         slaveAllocs(slaveId) += d
                       } catch {
-                        case e => {
+                        case e: Exception => {
                           logWarning("" + e)
                         }
                       }

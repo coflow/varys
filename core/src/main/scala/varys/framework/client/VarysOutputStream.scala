@@ -1,8 +1,7 @@
 package varys.framework.client
 
 import akka.actor._
-import akka.util.duration._
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
+import akka.remote.{RemotingLifecycleEvent, DisassociatedEvent}
 
 import java.io._
 import java.net._
@@ -14,6 +13,7 @@ import net.openhft.chronicle.VanillaChronicle
 
 import scala.collection.mutable.ListBuffer
 import scala.collection.JavaConversions._
+import scala.concurrent.duration._
 
 import varys.{Logging, Utils, VarysException}
 import varys.framework._
@@ -218,12 +218,12 @@ private[client] object VarysOutputStream extends Logging {
     var slaveRegStartTime = 0L
 
     override def preStart() {
-      context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
+      context.system.eventStream.subscribe(self, classOf[RemotingLifecycleEvent])
 
       logInfo("Connecting to local slave " + slaveUrl)
       slaveRegStartTime = System.currentTimeMillis
       try {
-        slaveActor = context.actorFor(Slave.toAkkaUrl(slaveUrl))
+        slaveActor = AkkaUtils.getActorRef(Slave.toAkkaUrl(slaveUrl), context)
         slaveAddress = slaveActor.path.address
         slaveActor ! RegisterSlaveClient(coflowId, clientName, "", -1)
       } catch {
@@ -278,17 +278,8 @@ private[client] object VarysOutputStream extends Logging {
         }
       }
 
-      case RemoteClientDisconnected(_, address) => {
-        if (address == slaveAddress) {
-          slaveDisconnected()
-        }
-      }
-
-      case RemoteClientShutdown(_, address) => {
-        if (address == slaveAddress) {
-          slaveDisconnected()
-        }
-      }
+      case e: DisassociatedEvent if e.remoteAddress == slaveAddress =>
+        slaveDisconnected()
 
       case PauseAll => {
         logTrace("Received PauseAll")
@@ -296,7 +287,7 @@ private[client] object VarysOutputStream extends Logging {
           try {
             vos.canProceed.set(false)
           } catch {
-            case e => {
+            case e: Exception => {
               logTrace(e + ": vos doesn't exist")
             }
           }
@@ -310,7 +301,7 @@ private[client] object VarysOutputStream extends Logging {
             try {
               startOne(dstToStream(d))
             } catch {
-              case e => {
+              case e: Exception => {
                 logTrace(e + ": vos doesn't exist")
               }
             }

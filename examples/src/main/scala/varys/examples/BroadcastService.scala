@@ -194,7 +194,7 @@ private[varys] object BroadcastSender extends Logging {
       fileName = tmpFile.getName()
       FILE = new RandomAccessFile(tmpFile, "r")
     } catch {
-      case e => logError(e.toString)
+      case e: Exception => logError(e.toString)
       exitGracefully(1)
     }
     val LEN_BYTES = FILE.length
@@ -253,7 +253,7 @@ private[varys] object BroadcastReceiver extends Logging {
         val sock = new Socket(host, port)
         return sock
       } catch {
-        case e => { 
+        case e: Exception => { 
           logWarning("Failed to connect to " + host + ":" + port + " due to " + e.toString)
         }
       }
@@ -339,7 +339,7 @@ private[varys] object BroadcastReceiver extends Logging {
       // Now create the RandomAccessFile
       FILE = new RandomAccessFile(tmpFile, "rw")
     } catch {
-      case e => logError(e.toString)
+      case e: Exception => logError(e.toString)
       exitGracefully(1)
     }
     

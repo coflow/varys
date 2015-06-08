@@ -1,9 +1,7 @@
 package varys.framework.master
 
 import akka.actor._
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
-import akka.util.duration._
-import akka.dispatch._
+import akka.remote.{DisassociatedEvent, RemotingLifecycleEvent}
 import akka.routing._
 
 import java.text.SimpleDateFormat
@@ -13,6 +11,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 import scala.collection.JavaConversions._
+import scala.concurrent.{Future, ExecutionContext}
 
 import varys.framework._
 import varys.framework.master.ui.MasterWebUI
@@ -86,7 +85,7 @@ private[varys] class Master(
     override def preStart() {
       logInfo("Starting Varys master at varys://" + ip + ":" + port)
       // Listen for remote client disconnection events, since they don't go through Akka's watch()
-      context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
+      context.system.eventStream.subscribe(self, classOf[RemotingLifecycleEvent])
       if (!webUiStarted.getAndSet(true)) {
         webUi.start()
       }
@@ -128,8 +127,6 @@ private[varys] class Master(
             Thread.sleep(100)
           }
           
-          // context.watch doesn't work with remote actors but helps for testing
-          // context.watch(currentSender)  
           currentSender ! RegisteredSlave("http://" + masterPublicAddress + ":" + webUi.boundPort.get)
         }
       }
@@ -142,8 +139,6 @@ private[varys] class Master(
         if (hostToSlave.containsKey(host)) {
           val client = addClient(clientName, host, commPort, currentSender)
 
-          // context.watch doesn't work with remote actors but helps for testing
-          // context.watch(currentSender)
           val slave = hostToSlave(host)
           currentSender ! RegisteredMasterClient(
             client.id, 
@@ -168,8 +163,6 @@ private[varys] class Master(
         } else {
           val coflow = addCoflow(client, description, parentCoflows, currentSender)
 
-          // context.watch doesn't work with remote actors but helps for testing
-          // context.watch(currentSender)
           currentSender ! RegisteredCoflow(coflow.id)
           logInfo("Registered coflow " + description.name + " with ID " + coflow.id + " in " + 
             (now - st) + " milliseconds")
@@ -212,22 +205,13 @@ private[varys] class Master(
           removeClient(actorToClient.get(actor))
       }
 
-      case RemoteClientDisconnected(transport, address) => {
+      case e: DisassociatedEvent => {
         // The disconnected actor could've been a slave or a client; remove accordingly. 
         // Coflow termination is handled explicitly through UnregisterCoflow or when its client dies
-        if (addressToSlave.containsKey(address))
-          removeSlave(addressToSlave.get(address))
-        if (addressToClient.containsKey(address))  
-          removeClient(addressToClient.get(address))
-      }
-
-      case RemoteClientShutdown(transport, address) => {
-        // The disconnected actor could've been a slave or a client; remove accordingly. 
-        // Coflow termination is handled explicitly through UnregisterCoflow or when its client dies
-        if (addressToSlave.containsKey(address))
-          removeSlave(addressToSlave.get(address))
-        if (addressToClient.containsKey(address))  
-          removeClient(addressToClient.get(address))
+        if (addressToSlave.containsKey(e.remoteAddress))
+          removeSlave(addressToSlave.get(e.remoteAddress))
+        if (addressToClient.containsKey(e.remoteAddress))  
+          removeClient(addressToClient.get(e.remoteAddress))
       }
 
       case RequestMasterState => {

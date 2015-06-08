@@ -1,14 +1,12 @@
 package varys.util
 
-import akka.actor.{ActorRef, Props, ActorSystemImpl, ActorSystem}
-import akka.util.duration._
+import akka.actor._
 import akka.pattern.ask
-import akka.remote.RemoteActorRefProvider
-import akka.dispatch.Await
 
 import com.typesafe.config.ConfigFactory
 
-import java.util.concurrent.TimeoutException
+import scala.concurrent.duration._
+import scala.concurrent.Await
 
 import varys.VarysException
 
@@ -30,7 +28,7 @@ private[varys] object AkkaUtils {
     val akkaThreads = System.getProperty("varys.akka.threads", "4").toInt
     val akkaBatchSize = System.getProperty("varys.akka.batchSize", "15").toInt
     val akkaTimeout = System.getProperty("varys.akka.timeout", "60").toInt
-    val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt
+    val akkaFrameSize = System.getProperty("varys.akka.frameSize", "10").toInt * 1048576
     val logLevel = System.getProperty("varys.akka.logLevel", "ERROR")
     val lifecycleEvents = if (System.getProperty("varys.akka.logLifecycleEvents", "false").toBoolean) "on" else "off"
     val logRemoteEvents = if (System.getProperty("varys.akka.logRemoteEvents", "false").toBoolean) "on" else "off"
@@ -39,7 +37,8 @@ private[varys] object AkkaUtils {
     val akkaConf = ConfigFactory.parseString("""
       akka {
         daemonic = on
-        event-handlers = ["akka.event.slf4j.Slf4jEventHandler"]
+        jvm-exit-on-fatal-error = off
+        loggers = ["akka.event.slf4j.Slf4jLogger"]
         extensions = ["com.romix.akka.serialization.kryo.KryoSerializationExtension$"]
 
         actor {
@@ -125,12 +124,13 @@ private[varys] object AkkaUtils {
 
       akka.loglevel = "%s"
       akka.stdout-loglevel = "%s"
-      akka.remote.transport = "akka.remote.netty.NettyRemoteTransport"
-      akka.remote.netty.hostname = "%s"
-      akka.remote.netty.port = %d
-      akka.remote.netty.connection-timeout = %ds
-      akka.remote.netty.message-frame-size = %d MiB
-      akka.remote.netty.execution-pool-size = %d
+      akka.remote.netty.tcp.transport-class = "akka.remote.transport.netty.NettyTransport"
+      akka.remote.netty.tcp.hostname = "%s"
+      akka.remote.netty.tcp.port = %d
+      akka.remote.netty.tcp.tcp-nodelay = on
+      akka.remote.netty.tcp.connection-timeout = %ds
+      akka.remote.netty.tcp.maximum-frame-size = %dB
+      akka.remote.netty.tcp.execution-pool-size = %d
       akka.actor.default-dispatcher.throughput = %d
       akka.remote.log-remote-lifecycle-events = %s
       akka.remote.log-sent-messages = %s
@@ -154,8 +154,8 @@ private[varys] object AkkaUtils {
 
     // Figure out the port number we bound to, in case port was passed as 0. This is a bit of a
     // hack because Akka doesn't let you figure out the port through the public API yet.
-    val provider = actorSystem.asInstanceOf[ActorSystemImpl].provider
-    val boundPort = provider.asInstanceOf[RemoteActorRefProvider].transport.address.port.get
+    val provider = actorSystem.asInstanceOf[ExtendedActorSystem].provider
+    val boundPort = provider.getDefaultAddress.port.get
     return (actorSystem, boundPort)
   }
 
@@ -193,4 +193,9 @@ private[varys] object AkkaUtils {
       }
     }
   }
+
+  def getActorRef(url: String, context: ActorContext): ActorRef = {
+    val timeout = AKKA_TIMEOUT_MS.millis
+    Await.result(context.actorSelection(url).resolveOne(timeout), timeout)
+  }  
 }

@@ -6,7 +6,7 @@ Varys provides a simple API that allows data-parallel frameworks to express thei
 To learn more, visit <http://varys.net/>
 
 ## Building Varys
-Varys is built on `Scala 2.9.3`. To build Varys and example programs using it, run
+Varys is built on `Scala 2.10`. To build Varys and example programs using it, run
 
 	./sbt/sbt package
 
@@ -22,7 +22,7 @@ Other projects on the same machine can then list the project as a dependency.
 
 ### SBT
 ```
-libraryDependencies += "net.varys" %% "varys-core" % "0.1.0-SNAPSHOT"
+libraryDependencies += "net.varys" %% "varys-core" % "0.2.0-SNAPSHOT"
 ```
 
 ### Apache Maven
@@ -30,13 +30,13 @@ libraryDependencies += "net.varys" %% "varys-core" % "0.1.0-SNAPSHOT"
 <dependency>
   <groupId>net.varys</groupId>
   <artifactId>varys-core</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.2.0-SNAPSHOT</version>
 </dependency>
 ```
 
 ### Apache Ant
 ```xml
-<dependency org="net.varys" name="varys-core" rev="0.1.0-SNAPSHOT">
+<dependency org="net.varys" name="varys-core" rev="0.2.0-SNAPSHOT">
   <artifact name="varys-core" type="jar" />
 </dependency>
 ```
@@ -50,7 +50,7 @@ To run them in your local machine, first start Varys by typing
 
 	./bin/start-all.sh
 
-Now, go to `http://localhost:16016/` in your browser to find the MASTER_URL.
+Now, go to <http://localhost:16016/> in your browser to find the MASTER_URL.
 
 Next, start the sender and the receiver
 

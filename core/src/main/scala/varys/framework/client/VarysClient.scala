@@ -2,17 +2,17 @@ package varys.framework.client
 
 import akka.actor._
 import akka.actor.Terminated
-import akka.util.duration._
 import akka.pattern.ask
 import akka.pattern.AskTimeoutException
-import akka.remote.{RemoteClientLifeCycleEvent, RemoteClientDisconnected, RemoteClientShutdown}
-import akka.dispatch.{Await, ExecutionContext}
+import akka.remote.{RemotingLifecycleEvent, DisassociatedEvent}
 
 import java.io._
 import java.net._
 
 import scala.collection.mutable.HashMap
 import scala.collection.JavaConversions._
+import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 
 import varys.{Logging, Utils, VarysException}
 import varys.framework._
@@ -57,7 +57,7 @@ class VarysClient(
     var alreadyDisconnected = false  
 
     override def preStart() {
-      context.system.eventStream.subscribe(self, classOf[RemoteClientLifeCycleEvent])
+      context.system.eventStream.subscribe(self, classOf[RemotingLifecycleEvent])
     }
 
     @throws(classOf[VarysException])
@@ -77,10 +77,9 @@ class VarysClient(
         logInfo("Connecting to master " + masterUrl)
         masterRegStartTime = now
         try {
-          masterActor = context.actorFor(Master.toAkkaUrl(masterUrl))
+          masterActor = AkkaUtils.getActorRef(Master.toAkkaUrl(masterUrl), context)
           masterAddress = masterActor.path.address
-          masterActor ! RegisterMasterClient(clientName, clientHost, clientCommPort)
-          
+          masterActor ! RegisterMasterClient(clientName, clientHost, clientCommPort)          
         } catch {
           case e: Exception =>
             logError("Failed to connect to master", e)
@@ -103,15 +102,8 @@ class VarysClient(
           masterDisconnected()
         } 
 
-      case RemoteClientDisconnected(_, address) => 
-        if (address == masterAddress) {
-          masterDisconnected()
-        } 
-
-      case RemoteClientShutdown(_, address) => 
-        if (address == masterAddress) {
-          masterDisconnected()
-        } 
+      case e: DisassociatedEvent if e.remoteAddress == masterAddress =>
+        masterDisconnected()
 
       case StopClient =>
         markDisconnected()
