@@ -55,7 +55,7 @@ Now, go to <http://localhost:16016/> in your browser to find the MASTER_URL.
 Next, start the sender and the receiver
 
 	./run varys.examples.VarysExampleServer <MASTER_URL> <serverPort>
-	./run varys.examples.VarysExampleClient <serverHost> <serverPort> COFLOW-000000
+	./run varys.examples.VarysExampleClient <serverHost> <serverPort> 0
 
 This should log statements on the console stating coflow register, transfer, and other events. 
 
@@ -63,7 +63,7 @@ Finally, stop Varys by typing
 
 	./bin/stop-all.sh
 
-Note that we are manually providing the CoflowId (COFLOW-000000) to the reciever, which should be provided by the framework driver (e.g., JobTracker for Hadoop or SparkContext for Spark).
+Note that we are manually providing the CoflowId (0) to the reciever, which should be provided by the framework driver (e.g., JobTracker for Hadoop or SparkContext for Spark).
 Take a look at the `BroadcastService` example that does a slightly better job in containing everything (driver, sender, and receiver) in the same application.
 
 Finally, if we do not start Varys (i.e., do not call `start-all.sh`) then `VarysInputStream` and `VarysOutputStream` will transparently forward data back and forth between sockets and applications.
