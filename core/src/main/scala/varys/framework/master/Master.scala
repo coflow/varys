@@ -423,12 +423,12 @@ private[varys] object Master {
   }
 
   /** 
-   * Returns an `akka://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
+   * Returns an `akka.tcp://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
    */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {
       case varysUrlRegex(host, port) =>
-        "akka://%s@%s:%s/user/%s".format(systemName, host, port, actorName)
+        "akka.tcp://%s@%s:%s/user/%s".format(systemName, host, port, actorName)
       case _ =>
         throw new VarysException("Invalid master URL: " + varysUrl)
     }
