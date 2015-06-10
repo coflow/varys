@@ -53,7 +53,6 @@ object VarysBuild extends Build {
       "log4j" % "log4j" % "1.2.17",
       "org.slf4j" % "slf4j-api" % slf4jVersion,
       "org.slf4j" % "slf4j-log4j12" % slf4jVersion,
-      "com.google.protobuf" % "protobuf-java" % "2.4.1",
       "org.apache.commons" % "commons-io" % "1.3.2",
       "com.typesafe.akka" %% "akka-actor" % "2.2.3" excludeAll(excludeNetty),
       "com.typesafe.akka" %% "akka-remote" % "2.2.3" excludeAll(excludeNetty),
