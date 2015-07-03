@@ -190,7 +190,7 @@ private[varys] object BroadcastSender extends Logging {
     logInfo("Registered coflow " + coflowId)
     
     // PUT blocks of the input file
-    for (fromBytes <- 0L to LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
+    for (fromBytes <- 0L until LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
       val blockSize = if (fromBytes + BroadcastUtils.BLOCK_SIZE >= LEN_BYTES) {
         LEN_BYTES - fromBytes
       } else {
@@ -341,7 +341,7 @@ private[varys] object BroadcastReceiver extends Logging {
     
     // Create a random order of blocks
     val allOffsets = new ArrayBuffer[Int]
-    for (fromBytes <- 0L to bInfo.LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
+    for (fromBytes <- 0L until bInfo.LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
       val blockSize = if (fromBytes + BroadcastUtils.BLOCK_SIZE >= bInfo.LEN_BYTES) {
         bInfo.LEN_BYTES - fromBytes
       } else {
