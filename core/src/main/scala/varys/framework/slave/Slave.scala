@@ -425,7 +425,7 @@ private[varys] object Slave {
   }
 
   /** 
-   * Returns an `akka.tcp://...` URL for the Master actor given a varysUrl `varys://host:ip`. 
+   * Returns an `akka.tcp://...` URL for the Slave actor given a varysUrl `varys://host:ip`. 
    */
   def toAkkaUrl(varysUrl: String): String = {
     varysUrl match {

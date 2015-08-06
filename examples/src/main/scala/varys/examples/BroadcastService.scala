@@ -345,7 +345,7 @@ private[varys] object BroadcastReceiver extends Logging {
     
     // Create a random order of blocks (Array[(offset, blockSize)])
     val allOffsets = new ArrayBuffer[(Int, Int)]
-    for (fromBytes <- 0L to bInfo.LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
+    for (fromBytes <- 0L until bInfo.LEN_BYTES by BroadcastUtils.BLOCK_SIZE) {
       val blockSize = if (fromBytes + BroadcastUtils.BLOCK_SIZE >= bInfo.LEN_BYTES) {
         bInfo.LEN_BYTES - fromBytes
       } else {
